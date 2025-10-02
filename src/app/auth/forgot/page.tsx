@@ -1,10 +1,13 @@
 "use client";
 import React, { useState } from 'react';
 import { Mail, ArrowLeft, CheckCircle, AlertCircle, Lock, Eye, EyeOff, KeyRound, Shield, Factory } from 'lucide-react';
+import { useRouter } from "next/navigation";
 
 type Step = 'request' | 'verification-sent' | 'reset' | 'success';
 
-const App = () => {
+export default function ForgotPage() {
+  const router = useRouter();
+  
   const [step, setStep] = useState<Step>('request');
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
@@ -114,7 +117,7 @@ const App = () => {
   };
 
   const handleBackToLogin = () => {
-    window.location.href = '#'; // Would navigate to login page
+    router.push("/auth/login");
   };
 
   return (
@@ -126,7 +129,7 @@ const App = () => {
             <Factory className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">AI Production Planning</h1>
+            <h1 className="text-xl font-bold">PlanForgeAI</h1>
           </div>
         </div>
 
@@ -327,12 +330,11 @@ const App = () => {
                     <div className="mt-2">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-gray-600">Password strength:</span>
-                        <span className={`text-xs font-medium ${
-                          passwordStrength === 0 ? 'text-red-600' :
-                          passwordStrength === 1 ? 'text-orange-600' :
-                          passwordStrength === 2 ? 'text-yellow-600' :
-                          'text-green-600'
-                        }`}>
+                        <span className={`text-xs font-medium ${passwordStrength === 0 ? 'text-red-600' :
+                            passwordStrength === 1 ? 'text-orange-600' :
+                              passwordStrength === 2 ? 'text-yellow-600' :
+                                'text-green-600'
+                          }`}>
                           {strengthLabels[passwordStrength] || 'Very Weak'}
                         </span>
                       </div>
@@ -340,9 +342,8 @@ const App = () => {
                         {[0, 1, 2, 3].map((level) => (
                           <div
                             key={level}
-                            className={`h-1 flex-1 rounded ${
-                              level < passwordStrength ? strengthColors[passwordStrength] : 'bg-gray-200'
-                            }`}
+                            className={`h-1 flex-1 rounded ${level < passwordStrength ? strengthColors[passwordStrength] : 'bg-gray-200'
+                              }`}
                           />
                         ))}
                       </div>
@@ -460,12 +461,10 @@ const App = () => {
             <button className="hover:text-white">Help</button>
           </div>
           <p className="text-xs text-white text-opacity-60 mt-2">
-            © 2025 AI Production Planning. All rights reserved.
+            © 2025 PlanForge System · by ARiSE | v1.0.0          
           </p>
         </div>
       </div>
     </div>
   );
 };
-
-export default App;

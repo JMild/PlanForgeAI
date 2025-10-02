@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } fr
 import { Settings, HelpCircle, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
 import { useThemeContext } from "@/src/context/ThemeContext";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 
 type User = {
   full_name?: string | null;
@@ -19,6 +20,8 @@ type Props = {
 };
 
 export default function UserMenu({ user, compact = false }: Props) {
+  const router = useRouter();
+
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
 
@@ -100,6 +103,18 @@ export default function UserMenu({ user, compact = false }: Props) {
       e.preventDefault();
       toggleTheme();
     }
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("pf_session");      // ถ้าใช้ key นี้ตอน login
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      sessionStorage.clear();
+      // ถ้ามี context/auth store ควร reset ตรงนี้ด้วย (เช่น zustand: useAuthStore.getState().reset())
+    } catch { }
+    setOpen(false);
+    router.push("/auth/login"); 
   };
 
   return (
@@ -284,8 +299,8 @@ export default function UserMenu({ user, compact = false }: Props) {
                   ref={bindItemRef(2)}
                   type="submit"
                   role="menuitem"
+                  onClick={handleLogout}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 focus:outline-none focus:bg-rose-50 dark:hover:bg-rose-950/30 dark:text-rose-400 dark:focus:bg-rose-950/30"
-                  onClick={() => setOpen(false)}
                 >
                   <LogOut className="h-4 w-4" />
                   Log out

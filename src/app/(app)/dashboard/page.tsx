@@ -125,6 +125,7 @@ const ProductionDashboard = () => {
     fetchData();
   }, []);
 
+
   if (!dashboardData) {
     return <div className="p-6">Loading...</div>;
   }
@@ -187,7 +188,7 @@ const ProductionDashboard = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       {/* Header */}
       <PageHeader title={
         <div className="px-6 py-4">
