@@ -1,5 +1,5 @@
 import { Calendar } from "lucide-react";
-import React from "react";
+import React, { useCallback } from "react";
 
 type InputTextProps = {
   label?: string;
@@ -12,10 +12,9 @@ type InputTextProps = {
   type?: string; // "text" | "date" | ...
   disabled?: boolean;
   required?: boolean;
-  inputRef?: React.Ref<HTMLInputElement>; // เพิ่มตรงนี้
+  innerRef?: React.Ref<HTMLInputElement>; // เปลี่ยนชื่อ
 };
 
-// forwardRef ยังคงทำงานได้เช่นเดิม
 const InputText = React.forwardRef<HTMLInputElement, InputTextProps>(
   (
     {
@@ -29,20 +28,23 @@ const InputText = React.forwardRef<HTMLInputElement, InputTextProps>(
       type = "text",
       disabled = false,
       required = false,
-      inputRef, // รับ prop inputRef
+      innerRef,
     },
     ref
   ) => {
     const isDate = type === "date";
 
-    // ถ้ามีทั้ง ref และ inputRef ให้ merge
-    const combinedRef = (node: HTMLInputElement) => {
-      if (typeof ref === "function") ref(node);
-      else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+    // รวม ref ทั้งสองแบบง่าย ๆ
+    const combinedRef = useCallback(
+      (node: HTMLInputElement | null) => {
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
 
-      if (typeof inputRef === "function") inputRef(node);
-      else if (inputRef) (inputRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
-    };
+        if (typeof innerRef === "function") innerRef(node);
+        else if (innerRef) (innerRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
+      },
+      [ref, innerRef]
+    );
 
     return (
       <div className={`w-full ${className}`}>
@@ -54,7 +56,7 @@ const InputText = React.forwardRef<HTMLInputElement, InputTextProps>(
 
         <div className="relative">
           <input
-            ref={combinedRef} // ใช้ combinedRef
+            ref={combinedRef}
             type={type}
             id={id}
             name={name}
@@ -87,4 +89,5 @@ const InputText = React.forwardRef<HTMLInputElement, InputTextProps>(
   }
 );
 
+InputText.displayName = "InputText";
 export default InputText;

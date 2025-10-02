@@ -1,180 +1,413 @@
-// @ts-nocheck
 "use client";
-import React, { useState, useMemo } from 'react';
-import { Calendar, Zap, AlertTriangle, CheckCircle, Clock, Package, User, ChevronDown, ChevronRight, ArrowRight, GitBranch } from 'lucide-react';
-import PageHeader from '@/src/components/layout/PageHeader';
+import React, { useState, useMemo } from "react";
+import {
+  Calendar,
+  Zap,
+  AlertTriangle,
+  CheckCircle,
+  User,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
+  GitBranch,
+} from "lucide-react";
+import PageHeader from "@/src/components/layout/PageHeader";
 
-// Sample data with routing/process sequences
-const MACHINES = [
-  { code: 'M001', name: 'CNC Machine 1', workCenter: 'Machining', status: 'Idle', processes: ['MACH', 'DRILL'] },
-  { code: 'M002', name: 'CNC Machine 2', workCenter: 'Machining', status: 'Run', processes: ['MACH', 'DRILL'] },
-  { code: 'M003', name: 'Assembly Line 1', workCenter: 'Assembly', status: 'Idle', processes: ['ASSY', 'PACK'] },
-  { code: 'M004', name: 'Press Machine 1', workCenter: 'Pressing', status: 'Idle', processes: ['PRESS'] },
-  { code: 'M005', name: 'Paint Booth 1', workCenter: 'Finishing', status: 'Idle', processes: ['PAINT'] },
+/* =============== Types =============== */
+type WorkCenter = "Machining" | "Assembly" | "Pressing" | "Finishing";
+type MachineStatus = "Idle" | "Run" | "PM";
+type ProcessCode = "MACH" | "DRILL" | "ASSY" | "PRESS" | "PAINT" | "PACK";
+type ItemStatus = "unplanned" | "planned" | "complete" | "partial";
+
+type Machine = {
+  code: string;
+  name: string;
+  workCenter: WorkCenter;
+  status: MachineStatus;
+  processes: ProcessCode[];
+};
+
+type RoutingStep = {
+  seq: number;
+  process: ProcessCode;
+  processName: string;
+  setupMin: number;
+  runMin: number;
+  machineGroup: string[]; // machine codes allowed
+};
+
+type OrderItem = {
+  itemNo: number;
+  product: string;
+  qty: number;
+  routing: RoutingStep[];
+  status: ItemStatus | "unplanned";
+};
+
+type Order = {
+  orderNo: string;
+  customer: string;
+  dueDate: string; // ISO
+  priority: 1 | 2 | 3;
+  items: OrderItem[];
+};
+
+type Shift = { name: string; start: number; end: number };
+
+type Job = {
+  jobId: string;
+  orderNo: string;
+  itemNo: number;
+  seq: number;
+  process: ProcessCode;
+  processName: string;
+  machineCode: string;
+  start: string; // ISO
+  end: string; // ISO
+  setupMin: number;
+  runMin: number;
+  product: string;
+  qty: number;
+};
+
+type ConflictType = "overlap" | "sequence" | "pm" | "capability";
+type Conflict = { type: ConflictType; jobId: string; detail: string };
+
+type ProcessWithStatus = RoutingStep & {
+  jobId?: string;
+  machineCode?: string;
+  start?: string;
+  end?: string;
+  status: "scheduled" | "unscheduled";
+};
+
+type DraggedPayload = {
+  order: Order;
+  item: OrderItem;
+  routingStep: RoutingStep;
+};
+
+type Objectives = {
+  onTime: number;
+  utilization: number;
+  changeover: number;
+};
+
+/* =============== Sample Data =============== */
+const MACHINES: Machine[] = [
+  {
+    code: "M001",
+    name: "CNC Machine 1",
+    workCenter: "Machining",
+    status: "Idle",
+    processes: ["MACH", "DRILL"],
+  },
+  {
+    code: "M002",
+    name: "CNC Machine 2",
+    workCenter: "Machining",
+    status: "Run",
+    processes: ["MACH", "DRILL"],
+  },
+  {
+    code: "M003",
+    name: "Assembly Line 1",
+    workCenter: "Assembly",
+    status: "Idle",
+    processes: ["ASSY", "PACK"],
+  },
+  {
+    code: "M004",
+    name: "Press Machine 1",
+    workCenter: "Pressing",
+    status: "Idle",
+    processes: ["PRESS"],
+  },
+  {
+    code: "M005",
+    name: "Paint Booth 1",
+    workCenter: "Finishing",
+    status: "Idle",
+    processes: ["PAINT"],
+  },
 ];
 
-const INITIAL_ORDERS = [
+const INITIAL_ORDERS: Order[] = [
   {
-    orderNo: 'ORD001',
-    customer: 'ABC Corp',
-    dueDate: '2025-10-03',
+    orderNo: "ORD001",
+    customer: "ABC Corp",
+    dueDate: "2025-10-03",
     priority: 1,
     items: [
       {
         itemNo: 1,
-        product: 'Widget A',
+        product: "Widget A",
         qty: 100,
         routing: [
-          { seq: 1, process: 'MACH', processName: 'Machining', setupMin: 30, runMin: 120, machineGroup: ['M001', 'M002'] },
-          { seq: 2, process: 'DRILL', processName: 'Drilling', setupMin: 20, runMin: 60, machineGroup: ['M001', 'M002'] },
-          { seq: 3, process: 'ASSY', processName: 'Assembly', setupMin: 15, runMin: 90, machineGroup: ['M003'] },
+          {
+            seq: 1,
+            process: "MACH",
+            processName: "Machining",
+            setupMin: 30,
+            runMin: 120,
+            machineGroup: ["M001", "M002"],
+          },
+          {
+            seq: 2,
+            process: "DRILL",
+            processName: "Drilling",
+            setupMin: 20,
+            runMin: 60,
+            machineGroup: ["M001", "M002"],
+          },
+          {
+            seq: 3,
+            process: "ASSY",
+            processName: "Assembly",
+            setupMin: 15,
+            runMin: 90,
+            machineGroup: ["M003"],
+          },
         ],
-        status: 'unplanned'
+        status: "unplanned",
       },
       {
         itemNo: 2,
-        product: 'Widget B',
+        product: "Widget B",
         qty: 50,
         routing: [
-          { seq: 1, process: 'PRESS', processName: 'Pressing', setupMin: 25, runMin: 80, machineGroup: ['M004'] },
-          { seq: 2, process: 'PAINT', processName: 'Painting', setupMin: 30, runMin: 70, machineGroup: ['M005'] },
-          { seq: 3, process: 'ASSY', processName: 'Assembly', setupMin: 15, runMin: 50, machineGroup: ['M003'] },
+          {
+            seq: 1,
+            process: "PRESS",
+            processName: "Pressing",
+            setupMin: 25,
+            runMin: 80,
+            machineGroup: ["M004"],
+          },
+          {
+            seq: 2,
+            process: "PAINT",
+            processName: "Painting",
+            setupMin: 30,
+            runMin: 70,
+            machineGroup: ["M005"],
+          },
+          {
+            seq: 3,
+            process: "ASSY",
+            processName: "Assembly",
+            setupMin: 15,
+            runMin: 50,
+            machineGroup: ["M003"],
+          },
         ],
-        status: 'unplanned'
+        status: "unplanned",
       },
-    ]
+    ],
   },
   {
-    orderNo: 'ORD002',
-    customer: 'XYZ Ltd',
-    dueDate: '2025-10-02',
+    orderNo: "ORD002",
+    customer: "XYZ Ltd",
+    dueDate: "2025-10-02",
     priority: 2,
     items: [
       {
         itemNo: 1,
-        product: 'Widget C',
+        product: "Widget C",
         qty: 75,
         routing: [
-          { seq: 1, process: 'MACH', processName: 'Machining', setupMin: 30, runMin: 100, machineGroup: ['M001', 'M002'] },
-          { seq: 2, process: 'PAINT', processName: 'Painting', setupMin: 30, runMin: 60, machineGroup: ['M005'] },
-          { seq: 3, process: 'PACK', processName: 'Packaging', setupMin: 10, runMin: 40, machineGroup: ['M003'] },
+          {
+            seq: 1,
+            process: "MACH",
+            processName: "Machining",
+            setupMin: 30,
+            runMin: 100,
+            machineGroup: ["M001", "M002"],
+          },
+          {
+            seq: 2,
+            process: "PAINT",
+            processName: "Painting",
+            setupMin: 30,
+            runMin: 60,
+            machineGroup: ["M005"],
+          },
+          {
+            seq: 3,
+            process: "PACK",
+            processName: "Packaging",
+            setupMin: 10,
+            runMin: 40,
+            machineGroup: ["M003"],
+          },
         ],
-        status: 'unplanned'
+        status: "unplanned",
       },
-    ]
+    ],
   },
   {
-    orderNo: 'ORD003',
-    customer: 'Tech Inc',
-    dueDate: '2025-10-04',
+    orderNo: "ORD003",
+    customer: "Tech Inc",
+    dueDate: "2025-10-04",
     priority: 1,
     items: [
       {
         itemNo: 1,
-        product: 'Widget D',
+        product: "Widget D",
         qty: 200,
         routing: [
-          { seq: 1, process: 'PRESS', processName: 'Pressing', setupMin: 25, runMin: 150, machineGroup: ['M004'] },
-          { seq: 2, process: 'DRILL', processName: 'Drilling', setupMin: 20, runMin: 120, machineGroup: ['M001', 'M002'] },
-          { seq: 3, process: 'PAINT', processName: 'Painting', setupMin: 30, runMin: 130, machineGroup: ['M005'] },
-          { seq: 4, process: 'ASSY', processName: 'Assembly', setupMin: 15, runMin: 100, machineGroup: ['M003'] },
+          {
+            seq: 1,
+            process: "PRESS",
+            processName: "Pressing",
+            setupMin: 25,
+            runMin: 150,
+            machineGroup: ["M004"],
+          },
+          {
+            seq: 2,
+            process: "DRILL",
+            processName: "Drilling",
+            setupMin: 20,
+            runMin: 120,
+            machineGroup: ["M001", "M002"],
+          },
+          {
+            seq: 3,
+            process: "PAINT",
+            processName: "Painting",
+            setupMin: 30,
+            runMin: 130,
+            machineGroup: ["M005"],
+          },
+          {
+            seq: 4,
+            process: "ASSY",
+            processName: "Assembly",
+            setupMin: 15,
+            runMin: 100,
+            machineGroup: ["M003"],
+          },
         ],
-        status: 'unplanned'
+        status: "unplanned",
       },
-    ]
+    ],
   },
 ];
 
-const SHIFTS = [
-  { name: 'Day Shift', start: 8, end: 16 },
-  { name: 'Night Shift', start: 16, end: 24 },
+const SHIFTS: Shift[] = [
+  { name: "Day Shift", start: 8, end: 16 },
+  { name: "Night Shift", start: 16, end: 24 },
 ];
 
+/* =============== Helpers =============== */
 const getHourPosition = (hour: number) => ((hour - 8) / 16) * 100;
 const getJobWidth = (durationMin: number) => (durationMin / 960) * 100;
 
-const ProductionPlannerBoard = () => {
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [jobs, setJobs] = useState([]);
-  const [draggedProcess, setDraggedProcess] = useState(null);
-  const [expandedOrders, setExpandedOrders] = useState({});
-  const [expandedItems, setExpandedItems] = useState({});
-  const [objectives, setObjectives] = useState({
+/* =============== Component =============== */
+const ProductionPlannerBoard: React.FC = () => {
+  const [orders] = useState<Order[]>(INITIAL_ORDERS);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [draggedProcess, setDraggedProcess] = useState<DraggedPayload | null>(
+    null
+  );
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [objectives, setObjectives] = useState<Objectives>({
     onTime: 70,
     utilization: 60,
     changeover: 40,
   });
 
   // Get all processes for an item with their status
-  const getItemProcesses = (orderNo: string, itemNo: number) => {
-    const scheduledJobs = jobs.filter(j => j.orderNo === orderNo && j.itemNo === itemNo);
-    const order = orders.find(o => o.orderNo === orderNo);
-    const item = order?.items.find(i => i.itemNo === itemNo);
-
+  const getItemProcesses = (
+    orderNo: string,
+    itemNo: number
+  ): ProcessWithStatus[] => {
+    const scheduledJobs = jobs.filter(
+      (j) => j.orderNo === orderNo && j.itemNo === itemNo
+    );
+    const order = orders.find((o) => o.orderNo === orderNo);
+    const item = order?.items.find((i) => i.itemNo === itemNo);
     if (!item) return [];
 
-    return item.routing.map(step => {
-      const job = scheduledJobs.find(j => j.seq === step.seq);
+    return item.routing.map<ProcessWithStatus>((step) => {
+      const job = scheduledJobs.find((j) => j.seq === step.seq);
       return {
         ...step,
         jobId: job?.jobId,
         machineCode: job?.machineCode,
         start: job?.start,
         end: job?.end,
-        status: job ? 'scheduled' : 'unscheduled',
+        status: job ? "scheduled" : "unscheduled",
       };
     });
   };
 
   // Check if a process can be scheduled (predecessor completed)
-  const canScheduleProcess = (orderNo: string, itemNo: number, seq: number) => {
-    if (seq === 1) return true; // First process can always be scheduled
-
+  const canScheduleProcess = (
+    orderNo: string,
+    itemNo: number,
+    seq: number
+  ): boolean => {
+    if (seq === 1) return true;
     const processes = getItemProcesses(orderNo, itemNo);
-    const prevProcess = processes.find(p => p.seq === seq - 1);
-    return prevProcess?.status === 'scheduled';
+    const prevProcess = processes.find((p) => p.seq === seq - 1);
+    return prevProcess?.status === "scheduled";
   };
 
-  // Calculate KPIs
+  // KPIs
   const kpis = useMemo(() => {
     const totalJobs = jobs.length;
-    const onTimeJobs = jobs.filter(j => {
-      const order = orders.find(o => o.orderNo === j.orderNo);
-      return order && new Date(j.end) <= new Date(order.dueDate);
+
+    const onTimeJobs = jobs.filter((j) => {
+      const order = orders.find((o) => o.orderNo === j.orderNo);
+      return order && new Date(j.end).getTime() <= new Date(order.dueDate).getTime();
     }).length;
 
-    const avgUtilization = jobs.length > 0
-      ? (jobs.reduce((sum, j) => sum + j.runMin, 0) / (MACHINES.length * 960)) * 100
-      : 0;
+    const avgUtilization =
+      jobs.length > 0
+        ? (jobs.reduce((sum, j) => sum + j.runMin, 0) / (MACHINES.length * 960)) *
+          100
+        : 0;
 
-    const totalProcesses = orders.reduce((sum, o) =>
-      sum + o.items.reduce((itemSum, i) => itemSum + i.routing.length, 0), 0);
+    const totalProcesses = orders.reduce(
+      (sum, o) =>
+        sum +
+        o.items.reduce((itemSum, i) => itemSum + i.routing.length, 0),
+      0
+    );
     const scheduledProcesses = jobs.length;
 
     return {
-      onTimePercent: totalJobs > 0 ? Math.round((onTimeJobs / totalJobs) * 100) : 100,
+      onTimePercent:
+        totalJobs > 0 ? Math.round((onTimeJobs / totalJobs) * 100) : 100,
       utilization: Math.round(avgUtilization),
-      scheduledProcesses: scheduledProcesses,
+      scheduledProcesses,
       unscheduledProcesses: totalProcesses - scheduledProcesses,
     };
   }, [jobs, orders]);
 
   // Detect conflicts including sequence violations
-  const conflicts = useMemo(() => {
-    const detected: any[] = [];
+  const conflicts = useMemo<Conflict[]>(() => {
+    const detected: Conflict[] = [];
 
     jobs.forEach((job, idx) => {
-      // Check for overlaps on same machine
+      // Overlap on same machine
       jobs.forEach((other, otherIdx) => {
         if (idx !== otherIdx && job.machineCode === other.machineCode) {
-          const jobStart = new Date(job.start);
-          const jobEnd = new Date(job.end);
-          const otherStart = new Date(other.start);
-          const otherEnd = new Date(other.end);
+          const jobStart = new Date(job.start).getTime();
+          const jobEnd = new Date(job.end).getTime();
+          const otherStart = new Date(other.start).getTime();
+          const otherEnd = new Date(other.end).getTime();
 
           if (jobStart < otherEnd && jobEnd > otherStart) {
             detected.push({
-              type: 'overlap',
+              type: "overlap",
               jobId: job.jobId,
               detail: `Overlaps with ${other.orderNo}-${other.itemNo} (${other.processName}) on ${job.machineCode}`,
             });
@@ -182,21 +415,20 @@ const ProductionPlannerBoard = () => {
         }
       });
 
-      // Check sequence violations - job starts before predecessor ends
+      // Sequence violation
       if (job.seq > 1) {
-        const prevJob = jobs.find(j =>
-          j.orderNo === job.orderNo &&
-          j.itemNo === job.itemNo &&
-          j.seq === job.seq - 1
+        const prevJob = jobs.find(
+          (j) =>
+            j.orderNo === job.orderNo &&
+            j.itemNo === job.itemNo &&
+            j.seq === job.seq - 1
         );
-
         if (prevJob) {
-          const jobStart = new Date(job.start);
-          const prevEnd = new Date(prevJob.end);
-
+          const jobStart = new Date(job.start).getTime();
+          const prevEnd = new Date(prevJob.end).getTime();
           if (jobStart < prevEnd) {
             detected.push({
-              type: 'sequence',
+              type: "sequence",
               jobId: job.jobId,
               detail: `Starts before ${prevJob.processName} (seq ${prevJob.seq}) completes`,
             });
@@ -204,24 +436,23 @@ const ProductionPlannerBoard = () => {
         }
       }
 
-      // Check PM conflicts
-      const machine = MACHINES.find(m => m.code === job.machineCode);
-      if (machine?.status === 'PM') {
+      // PM conflict
+      const machine = MACHINES.find((m) => m.code === job.machineCode);
+      if (machine?.status === "PM") {
         detected.push({
-          type: 'pm',
+          type: "pm",
           jobId: job.jobId,
           detail: `${job.machineCode} is scheduled for maintenance`,
         });
       }
 
-      // Check machine capability
-      const order = orders.find(o => o.orderNo === job.orderNo);
-      const item = order?.items.find(i => i.itemNo === job.itemNo);
-      const routingStep = item?.routing.find(r => r.seq === job.seq);
-
+      // Capability
+      const order = orders.find((o) => o.orderNo === job.orderNo);
+      const item = order?.items.find((i) => i.itemNo === job.itemNo);
+      const routingStep = item?.routing.find((r) => r.seq === job.seq);
       if (routingStep && !routingStep.machineGroup.includes(job.machineCode)) {
         detected.push({
-          type: 'capability',
+          type: "capability",
           jobId: job.jobId,
           detail: `${job.machineCode} cannot perform ${job.processName}`,
         });
@@ -231,19 +462,28 @@ const ProductionPlannerBoard = () => {
     return detected;
   }, [jobs, orders]);
 
-  const handleAIPlan = () => {
-    // AI Planning with sequence constraints
-    const allUnscheduledProcesses = [];
+  // Auto plan
+  const handleAIPlan = (): void => {
+    type Candidate = RoutingStep & {
+      orderNo: string;
+      itemNo: number;
+      product: string;
+      qty: number;
+      priority: 1 | 2 | 3;
+      dueDate: string;
+    };
 
-    orders.forEach(order => {
-      order.items.forEach(item => {
-        item.routing.forEach(step => {
-          const isScheduled = jobs.some(j =>
-            j.orderNo === order.orderNo &&
-            j.itemNo === item.itemNo &&
-            j.seq === step.seq
+    const allUnscheduledProcesses: Candidate[] = [];
+
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        item.routing.forEach((step) => {
+          const isScheduled = jobs.some(
+            (j) =>
+              j.orderNo === order.orderNo &&
+              j.itemNo === item.itemNo &&
+              j.seq === step.seq
           );
-
           if (!isScheduled) {
             allUnscheduledProcesses.push({
               orderNo: order.orderNo,
@@ -259,61 +499,59 @@ const ProductionPlannerBoard = () => {
       });
     });
 
-    // Sort by priority, due date, then sequence
+    // Sort by priority, due date, order/item, seq
     allUnscheduledProcesses.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
-      if (a.dueDate !== b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+      if (a.dueDate !== b.dueDate)
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       if (a.orderNo !== b.orderNo) return a.orderNo.localeCompare(b.orderNo);
       if (a.itemNo !== b.itemNo) return a.itemNo - b.itemNo;
       return a.seq - b.seq;
     });
 
-    const newJobs = [...jobs];
-    const machineNextAvailable = {};
-
-    MACHINES.forEach(m => {
-      machineNextAvailable[m.code] = new Date('2025-10-01T08:00:00');
+    const newJobs: Job[] = [...jobs];
+    const machineNextAvailable: Record<string, Date> = {};
+    MACHINES.forEach((m) => {
+      machineNextAvailable[m.code] = new Date("2025-10-01T08:00:00");
     });
 
-    allUnscheduledProcesses.forEach(process => {
-      // Check if predecessor is scheduled
+    allUnscheduledProcesses.forEach((process) => {
+      // predecessor must exist if seq > 1
       if (process.seq > 1) {
-        const prevJob = newJobs.find(j =>
-          j.orderNo === process.orderNo &&
-          j.itemNo === process.itemNo &&
-          j.seq === process.seq - 1
+        const prevJob = newJobs.find(
+          (j) =>
+            j.orderNo === process.orderNo &&
+            j.itemNo === process.itemNo &&
+            j.seq === process.seq - 1
         );
-
-        if (!prevJob) return; // Skip if predecessor not scheduled
+        if (!prevJob) return; // skip until predecessor placed
       }
 
-      // Find best machine from allowed group
-      const availableMachines = MACHINES.filter(m =>
-        process.machineGroup.includes(m.code) && m.status !== 'PM'
+      // allowed machines
+      const availableMachines = MACHINES.filter(
+        (m) => process.machineGroup.includes(m.code) && m.status !== "PM"
       );
-
       if (availableMachines.length === 0) return;
 
-      // Pick machine with earliest availability
+      // choose earliest available
       const bestMachine = availableMachines.reduce((best, curr) =>
-        machineNextAvailable[curr.code] < machineNextAvailable[best.code] ? curr : best
+        machineNextAvailable[curr.code] < machineNextAvailable[best.code]
+          ? curr
+          : best
       );
 
-      // Calculate start time (max of machine availability and predecessor end)
+      // start time respect predecessor
       let startTime = new Date(machineNextAvailable[bestMachine.code]);
-
       if (process.seq > 1) {
-        const prevJob = newJobs.find(j =>
-          j.orderNo === process.orderNo &&
-          j.itemNo === process.itemNo &&
-          j.seq === process.seq - 1
+        const prevJob = newJobs.find(
+          (j) =>
+            j.orderNo === process.orderNo &&
+            j.itemNo === process.itemNo &&
+            j.seq === process.seq - 1
         );
-
         if (prevJob) {
           const prevEndTime = new Date(prevJob.end);
-          if (prevEndTime > startTime) {
-            startTime = prevEndTime;
-          }
+          if (prevEndTime > startTime) startTime = prevEndTime;
         }
       }
 
@@ -342,58 +580,66 @@ const ProductionPlannerBoard = () => {
     setJobs(newJobs);
   };
 
-  const handleDragStart = (e, order, item, routingStep) => {
+  const handleDragStart = (
+    e: React.DragEvent<HTMLDivElement>,
+    order: Order,
+    item: OrderItem,
+    routingStep: RoutingStep
+  ): void => {
     setDraggedProcess({ order, item, routingStep });
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDrop = (e, machineCode) => {
+  const handleDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    machineCode: string
+  ): void => {
     e.preventDefault();
     if (!draggedProcess) return;
 
     const { order, item, routingStep } = draggedProcess;
 
-    // Validate machine can perform this process
+    // capability
     if (!routingStep.machineGroup.includes(machineCode)) {
       alert(`${machineCode} cannot perform ${routingStep.processName}`);
       setDraggedProcess(null);
       return;
     }
 
-    // Validate sequence - predecessor must be scheduled
+    // predecessor
     if (!canScheduleProcess(order.orderNo, item.itemNo, routingStep.seq)) {
-      alert(`Cannot schedule ${routingStep.processName} - predecessor step must be scheduled first`);
+      alert(
+        `Cannot schedule ${routingStep.processName} - predecessor step must be scheduled first`
+      );
       setDraggedProcess(null);
       return;
     }
 
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
     const hour = Math.floor((x / rect.width) * 16) + 8;
 
-    let startTime = new Date('2025-10-01');
+    let startTime = new Date("2025-10-01T00:00:00");
     startTime.setHours(hour, 0, 0, 0);
 
-    // Ensure start time is after predecessor
+    // ensure after predecessor
     if (routingStep.seq > 1) {
-      const prevJob = jobs.find(j =>
-        j.orderNo === order.orderNo &&
-        j.itemNo === item.itemNo &&
-        j.seq === routingStep.seq - 1
+      const prevJob = jobs.find(
+        (j) =>
+          j.orderNo === order.orderNo &&
+          j.itemNo === item.itemNo &&
+          j.seq === routingStep.seq - 1
       );
-
       if (prevJob) {
         const prevEndTime = new Date(prevJob.end);
-        if (startTime < prevEndTime) {
-          startTime = prevEndTime;
-        }
+        if (startTime < prevEndTime) startTime = prevEndTime;
       }
     }
 
     const setupEnd = new Date(startTime.getTime() + routingStep.setupMin * 60000);
     const runEnd = new Date(setupEnd.getTime() + routingStep.runMin * 60000);
 
-    const newJob = {
+    const newJob: Job = {
       jobId: `JOB${Date.now()}`,
       orderNo: order.orderNo,
       itemNo: item.itemNo,
@@ -409,110 +655,132 @@ const ProductionPlannerBoard = () => {
       qty: item.qty,
     };
 
-    setJobs([...jobs, newJob]);
+    setJobs((prev) => [...prev, newJob]);
     setDraggedProcess(null);
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = "move";
   };
 
-  const removeJob = (jobId) => {
-    const job = jobs.find(j => j.jobId === jobId);
+  const removeJob = (jobId: string): void => {
+    const job = jobs.find((j) => j.jobId === jobId);
+    if (!job) return;
 
-    // Check if any successor jobs exist
-    const hasSuccessors = jobs.some(j =>
-      j.orderNo === job.orderNo &&
-      j.itemNo === job.itemNo &&
-      j.seq > job.seq
+    const hasSuccessors = jobs.some(
+      (j) => j.orderNo === job.orderNo && j.itemNo === job.itemNo && j.seq > job.seq
     );
 
     if (hasSuccessors) {
-      if (!confirm('Removing this job will also remove all subsequent steps. Continue?')) {
+      if (
+        !confirm(
+          "Removing this job will also remove all subsequent steps. Continue?"
+        )
+      ) {
         return;
       }
-      // Remove this job and all successors
-      setJobs(jobs.filter(j => !(
-        j.orderNo === job.orderNo &&
-        j.itemNo === job.itemNo &&
-        j.seq >= job.seq
-      )));
+      setJobs((prev) =>
+        prev.filter(
+          (j) =>
+            !(
+              j.orderNo === job.orderNo &&
+              j.itemNo === job.itemNo &&
+              j.seq >= job.seq
+            )
+        )
+      );
     } else {
-      setJobs(jobs.filter(j => j.jobId !== jobId));
+      setJobs((prev) => prev.filter((j) => j.jobId !== jobId));
     }
   };
 
-  const toggleOrderExpand = (orderNo) => {
-    setExpandedOrders(prev => ({
-      ...prev,
-      [orderNo]: !prev[orderNo]
-    }));
+  const toggleOrderExpand = (orderNo: string): void => {
+    setExpandedOrders((prev) => ({ ...prev, [orderNo]: !prev[orderNo] }));
   };
 
-  const toggleItemExpand = (key) => {
-    setExpandedItems(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  const toggleItemExpand = (key: string): void => {
+    setExpandedItems((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const getItemStatus = (orderNo, itemNo) => {
+  const getItemStatus = (orderNo: string, itemNo: number): ItemStatus => {
     const processes = getItemProcesses(orderNo, itemNo);
-    const scheduled = processes.filter(p => p.status === 'scheduled').length;
-    if (scheduled === 0) return 'unscheduled';
-    if (scheduled === processes.length) return 'complete';
-    return 'partial';
+    const scheduled = processes.filter((p) => p.status === "scheduled").length;
+    if (scheduled === 0) return "unplanned";
+    if (scheduled === processes.length) return "complete";
+    return "partial";
   };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <PageHeader title={
-        <div className='px-6 py-4'>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Production Planner Board</h1>
-              <p className="text-sm text-gray-500">Process Sequence Planning with Routing Constraints</p>
+      <PageHeader
+        title={
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Production Planner Board
+                </h1>
+                <p className="text-sm text-gray-500">
+                  Process Sequence Planning with Routing Constraints
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAIPlan}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Zap size={18} />
+                  AI Plan
+                </button>
+                <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                  Validate
+                </button>
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                  Save Scenario
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleAIPlan}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Zap size={18} />
-                AI Plan
-              </button>
-              <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Validate
-              </button>
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                Save Scenario
-              </button>
-            </div>
-          </div>
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-4 gap-4 mt-4">
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <div className="text-xs text-blue-600 font-medium">On-Time %</div>
-              <div className="text-2xl font-bold text-blue-900">{kpis.onTimePercent}%</div>
-            </div>
-            <div className="bg-green-50 p-3 rounded-lg">
-              <div className="text-xs text-green-600 font-medium">Utilization</div>
-              <div className="text-2xl font-bold text-green-900">{kpis.utilization}%</div>
-            </div>
-            <div className="bg-purple-50 p-3 rounded-lg">
-              <div className="text-xs text-purple-600 font-medium">Scheduled Processes</div>
-              <div className="text-2xl font-bold text-purple-900">{kpis.scheduledProcesses}</div>
-            </div>
-            <div className="bg-orange-50 p-3 rounded-lg">
-              <div className="text-xs text-orange-600 font-medium">Unscheduled</div>
-              <div className="text-2xl font-bold text-orange-900">{kpis.unscheduledProcesses}</div>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-4 gap-4 mt-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="text-xs text-blue-600 font-medium">
+                  On-Time %
+                </div>
+                <div className="text-2xl font-bold text-blue-900">
+                  {kpis.onTimePercent}%
+                </div>
+              </div>
+              <div className="bg-green-50 p-3 rounded-lg">
+                <div className="text-xs text-green-600 font-medium">
+                  Utilization
+                </div>
+                <div className="text-2xl font-bold text-green-900">
+                  {kpis.utilization}%
+                </div>
+              </div>
+              <div className="bg-purple-50 p-3 rounded-lg">
+                <div className="text-xs text-purple-600 font-medium">
+                  Scheduled Processes
+                </div>
+                <div className="text-2xl font-bold text-purple-900">
+                  {kpis.scheduledProcesses}
+                </div>
+              </div>
+              <div className="bg-orange-50 p-3 rounded-lg">
+                <div className="text-xs text-orange-600 font-medium">
+                  Unscheduled
+                </div>
+                <div className="text-2xl font-bold text-orange-900">
+                  {kpis.unscheduledProcesses}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      } />
+        }
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -523,14 +791,19 @@ const ProductionPlannerBoard = () => {
               <GitBranch size={18} />
               Process Routing
             </h2>
-            <p className="text-xs text-gray-500 mt-1">Drag processes in sequence order</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Drag processes in sequence order
+            </p>
           </div>
           <div className="p-3 space-y-2">
-            {orders.map(order => {
-              const isOrderExpanded = expandedOrders[order.orderNo];
+            {orders.map((order) => {
+              const isOrderExpanded = !!expandedOrders[order.orderNo];
 
               return (
-                <div key={order.orderNo} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                <div
+                  key={order.orderNo}
+                  className="border-2 border-gray-200 rounded-lg overflow-hidden"
+                >
                   {/* Order Header */}
                   <div
                     className="p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
@@ -538,13 +811,24 @@ const ProductionPlannerBoard = () => {
                   >
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center gap-2">
-                        {isOrderExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        <span className="font-semibold text-sm">{order.orderNo}</span>
+                        {isOrderExpanded ? (
+                          <ChevronDown size={16} />
+                        ) : (
+                          <ChevronRight size={16} />
+                        )}
+                        <span className="font-semibold text-sm">
+                          {order.orderNo}
+                        </span>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded ${order.priority === 1 ? 'bg-red-100 text-red-700' :
-                          order.priority === 2 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                        }`}>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          order.priority === 1
+                            ? "bg-red-100 text-red-700"
+                            : order.priority === 2
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
                         P{order.priority}
                       </span>
                     </div>
@@ -563,11 +847,17 @@ const ProductionPlannerBoard = () => {
                   {/* Order Items */}
                   {isOrderExpanded && (
                     <div className="bg-white">
-                      {order.items.map(item => {
+                      {order.items.map((item) => {
                         const itemKey = `${order.orderNo}-${item.itemNo}`;
-                        const isItemExpanded = expandedItems[itemKey];
-                        const itemStatus = getItemStatus(order.orderNo, item.itemNo);
-                        const processes = getItemProcesses(order.orderNo, item.itemNo);
+                        const isItemExpanded = !!expandedItems[itemKey];
+                        const itemStatus = getItemStatus(
+                          order.orderNo,
+                          item.itemNo
+                        );
+                        const processes = getItemProcesses(
+                          order.orderNo,
+                          item.itemNo
+                        );
 
                         return (
                           <div key={itemKey} className="border-t">
@@ -576,14 +866,29 @@ const ProductionPlannerBoard = () => {
                               onClick={() => toggleItemExpand(itemKey)}
                             >
                               <div className="flex items-center gap-2">
-                                {isItemExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                <span className="text-xs font-medium">Item {item.itemNo}: {item.product}</span>
+                                {isItemExpanded ? (
+                                  <ChevronDown size={14} />
+                                ) : (
+                                  <ChevronRight size={14} />
+                                )}
+                                <span className="text-xs font-medium">
+                                  Item {item.itemNo}: {item.product}
+                                </span>
                               </div>
-                              <span className={`text-xs px-2 py-0.5 rounded ${itemStatus === 'complete' ? 'bg-green-100 text-green-700' :
-                                  itemStatus === 'partial' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-gray-100 text-gray-700'
-                                }`}>
-                                {processes.filter(p => p.status === 'scheduled').length}/{processes.length}
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded ${
+                                  itemStatus === "complete"
+                                    ? "bg-green-100 text-green-700"
+                                    : itemStatus === "partial"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {
+                                  processes.filter((p) => p.status === "scheduled")
+                                    .length
+                                }
+                                /{processes.length}
                               </span>
                             </div>
 
@@ -591,45 +896,84 @@ const ProductionPlannerBoard = () => {
                             {isItemExpanded && (
                               <div className="p-2 space-y-1">
                                 {item.routing.map((step, idx) => {
-                                  const processInfo = processes.find(p => p.seq === step.seq);
-                                  const isScheduled = processInfo?.status === 'scheduled';
-                                  const canSchedule = canScheduleProcess(order.orderNo, item.itemNo, step.seq);
+                                  const processInfo = processes.find(
+                                    (p) => p.seq === step.seq
+                                  );
+                                  const isScheduled =
+                                    processInfo?.status === "scheduled";
+                                  const canSchedule = canScheduleProcess(
+                                    order.orderNo,
+                                    item.itemNo,
+                                    step.seq
+                                  );
                                   const isBlocked = !canSchedule && !isScheduled;
 
                                   return (
-                                    <div key={step.seq} className="flex items-start gap-1">
+                                    <div
+                                      key={step.seq}
+                                      className="flex items-start gap-1"
+                                    >
                                       <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-medium mt-1">
                                         {step.seq}
                                       </div>
                                       <div
                                         draggable={canSchedule && !isScheduled}
-                                        onDragStart={(e) => canSchedule && !isScheduled && handleDragStart(e, order, item, step)}
-                                        className={`flex-1 p-2 border rounded text-xs ${isScheduled
-                                            ? 'bg-green-50 border-green-300 opacity-70'
+                                        onDragStart={(e) =>
+                                          canSchedule &&
+                                          !isScheduled &&
+                                          handleDragStart(e, order, item, step)
+                                        }
+                                        className={`flex-1 p-2 border rounded text-xs ${
+                                          isScheduled
+                                            ? "bg-green-50 border-green-300 opacity-70"
                                             : isBlocked
-                                              ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
-                                              : 'bg-white border-blue-300 cursor-move hover:border-blue-500 hover:shadow-sm'
-                                          } transition-all`}
+                                            ? "bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed"
+                                            : "bg-white border-blue-300 cursor-move hover:border-blue-500 hover:shadow-sm"
+                                        } transition-all`}
                                       >
                                         <div className="flex items-center justify-between mb-1">
-                                          <span className="font-medium text-gray-900">{step.processName}</span>
-                                          {isScheduled && <CheckCircle size={12} className="text-green-600" />}
-                                          {isBlocked && <span className="text-gray-400 text-xs">🔒</span>}
+                                          <span className="font-medium text-gray-900">
+                                            {step.processName}
+                                          </span>
+                                          {isScheduled && (
+                                            <CheckCircle
+                                              size={12}
+                                              className="text-green-600"
+                                            />
+                                          )}
+                                          {isBlocked && (
+                                            <span className="text-gray-400 text-xs">
+                                              🔒
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="text-gray-600 space-y-0.5">
-                                          <div>Setup: {step.setupMin}m, Run: {step.runMin}m</div>
+                                          <div>
+                                            Setup: {step.setupMin}m, Run:{" "}
+                                            {step.runMin}m
+                                          </div>
                                           <div className="text-gray-500">
-                                            Machines: {step.machineGroup.join(', ')}
+                                            Machines:{" "}
+                                            {step.machineGroup.join(", ")}
                                           </div>
                                           {isScheduled && processInfo && (
                                             <div className="text-green-700 font-medium mt-1">
-                                              → {processInfo.machineCode} @ {new Date(processInfo.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                              → {processInfo.machineCode} @{" "}
+                                              {new Date(
+                                                processInfo.start as string
+                                              ).toLocaleTimeString([], {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
                                             </div>
                                           )}
                                         </div>
                                       </div>
                                       {idx < item.routing.length - 1 && (
-                                        <ArrowRight size={14} className="text-gray-400 mt-3" />
+                                        <ArrowRight
+                                          size={14}
+                                          className="text-gray-400 mt-3"
+                                        />
                                       )}
                                     </div>
                                   );
@@ -653,8 +997,12 @@ const ProductionPlannerBoard = () => {
             {/* Time Header */}
             <div className="mb-4 ml-48">
               <div className="flex border-b border-gray-300 pb-2">
-                {Array.from({ length: 17 }, (_, i) => i + 8).map(hour => (
-                  <div key={hour} style={{ width: `${100 / 16}%` }} className="text-xs text-gray-600 text-center">
+                {Array.from({ length: 17 }, (_, i) => i + 8).map((hour) => (
+                  <div
+                    key={hour}
+                    style={{ width: `${100 / 16}%` }}
+                    className="text-xs text-gray-600 text-center"
+                  >
                     {hour}:00
                   </div>
                 ))}
@@ -663,16 +1011,25 @@ const ProductionPlannerBoard = () => {
 
             {/* Machine Lanes */}
             <div className="space-y-3">
-              {MACHINES.map(machine => (
+              {MACHINES.map((machine) => (
                 <div key={machine.code} className="flex items-center">
                   <div className="w-44 pr-4">
                     <div className="font-medium text-sm">{machine.name}</div>
-                    <div className="text-xs text-gray-500">{machine.workCenter}</div>
-                    <div className="text-xs text-gray-400 mt-1">{machine.processes.join(', ')}</div>
-                    <div className={`text-xs px-2 py-0.5 rounded inline-block mt-1 ${machine.status === 'Run' ? 'bg-green-100 text-green-700' :
-                        machine.status === 'PM' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-700'
-                      }`}>
+                    <div className="text-xs text-gray-500">
+                      {machine.workCenter}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {machine.processes.join(", ")}
+                    </div>
+                    <div
+                      className={`text-xs px-2 py-0.5 rounded inline-block mt-1 ${
+                        machine.status === "Run"
+                          ? "bg-green-100 text-green-700"
+                          : machine.status === "PM"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
                       {machine.status}
                     </div>
                   </div>
@@ -682,51 +1039,77 @@ const ProductionPlannerBoard = () => {
                     onDragOver={handleDragOver}
                   >
                     {/* Shift backgrounds */}
-                    {SHIFTS.map(shift => (
+                    {SHIFTS.map((shift) => (
                       <div
                         key={shift.name}
                         style={{
                           left: `${getHourPosition(shift.start)}%`,
-                          width: `${getHourPosition(shift.end) - getHourPosition(shift.start)}%`
+                          width: `${
+                            getHourPosition(shift.end) -
+                            getHourPosition(shift.start)
+                          }%`,
                         }}
                         className="absolute top-0 h-full bg-white border-l border-r border-gray-200"
                       />
                     ))}
 
                     {/* Jobs */}
-                    {jobs.filter(j => j.machineCode === machine.code).map(job => {
-                      const startHour = new Date(job.start).getHours() + new Date(job.start).getMinutes() / 60;
-                      const hasConflict = conflicts.some(c => c.jobId === job.jobId);
-                      const conflictTypes = conflicts.filter(c => c.jobId === job.jobId).map(c => c.type);
+                    {jobs
+                      .filter((j) => j.machineCode === machine.code)
+                      .map((job) => {
+                        const startDate = new Date(job.start);
+                        const startHour =
+                          startDate.getHours() + startDate.getMinutes() / 60;
+                        const hasConflict = conflicts.some(
+                          (c) => c.jobId === job.jobId
+                        );
+                        const conflictTypes = conflicts
+                          .filter((c) => c.jobId === job.jobId)
+                          .map((c) => c.type);
 
-                      return (
-                        <div
-                          key={job.jobId}
-                          style={{
-                            left: `${getHourPosition(startHour)}%`,
-                            width: `${getJobWidth(job.setupMin + job.runMin)}%`
-                          }}
-                          className={`absolute top-1 h-18 rounded shadow-md cursor-pointer group ${hasConflict ? 'bg-red-500 border-2 border-red-700' : 'bg-blue-500'
+                        return (
+                          <div
+                            key={job.jobId}
+                            style={{
+                              left: `${getHourPosition(startHour)}%`,
+                              width: `${getJobWidth(
+                                job.setupMin + job.runMin
+                              )}%`,
+                            }}
+                            className={`absolute top-1 h-16 rounded shadow-md cursor-pointer group ${
+                              hasConflict
+                                ? "bg-red-500 border-2 border-red-700"
+                                : "bg-blue-500"
                             }`}
-                          onClick={() => removeJob(job.jobId)}
-                          title={hasConflict ? `Conflicts: ${conflictTypes.join(', ')}` : 'Click to remove'}
-                        >
-                          <div className="p-2 text-white text-xs h-full flex flex-col justify-between">
-                            <div>
-                              <div className="font-semibold truncate">{job.orderNo}-{job.itemNo}</div>
-                              <div className="text-xs opacity-90 truncate">Step {job.seq}: {job.processName}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs opacity-90 truncate">{job.product}</div>
-                              <div className="text-xs opacity-75">
-                                {job.setupMin}m + {job.runMin}m
+                            onClick={() => removeJob(job.jobId)}
+                            title={
+                              hasConflict
+                                ? `Conflicts: ${conflictTypes.join(", ")}`
+                                : "Click to remove"
+                            }
+                          >
+                            <div className="p-2 text-white text-xs h-full flex flex-col justify-between">
+                              <div>
+                                <div className="font-semibold truncate">
+                                  {job.orderNo}-{job.itemNo}
+                                </div>
+                                <div className="text-xs opacity-90 truncate">
+                                  Step {job.seq}: {job.processName}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs opacity-90 truncate">
+                                  {job.product}
+                                </div>
+                                <div className="text-xs opacity-75">
+                                  {job.setupMin}m + {job.runMin}m
+                                </div>
                               </div>
                             </div>
+                            <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded" />
                           </div>
-                          <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded" />
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
               ))}
@@ -737,7 +1120,9 @@ const ProductionPlannerBoard = () => {
         {/* Right Sidebar - Objectives & Conflicts */}
         <div className="w-80 bg-white border-l overflow-y-auto">
           <div className="p-4 border-b bg-gray-50">
-            <h2 className="font-semibold text-gray-900">Objectives & Constraints</h2>
+            <h2 className="font-semibold text-gray-900">
+              Objectives & Constraints
+            </h2>
           </div>
 
           <div className="p-4 space-y-6">
@@ -747,10 +1132,15 @@ const ProductionPlannerBoard = () => {
               </label>
               <input
                 type="range"
-                min="0"
-                max="100"
+                min={0}
+                max={100}
                 value={objectives.onTime}
-                onChange={(e) => setObjectives({ ...objectives, onTime: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setObjectives({
+                    ...objectives,
+                    onTime: parseInt(e.target.value, 10),
+                  })
+                }
                 className="w-full"
               />
             </div>
@@ -761,10 +1151,15 @@ const ProductionPlannerBoard = () => {
               </label>
               <input
                 type="range"
-                min="0"
-                max="100"
+                min={0}
+                max={100}
                 value={objectives.utilization}
-                onChange={(e) => setObjectives({ ...objectives, utilization: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setObjectives({
+                    ...objectives,
+                    utilization: parseInt(e.target.value, 10),
+                  })
+                }
                 className="w-full"
               />
             </div>
@@ -775,16 +1170,23 @@ const ProductionPlannerBoard = () => {
               </label>
               <input
                 type="range"
-                min="0"
-                max="100"
+                min={0}
+                max={100}
                 value={objectives.changeover}
-                onChange={(e) => setObjectives({ ...objectives, changeover: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setObjectives({
+                    ...objectives,
+                    changeover: parseInt(e.target.value, 10),
+                  })
+                }
                 className="w-full"
               />
             </div>
 
             <div className="pt-4 border-t">
-              <h3 className="font-semibold text-sm text-gray-900 mb-2">Sequence Rules</h3>
+              <h3 className="font-semibold text-sm text-gray-900 mb-2">
+                Sequence Rules
+              </h3>
               <div className="text-xs text-gray-600 space-y-1">
                 <div className="flex items-start gap-2">
                   <CheckCircle size={12} className="text-green-600 mt-0.5" />
@@ -810,20 +1212,36 @@ const ProductionPlannerBoard = () => {
             {conflicts.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {conflicts.map((conflict, idx) => (
-                  <div key={idx} className={`p-2 border rounded text-xs ${conflict.type === 'sequence' ? 'bg-purple-50 border-purple-200' :
-                      conflict.type === 'capability' ? 'bg-yellow-50 border-yellow-200' :
-                        'bg-red-50 border-red-200'
-                    }`}>
-                    <div className={`font-medium uppercase ${conflict.type === 'sequence' ? 'text-purple-900' :
-                        conflict.type === 'capability' ? 'text-yellow-900' :
-                          'text-red-900'
-                      }`}>
+                  <div
+                    key={idx}
+                    className={`p-2 border rounded text-xs ${
+                      conflict.type === "sequence"
+                        ? "bg-purple-50 border-purple-200"
+                        : conflict.type === "capability"
+                        ? "bg-yellow-50 border-yellow-200"
+                        : "bg-red-50 border-red-200"
+                    }`}
+                  >
+                    <div
+                      className={`font-medium uppercase ${
+                        conflict.type === "sequence"
+                          ? "text-purple-900"
+                          : conflict.type === "capability"
+                          ? "text-yellow-900"
+                          : "text-red-900"
+                      }`}
+                    >
                       {conflict.type}
                     </div>
-                    <div className={`${conflict.type === 'sequence' ? 'text-purple-700' :
-                        conflict.type === 'capability' ? 'text-yellow-700' :
-                          'text-red-700'
-                      }`}>
+                    <div
+                      className={`${
+                        conflict.type === "sequence"
+                          ? "text-purple-700"
+                          : conflict.type === "capability"
+                          ? "text-yellow-700"
+                          : "text-red-700"
+                      }`}
+                    >
                       {conflict.detail}
                     </div>
                   </div>

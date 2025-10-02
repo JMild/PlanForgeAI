@@ -1,29 +1,43 @@
 import { create } from 'zustand';
 
-export type AuditLog = {
+type AuditLog = {
   id: string;
-  timestamp: string;
   user: string;
-  module: string;
   action: string;
-  details: string;
+  timestamp: string;
+};
+
+type AuditFilter = {
+  to: string;
+  from: string;
+  module: string;
+  user: string;
+  userId?: string;
+  action?: string;
+  startDate?: string;
+  endDate?: string;
 };
 
 type AuditStore = {
   logs: AuditLog[];
   loading: boolean;
-  filter: { user?: string; module?: string; action?: string; from?: string; to?: string };
+  filter: AuditFilter;
   selectedLog?: AuditLog;
-  setFilter: (filter: Partial<AuditStore['filter']>) => void;
+  setFilter: (filter: Partial<AuditFilter>) => void;
   setLogs: (logs: AuditLog[]) => void;
-  selectLog: (log?: AuditLog) => void;
+  selectLog: (log: AuditLog) => void;
   fetchLogs: () => Promise<void>;
 };
 
 export const useAuditStore = create<AuditStore>((set, get) => ({
   logs: [],
   loading: false,
-  filter: {},
+  filter: {
+    to: '',
+    from: '',
+    module: '',
+    user: ''
+  },
   selectedLog: undefined,
   setFilter: (filter) => set({ filter: { ...get().filter, ...filter } }),
   setLogs: (logs) => set({ logs }),
@@ -31,7 +45,16 @@ export const useAuditStore = create<AuditStore>((set, get) => ({
   fetchLogs: async () => {
     set({ loading: true });
     const { filter } = get();
-    const params = new URLSearchParams(filter as any).toString();
+
+    const params = new URLSearchParams(
+      Object.entries(filter).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null) {
+          acc[key] = String(value);
+        }
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+
     const res = await fetch(`/api/audit?${params}`);
     const data: AuditLog[] = await res.json();
     set({ logs: data, loading: false });

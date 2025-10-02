@@ -1,16 +1,49 @@
-// @ts-nocheck
-
 "use client";
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  Calendar, ChevronLeft, ChevronRight, Clock, Wrench,
-  AlertCircle, Package, Filter, ZoomIn, ZoomOut, Layers,
-  Download, Settings, Info
+  ChevronLeft, ChevronRight, Clock, Wrench, Layers, Download, Settings
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
+// 1. เพิ่ม type สำหรับ machine
+type Machine = {
+  code: string;
+  name: string;
+  workCenter: string;
+  status: 'Running' | 'Idle' | 'PM' | 'Down';
+};
+
+type MachineStatus = 'Running' | 'Idle' | 'PM' | 'Down';
+
+// 2. เพิ่ม type สำหรับ job
+type ScheduledJob = {
+  jobId: string;
+  orderNo: string;
+  product: string;
+  process: string;
+  machineCode: string;
+  startTime: string;
+  endTime: string;
+  setupMin: number;
+  runMin: number;
+  status: 'Planned' | 'In Progress' | 'Completed' | 'Late';
+};
+
+// 3. เพิ่ม type สำหรับ maintenance
+type Maintenance = {
+  id: string;
+  machineCode: string;
+  type: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+};
+
+// 4. เพิ่ม union type สำหรับ selectedJob
+type SelectedJob = (ScheduledJob & { type: 'job' }) | (Maintenance & { type: 'maintenance' });
+
 // Sample machine data
-const MACHINES = [
+const MACHINES: Machine[] = [
   { code: 'M001', name: 'CNC Mill 1', workCenter: 'Machining', status: 'Running' },
   { code: 'M002', name: 'CNC Mill 2', workCenter: 'Machining', status: 'Idle' },
   { code: 'M003', name: 'Assembly Line A', workCenter: 'Assembly', status: 'Running' },
@@ -19,7 +52,7 @@ const MACHINES = [
 ];
 
 // Sample scheduled jobs
-const SCHEDULED_JOBS = [
+const SCHEDULED_JOBS: ScheduledJob[] = [
   {
     jobId: 'J001',
     orderNo: 'ORD001',
@@ -132,7 +165,7 @@ const SCHEDULED_JOBS = [
 ];
 
 // Maintenance/PM schedule
-const MAINTENANCE_SCHEDULE = [
+const MAINTENANCE_SCHEDULE: Maintenance[] = [
   {
     id: 'PM001',
     machineCode: 'M005',
@@ -152,10 +185,10 @@ const MAINTENANCE_SCHEDULE = [
 ];
 
 // Shift schedule
-const SHIFTS = [
-  { name: 'Day Shift', start: '08:00', end: '17:00', color: 'bg-blue-50' },
-  { name: 'Night Shift', start: '17:00', end: '02:00', color: 'bg-indigo-50' },
-];
+// const SHIFTS = [
+//   { name: 'Day Shift', start: '08:00', end: '17:00', color: 'bg-blue-50' },
+//   { name: 'Night Shift', start: '17:00', end: '02:00', color: 'bg-indigo-50' },
+// ];
 
 const BREAK_TIMES = [
   { start: '10:00', end: '10:15', name: 'Morning Break' },
@@ -164,12 +197,13 @@ const BREAK_TIMES = [
 ];
 
 const MachineTimeline = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date('2025-10-01'));
-  const [zoomLevel, setZoomLevel] = useState('day'); // 'day', 'week'
-  const [filterWorkCenter, setFilterWorkCenter] = useState('all');
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [showPM, setShowPM] = useState(true);
-  const [showBreaks, setShowBreaks] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date('2025-10-01'));
+  const [filterWorkCenter, setFilterWorkCenter] = useState<string>('all');
+  const [selectedJob, setSelectedJob] = useState<SelectedJob | null>(null);
+  const [showPM, setShowPM] = useState<boolean>(true);
+  const [showBreaks, setShowBreaks] = useState<boolean>(true);
+
+  // const [zoomLevel, setZoomLevel] = useState('day'); // 'day', 'week'
 
   // Filter machines
   const filteredMachines = useMemo(() => {
@@ -199,12 +233,15 @@ const MachineTimeline = () => {
     return ((hours * 60 + minutes) / (24 * 60)) * 100;
   };
 
-  const getJobWidth = (startStr: string | number | Date, endStr: string | number | Date) => {
+  const getJobWidth = (startStr: string | number | Date, endStr: string | number | Date): number => {
     const start = new Date(startStr);
     const end = new Date(endStr);
-    const durationMin = (end - start) / (1000 * 60);
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    const durationMin = (endMs - startMs) / (1000 * 60);
     return (durationMin / (24 * 60)) * 100;
   };
+
 
   const isJobOnDate = (jobDate: string | number | Date, selectedDate: Date) => {
     const job = new Date(jobDate);
@@ -229,14 +266,15 @@ const MachineTimeline = () => {
     return colors[status] || 'bg-gray-400';
   };
 
-  const getMachineStatusBadge = (status: string) => {
-    const styles = {
-      'Running': 'bg-green-100 text-green-700',
-      'Idle': 'bg-gray-100 text-gray-700',
-      'PM': 'bg-yellow-100 text-yellow-700',
-      'Down': 'bg-red-100 text-red-700',
+  const getMachineStatusBadge = (status: MachineStatus) => {
+    const styles: Record<MachineStatus, string> = {
+      Running: 'bg-green-100 text-green-700',
+      Idle: 'bg-gray-100 text-gray-700',
+      PM: 'bg-yellow-100 text-yellow-700',
+      Down: 'bg-red-100 text-red-700',
     };
-    return styles[status] || 'bg-gray-100 text-gray-700';
+
+    return styles[status];
   };
 
   // Generate hour markers

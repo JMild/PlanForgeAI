@@ -185,9 +185,9 @@
 
 import React, { useState } from "react";
 import {
-  Plus, Search, Edit, Trash2, Eye, Download, Upload, Settings,
+  Plus, Search, Edit, Trash2, Eye, Download, Settings,
   Save, X, CheckCircle, XCircle, AlertCircle, RefreshCw, Zap,
-  Database, Server, Link, Activity, Clock, PlayCircle, PauseCircle,
+  Database, Server, Link, Activity, PlayCircle, PauseCircle,
   Package
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -1089,7 +1089,7 @@ const IntegrationsManagement: React.FC = () => {
                           <li>Test the connection before activating</li>
                           <li>Keep API credentials secure and rotate regularly</li>
                           <li>Monitor sync logs for errors or issues</li>
-                          <li>Start with "Testing" status to validate configuration</li>
+                          <li>Start with &quot;Testing&quot; status to validate configuration</li>
                         </ul>
                       </div>
                     </div>

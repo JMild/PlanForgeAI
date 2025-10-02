@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { GitCompare, CheckCircle, XCircle, TrendingUp, TrendingDown, Minus, Calendar, Clock, Target, Users, DollarSign, AlertTriangle, Package, ArrowRight, Download, RefreshCw, Eye } from 'lucide-react';
+import { GitCompare, CheckCircle, XCircle, TrendingUp, TrendingDown, Minus, Clock, Target, DollarSign, AlertTriangle, Package, Download, RefreshCw, Eye } from 'lucide-react';
 
 // Types
 type Scenario = {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Factory, Settings, Clock, AlertCircle, CheckCircle, Users, LayoutGrid, Table } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Factory, Settings, Clock, AlertCircle, CheckCircle, LayoutGrid, Table } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types

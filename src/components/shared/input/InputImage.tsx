@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import Image from 'next/image';
 
 type InputImageProps = {
   label?: string;
@@ -48,10 +49,12 @@ const InputImage: React.FC<InputImageProps> = ({
         onClick={() => fileInputRef.current?.click()}
       >
         {previewUrl ? (
-          <img
+          <Image
             src={previewUrl}
             alt="preview"
-            className="w-full h-48 object-contain rounded-md"
+            width={500}    
+            height={192}   
+            className="object-contain rounded-md"
           />
         ) : (
           <div className="text-center text-sm text-slate-500 dark:text-slate-400">

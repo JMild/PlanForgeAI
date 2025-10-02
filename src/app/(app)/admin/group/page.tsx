@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Shield,
-  Save, X, CheckCircle, XCircle, Users, Lock, Unlock, Copy,
+  Save, X, CheckCircle, XCircle, Users, Lock, Copy,
   AlertCircle, Settings, FileText, Calendar, Package, Wrench
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
@@ -214,17 +214,17 @@ const RoleManagement = () => {
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
 
-  const getAllPermissionIds = () => {
-    return PERMISSION_CATEGORIES.flatMap(cat => cat.permissions.map(p => p.id));
-  };
+  // const getAllPermissionIds = () => {
+  //   return PERMISSION_CATEGORIES.flatMap(cat => cat.permissions.map(p => p.id));
+  // };
 
-  const getPermissionName = (permId: string) => {
-    for (const cat of PERMISSION_CATEGORIES) {
-      const perm = cat.permissions.find(p => p.id === permId);
-      if (perm) return perm.name;
-    }
-    return permId;
-  };
+  // const getPermissionName = (permId: string) => {
+  //   for (const cat of PERMISSION_CATEGORIES) {
+  //     const perm = cat.permissions.find(p => p.id === permId);
+  //     if (perm) return perm.name;
+  //   }
+  //   return permId;
+  // };
 
   const filteredRoles = roles.filter(role => {
     const matchesSearch = role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -855,7 +855,7 @@ const RoleManagement = () => {
                         <div className="font-medium mb-1">Permission Guidelines</div>
                         <ul className="list-disc list-inside space-y-1 text-xs">
                           <li>Grant only the permissions necessary for the role</li>
-                          <li>Review permissions regularly to ensure they're still appropriate</li>
+                          <li>Review permissions regularly to ensure they&#39;re still appropriate</li>
                           <li>Full access should only be granted to administrators</li>
                           <li>Changes to permissions affect all users with this role</li>
                         </ul>

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Group, Permission, Screen, User } from "@/src/types";
+import { Group, User } from "@/src/types";
 
 export function useGroupData(
   groups: Group[],

@@ -71,6 +71,7 @@ interface Order {
 interface OrderFormItem {
   itemNo: number;
   productCode: string;
+  productName?: string;
   qty: number;
   notes: string;
 }
@@ -389,7 +390,8 @@ const OrderManagement = () => {
       dueDate: order.dueDate,
       priority: order.priority,
       notes: order.notes,
-      items: order.items.map(({ productName, ...rest }) => ({ ...rest })), // strip productName (form doesn't carry it)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      items: order.items.map(({ productName, ...rest }) => ({ ...rest })),
     });
     setEditingOrder(order);
     setViewMode("edit");

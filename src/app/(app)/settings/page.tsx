@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Save, RefreshCw, Building, Globe, Clock, Sliders, Bell, Database, Key, Shield, Mail, Cpu, Calendar, DollarSign, Package, CheckCircle, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, Building, Globe, Sliders, Bell, Database, Key, Shield, Cpu, CheckCircle, AlertCircle } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
@@ -25,9 +25,11 @@ type SystemSettings = {
   fiscalYearStart: string;
 };
 
+type PlanningGranularity = 'Minute' | 'Hour' | 'Shift' | 'Day';
+
 type PlanningSettings = {
   defaultHorizonDays: number;
-  planningGranularity: 'Minute' | 'Hour' | 'Shift' | 'Day';
+  planningGranularity: PlanningGranularity;
   autoReplanEnabled: boolean;
   replanTriggerDelay: number;
   bufferTimeMinutes: number;
@@ -79,6 +81,7 @@ const SettingsPage = () => {
   const [activeSection, setActiveSection] = useState<string>('company');
   const [hasChanges, setHasChanges] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const granularityOptions: PlanningGranularity[] = ['Minute', 'Hour', 'Shift', 'Day'];
 
   // Settings State
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
@@ -504,15 +507,17 @@ const SettingsPage = () => {
                       <select
                         value={planningSettings.planningGranularity}
                         onChange={(e) => {
-                          setPlanningSettings({ ...planningSettings, planningGranularity: e.target.value as any });
+                          const value = e.target.value as PlanningGranularity;
+                          setPlanningSettings({ ...planningSettings, planningGranularity: value });
                           markChanged();
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="Minute">Minute</option>
-                        <option value="Hour">Hour</option>
-                        <option value="Shift">Shift</option>
-                        <option value="Day">Day</option>
+                        {granularityOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -729,15 +734,16 @@ const SettingsPage = () => {
                       <select
                         value={engineSettings.algorithm}
                         onChange={(e) => {
-                          setEngineSettings({ ...engineSettings, algorithm: e.target.value as any });
+                          const value = e.target.value as EngineSettings['algorithm'];
+                          setEngineSettings({ ...engineSettings, algorithm: value });
                           markChanged();
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                       >
-                        <option>Genetic Algorithm</option>
-                        <option>Constraint Programming</option>
-                        <option>Heuristic</option>
-                        <option>Hybrid</option>
+                        <option value="Genetic Algorithm">Genetic Algorithm</option>
+                        <option value="Constraint Programming">Constraint Programming</option>
+                        <option value="Heuristic">Heuristic</option>
+                        <option value="Hybrid">Hybrid</option>
                       </select>
                     </div>
                     <div>

@@ -13,6 +13,17 @@ export type User = {
   updated_at: string;
 };
 
+export enum JobStatusEnum {
+  All = "all",
+  InProgress = "In Progress",
+  Ready = "Ready",
+  Completed = "Completed",
+  Paused = "Paused",
+  Late = "Late",
+  Pending = "Pending",
+  Scheduled = "Scheduled",
+}
+
 export type ModalMode = 'edit' | 'view' | 'create' | null;
 
 export type Group = {

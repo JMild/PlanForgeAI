@@ -1,6 +1,6 @@
 import { Group, Permission, Screen, User } from "../types";
 
-export let users: User[] = [
+export const users: User[] = [
   {
     user_id: 1,
     employee_code: "EMP001",
@@ -46,7 +46,7 @@ export let users: User[] = [
   },
 ];
 
-export let groups: Group[] = [
+export const groups: Group[] = [
   {
     group_id: 1,
     group_name: "Admin",
@@ -86,7 +86,7 @@ export const screens: Screen[] = [
   { code: "USER001", name: "User Management" },
 ];
 
-export let permissions: Permission[] = [
+export const permissions: Permission[] = [
   ...screens.map((s, i) => ({
     permission_id: i + 1,
     group_id: 1,

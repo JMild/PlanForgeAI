@@ -141,7 +141,7 @@ const App = () => {
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password?</h2>
                 <p className="text-gray-600">
-                  No worries! Enter your email and we'll send you a verification code to reset your password.
+                  No worries! Enter your email and we&#39;ll send you a verification code to reset your password.
                 </p>
               </div>
 
@@ -206,7 +206,7 @@ const App = () => {
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
                 <p className="text-gray-600">
-                  We've sent a 6-digit verification code to<br />
+                  We&#39;ve sent a 6-digit verification code to<br />
                   <span className="font-medium text-gray-900">{email}</span>
                 </p>
               </div>
@@ -440,7 +440,7 @@ const App = () => {
                     <div className="text-left">
                       <p className="text-sm font-medium text-blue-900 mb-1">Security Tip</p>
                       <p className="text-xs text-blue-700">
-                        Keep your password secure and don't share it with anyone. Consider using a password manager for added security.
+                        Keep your password secure and don&#39;t share it with anyone. Consider using a password manager for added security.
                       </p>
                     </div>
                   </div>

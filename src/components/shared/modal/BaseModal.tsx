@@ -19,7 +19,7 @@ export type BaseModalProps = {
   dismissOnBackdrop?: boolean;
   closeOnEsc?: boolean;
   showClose?: boolean;
-  initialFocusRef?: React.RefObject<HTMLElement>;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   className?: string;
   ariaLabel?: string;
 };

@@ -3,8 +3,7 @@ import {
   Edit3,
   Trash2,
   Eye,
-  Save,
-  XCircle,
+  Save
 } from "lucide-react";
 import IconButton from "./IconButton";
 

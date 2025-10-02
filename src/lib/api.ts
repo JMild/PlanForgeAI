@@ -88,17 +88,17 @@ export const getUsers = async () => {
 
 // =========== Setting ===============
 
-import type { Holiday, Shift, BreakRow, OTRules, SetupRule, Constraints, MaintWin } from "@/src/types";
+import type { OTRules, SetupRule, Constraints, MaintWin } from "@/src/types";
 
-const mockShifts: Shift[] = [
-  { code: "A", start: "08:00", end: "17:00", lines: ["Assembly", "Packing"] },
-  { code: "B", start: "20:00", end: "05:00", lines: ["Assembly"] },
-];
+// const mockShifts: Shift[] = [
+//   { code: "A", start: "08:00", end: "17:00", lines: ["Assembly", "Packing"] },
+//   { code: "B", start: "20:00", end: "05:00", lines: ["Assembly"] },
+// ];
 
-const mockBreaks: BreakRow[] = [
-  { shift_code: "A", start: "12:00", end: "13:00" },
-  { shift_code: "B", start: "00:00", end: "00:30" },
-];
+// const mockBreaks: BreakRow[] = [
+//   { shift_code: "A", start: "12:00", end: "13:00" },
+//   { shift_code: "B", start: "00:00", end: "00:30" },
+// ];
 
 const mockOTRules: OTRules = {
   daily_cap_hours: 2,

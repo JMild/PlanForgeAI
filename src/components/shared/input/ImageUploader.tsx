@@ -1,5 +1,6 @@
 // components/shared/input/ImageUploader.tsx
 import React, { useRef, useState, useEffect } from "react";
+import Image from 'next/image';
 
 type Props = {
   value?: string;
@@ -49,9 +50,12 @@ export default function ImageUploader({ value, onChange }: Props) {
       className="border border-dashed border-slate-300 rounded-md p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-sky-500 transition w-full max-w-xs"
     >
       {preview ? (
-        <img
+        <Image
           src={preview}
-          alt="Preview"
+          alt="preview"
+          width={500}   
+          height={192}   
+          className="object-contain rounded-md"
         />
       ) : (
         <div className="text-sm text-gray-500">Drag & drop image or click to upload</div>

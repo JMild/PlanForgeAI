@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import React, { useState } from 'react';
@@ -7,7 +6,7 @@ import BaseModal from '@/src/components/shared/modal/BaseModal';
 type SettingsModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: unknown) => void;
   config?: {
     type: string;
     url: string;

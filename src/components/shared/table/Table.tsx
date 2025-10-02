@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 
 type Column<T> = {
   label: string;
-  key: keyof T | string;
+  key: keyof T;
   render?: (row: T) => React.ReactNode;
   sortable?: boolean;
 };
@@ -19,31 +19,31 @@ interface TableProps<T> {
   onDelete?: (row: T) => void;
 }
 
-const IconButton = ({
-  children,
-  tooltip,
-  variant,
-  onClick,
-}: {
-  children: React.ReactNode;
-  tooltip?: string;
-  variant?: "warn" | "default";
-  onClick: () => void;
-}) => {
-  const baseClasses =
-    "p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer";
-  const warnClasses = "text-red-600 hover:bg-red-100";
-  return (
-    <button
-      onClick={onClick}
-      title={tooltip}
-      className={`${baseClasses} ${variant === "warn" ? warnClasses : ""}`}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-};
+// const IconButton = ({
+//   children,
+//   tooltip,
+//   variant,
+//   onClick,
+// }: {
+//   children: React.ReactNode;
+//   tooltip?: string;
+//   variant?: "warn" | "default";
+//   onClick: () => void;
+// }) => {
+//   const baseClasses =
+//     "p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer";
+//   const warnClasses = "text-red-600 hover:bg-red-100";
+//   return (
+//     <button
+//       onClick={onClick}
+//       title={tooltip}
+//       className={`${baseClasses} ${variant === "warn" ? warnClasses : ""}`}
+//       type="button"
+//     >
+//       {children}
+//     </button>
+//   );
+// };
 
 export function TableComponent<T>({
   columns,
@@ -53,8 +53,8 @@ export function TableComponent<T>({
   pagination = true,
   pageSize = 10,
   searchableKeys,
-  onEdit,
-  onDelete,
+  // onEdit,
+  // onDelete,
 }: TableProps<T>) {
   // search input state
   const [searchTerm, setSearchTerm] = useState("");
@@ -66,7 +66,7 @@ export function TableComponent<T>({
     const q = searchTerm.trim().toLowerCase();
     return data.filter((item) =>
       searchableKeys.some((key) => {
-        const val = (item as any)[key];
+        const val = item[key];
         if (typeof val === "string" || typeof val === "number") {
           return String(val).toLowerCase().includes(q);
         }
@@ -144,7 +144,7 @@ export function TableComponent<T>({
                 >
                   {columns.map((col, colIndex) => (
                     <td key={colIndex} className="px-4 py-2 border align-middle">
-                      {col.render ? col.render(row) : (row as any)[col.key]}
+                      {col.render ? col.render(row) : String(row[col.key])}
                     </td>
                   ))}
                   {actions && (
@@ -198,9 +198,8 @@ export function TableComponent<T>({
                       <li key={pageNum}>
                         <button
                           onClick={() => changePage(pageNum)}
-                          className={`px-3 py-1 border rounded hover:bg-gray-200 ${
-                            pageNum === currentPage ? "bg-blue-500 text-white" : ""
-                          }`}
+                          className={`px-3 py-1 border rounded hover:bg-gray-200 ${pageNum === currentPage ? "bg-blue-500 text-white" : ""
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -212,9 +211,8 @@ export function TableComponent<T>({
                   <li key={pageNum}>
                     <button
                       onClick={() => changePage(pageNum)}
-                      className={`px-3 py-1 border rounded hover:bg-gray-200 ${
-                        pageNum === currentPage ? "bg-blue-500 text-white" : ""
-                      }`}
+                      className={`px-3 py-1 border rounded hover:bg-gray-200 ${pageNum === currentPage ? "bg-blue-500 text-white" : ""
+                        }`}
                     >
                       {pageNum}
                     </button>

@@ -1,19 +1,17 @@
-// @ts-nocheck
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import {
   TrendingUp, TrendingDown, Clock, AlertTriangle, CheckCircle,
-  Package, Calendar, Users, Wrench, Activity, ArrowRight,
+  Package, Calendar, Wrench, Activity,
   BarChart3, PieChart, Zap, Play, Pause, AlertCircle
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import { getDashboard } from '@/src/lib/api';
 import PageHeader from '@/src/components/layout/PageHeader';
 
-// Types for Dashboard Data
-type KPI = {
+interface Kpis {
   utilizationRate: number;
   utilizationTrend: number;
   onTimeDelivery: number;
@@ -22,68 +20,75 @@ type KPI = {
   throughputTrend: number;
   lateOrders: number;
   lateTrend: number;
-};
+}
 
-type MachineStatus = {
-  code: string;
-  name: string;
-  status: 'Running' | 'Idle' | 'Down';
-  currentJob?: string;
-  timeRemaining?: number;
-  downReason?: string;
-  utilization: number;
-};
-
-type WorkCenterUtilization = {
-  name: string;
-  utilization: number;
-};
-
-type OrderStatus = {
+interface OrderStatus {
   unplanned: number;
   planned: number;
   inProgress: number;
   completed: number;
   late: number;
-};
+}
 
-type CriticalOrder = {
-  orderNo: string;
-  customer: string;
-  status: 'Late' | 'In Progress' | 'Completed';
-  dueDate: string; // ISO string
-  completion: number; // percentage
-};
+interface MachineStatus {
+  code: string;
+  name: string;
+  status: string;
+  utilization: number;
+  currentJob: string | null;
+  timeRemaining: number;
+  downReason?: string;
+}
 
-type Maintenance = {
+interface UtilizationTrend {
+  date: string;
+  utilization: number;
+}
+
+interface WorkCenterUtilization {
+  name: string;
+  utilization: number;
+}
+
+interface UpcomingMaintenance {
   machine: string;
   name: string;
   type: string;
-  status: 'In Progress' | 'Scheduled';
-  scheduledDate: string; // ISO string
-  duration: number; // minutes
-};
+  scheduledDate: string;
+  duration: number;
+  status: string;
+}
+
+interface CriticalOrder {
+  orderNo: string;
+  customer: string;
+  dueDate: string;
+  status: string;
+  completion: number;
+  priority: number;
+}
+
+interface RecentAlert {
+  time: string;
+  type: "warning" | "error" | "info";
+  message: string;
+}
+
+interface DashboardData {
+  kpis: Kpis;
+  orderStatus: OrderStatus;
+  machineStatus: MachineStatus[];
+  utilizationTrend: UtilizationTrend[];
+  workCenterUtilization: WorkCenterUtilization[];
+  upcomingMaintenance: UpcomingMaintenance[];
+  criticalOrders: CriticalOrder[];
+  recentAlerts: RecentAlert[];
+}
 
 type Alert = {
   type: 'error' | 'warning' | 'info';
   message: string;
   time: string; // ISO string
-};
-
-type UtilizationTrendEntry = {
-  date: string;
-  utilization: number;
-};
-
-export type DashboardData = {
-  kpis: KPI;
-  machineStatus: MachineStatus[];
-  workCenterUtilization: WorkCenterUtilization[];
-  orderStatus: OrderStatus;
-  utilizationTrend: UtilizationTrendEntry[];
-  criticalOrders: CriticalOrder[];
-  upcomingMaintenance: Maintenance[];
-  recentAlerts: Alert[];
 };
 
 
@@ -102,14 +107,21 @@ const ProductionDashboard = () => {
   const [timeRange, setTimeRange] = useState('week');
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
-    // 3) ใช้ normalizer ใน useEffect
   useEffect(() => {
     const fetchData = async () => {
       const data = await getDashboard();
-      console.log('data',data)
-      setDashboardData(data);
-      // ถ้าคุณคุมชนิดของ getDashboard ได้ แนะนำให้ให้มัน return เป็น DashboardData ไปเลย
+
+      const normalizedAlerts = data.recentAlerts.map((alert) => ({
+        ...alert,
+        type: alert.type.toLowerCase() as "error" | "warning" | "info",
+      }));
+
+      setDashboardData({
+        ...data,
+        recentAlerts: normalizedAlerts,
+      });
     };
+
     fetchData();
   }, []);
 
@@ -152,25 +164,25 @@ const ProductionDashboard = () => {
     { name: 'Late', value: dashboardData.orderStatus.late },
   ];
 
-  const isMachineStatus = (v: unknown): v is MachineStatus['status'] =>
-    v === 'Running' || v === 'Idle' || v === 'Down';
+  // const isMachineStatus = (v: unknown): v is MachineStatus['status'] =>
+  //   v === 'Running' || v === 'Idle' || v === 'Down';
 
-  const normalizeDashboard = (raw: any): DashboardData => {
-    return {
-      ...raw,
-      // แก้ status ให้เป็น union ที่เรารับ และแปลง null → undefined
-      machineStatus: (raw?.machineStatus ?? []).map((m: any): MachineStatus => ({
-        code: String(m.code),
-        name: String(m.name),
-        status: isMachineStatus(m.status) ? m.status : 'Idle',
-        currentJob: m.currentJob ?? undefined,
-        timeRemaining: typeof m.timeRemaining === 'number' ? m.timeRemaining : undefined,
-        downReason: m.downReason ?? undefined,
-        utilization: Number(m.utilization ?? 0),
-      })),
-      // (ส่วนอื่น ๆ ถ้าจำเป็นค่อย normalize เพิ่มได้)
-    };
-  };
+  // const normalizeDashboard = (raw: any): DashboardData => {
+  //   return {
+  //     ...raw,
+  //     // แก้ status ให้เป็น union ที่เรารับ และแปลง null → undefined
+  //     machineStatus: (raw?.machineStatus ?? []).map((m: any): MachineStatus => ({
+  //       code: String(m.code),
+  //       name: String(m.name),
+  //       status: isMachineStatus(m.status) ? m.status : 'Idle',
+  //       currentJob: m.currentJob ?? undefined,
+  //       timeRemaining: typeof m.timeRemaining === 'number' ? m.timeRemaining : undefined,
+  //       downReason: m.downReason ?? undefined,
+  //       utilization: Number(m.utilization ?? 0),
+  //     })),
+  //     // (ส่วนอื่น ๆ ถ้าจำเป็นค่อย normalize เพิ่มได้)
+  //   };
+  // };
 
 
 

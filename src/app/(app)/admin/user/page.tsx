@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Users,
-  Save, X, Shield, Lock, Mail, Phone, Calendar, CheckCircle,
-  XCircle, AlertCircle, Key, UserCheck, Activity, Clock
+  Save, X, Shield, Mail, Phone, CheckCircle,
+  XCircle, AlertCircle, Key, UserCheck, Clock
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 import { ModalMode } from '@/src/types';
@@ -794,7 +794,7 @@ const UserManagement = () => {
                         <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
                         <div className="text-sm text-blue-800">
                           <div className="font-medium mb-1">Password Setup</div>
-                          <p>A temporary password will be generated and sent to the user's email address. They will be required to change it on first login.</p>
+                          <p>A temporary password will be generated and sent to the user&apos;s email address. They will be required to change it on first login.</p>
                         </div>
                       </div>
                     </div>

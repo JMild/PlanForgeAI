@@ -33,7 +33,7 @@ interface WorkCenter {
 interface RoutingStep {
   seq: number;
   processCode: string;
-  processName: string;
+  processName?: string;
   workCenterCode: string;
   machineList: string[];
   setupMin: number;
@@ -42,11 +42,11 @@ interface RoutingStep {
   changeoverFamily: string | null;
   queueTimeMin: number;
   moveTimeMin: number;
-  notes: string;  
+  notes: string;
 }
 
 // Type for routing step data within a form (no derived processName)
-interface RoutingStepFormData extends Omit<RoutingStep, 'processName'> { }
+type RoutingStepFormData = Omit<RoutingStep, 'processName'>
 
 // Type for final routing data (includes derived productName)
 interface Routing {
@@ -182,7 +182,9 @@ const RoutingMasterData = () => {
   };
 
   const openEditModal = (routing: Routing) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { productName, steps, ...restOfRouting } = routing;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const formSteps = steps.map(({ processName, ...step }) => step);
 
     setFormData({
@@ -296,22 +298,29 @@ const RoutingMasterData = () => {
     });
   };
 
-  const updateStep = (seq: number, field: keyof Omit<RoutingStep, 'processName'>, value: any) => {
+  const updateStep = (
+    seq: number,
+    field: keyof RoutingStepFormData,
+    value: RoutingStepFormData[keyof RoutingStepFormData]
+  ) => {
     setFormData(prev => ({
       ...prev,
       steps: prev.steps.map(step => {
         if (step.seq === seq) {
           const updated = { ...step, [field]: value };
+
           if (field === 'workCenterCode') {
             const wc = WORK_CENTERS.find(w => w.code === value);
             updated.machineList = wc ? wc.machines : [];
           }
+
           return updated;
         }
         return step;
       })
     }));
   };
+
 
   const moveStep = (seq: number, direction: 'up' | 'down') => {
     const index = formData.steps.findIndex(s => s.seq === seq);

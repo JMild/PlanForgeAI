@@ -1,12 +1,20 @@
 "use client";
 
 import NextLink from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, JSX } from "react";
+import Image from "next/image";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Settings, HelpCircle, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
 import { useThemeContext } from "@/src/context/ThemeContext";
+import { createPortal } from "react-dom";
+
+type User = {
+  full_name?: string | null;
+  email?: string | null;
+  image_url?: string | null;
+};
 
 type Props = {
-  user: { full_name?: string | null; email?: string | null };
+  user: User;
   compact?: boolean;
 };
 
@@ -29,9 +37,9 @@ export default function UserMenu({ user, compact = false }: Props) {
     const parts = name.split(/\s+/).filter(Boolean);
     const inits = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "");
     return inits.join("") || "U";
-  }, [user]);
+  }, [user.full_name]);
 
-  const avatarSrc = (user as any).image_url || (user as any).image_url || "";
+  const avatarSrc = user.image_url || "";
 
   // close on outside/Esc
   useEffect(() => {
@@ -43,7 +51,10 @@ export default function UserMenu({ user, compact = false }: Props) {
     }
     function onKey(e: KeyboardEvent) {
       if (!open) return;
-      if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDocMouseDown);
     document.addEventListener("keydown", onKey);
@@ -91,10 +102,6 @@ export default function UserMenu({ user, compact = false }: Props) {
     }
   };
 
-  function createPortal(arg0: JSX.Element, body: HTMLElement): import("react").ReactNode {
-    throw new Error("Function not implemented.");
-  }
-
   return (
     <div className="relative">
       {/* MAIN TRIGGER (button) */}
@@ -103,7 +110,10 @@ export default function UserMenu({ user, compact = false }: Props) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => { setOpen((v) => !v); requestAnimationFrame(() => btnRef.current?.blur()); }}
+        onClick={() => {
+          setOpen((v) => !v);
+          requestAnimationFrame(() => btnRef.current?.blur());
+        }}
         className={[
           "group inline-flex items-center transition-all duration-150",
           compact
@@ -112,12 +122,21 @@ export default function UserMenu({ user, compact = false }: Props) {
         ].join(" ")}
       >
         {/* Avatar */}
-        <div className={[
-          compact ? "h-7 w-7" : "h-8 w-8",
-          "grid place-items-center rounded-full bg-indigo-50 text-indigo-700 font-semibold overflow-hidden shrink-0 dark:bg-indigo-900/40 dark:text-indigo-300",
-        ].join(" ")}>
+        <div
+          className={[
+            compact ? "h-7 w-7" : "h-8 w-8",
+            "grid place-items-center rounded-full bg-indigo-50 text-indigo-700 font-semibold overflow-hidden shrink-0 dark:bg-indigo-900/40 dark:text-indigo-300",
+          ].join(" ")}
+        >
           {avatarSrc ? (
-            <img src={avatarSrc} alt={user.full_name || "User"} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+            <Image
+              src={avatarSrc}
+              alt={user.full_name || "User"}
+              width={compact ? 28 : 32}
+              height={compact ? 28 : 32}
+              className="object-cover"
+              referrerPolicy="no-referrer"
+            />
           ) : (
             <span className="text-xs">{initials}</span>
           )}
@@ -135,7 +154,10 @@ export default function UserMenu({ user, compact = false }: Props) {
           role="button"
           tabIndex={0}
           aria-label={`Toggle theme (now: ${themeLabel})`}
-          onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleTheme();
+          }}
           onKeyDown={onQuickToggleKeyDown}
           className="ml-1 inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
         >
@@ -155,108 +177,124 @@ export default function UserMenu({ user, compact = false }: Props) {
       </button>
 
       {/* MENU (Portal) */}
-      {open && typeof window !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label="User menu"
-          style={{
-            position: "fixed",
-            left: coords?.left ?? -9999,
-            top: coords?.top ?? -9999,
-            visibility: coords ? "visible" : "hidden",
-            width: MENU_WIDTH,
-          }}
-          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 dark:bg-slate-800 dark:border-slate-700 z-[9999]"
-        >
-          {/* Header */}
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-3">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="" className="h-9 w-9 rounded-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <span className="h-9 w-9 grid place-items-center rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold dark:bg-indigo-900/40 dark:text-indigo-300">
-                  {initials}
-                </span>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate dark:text-slate-100">
-                  {user.full_name || ""}
-                </p>
-                {user.email && (
-                  <p className="text-xs text-slate-500 truncate dark:text-slate-400">{user.email}</p>
+      {open &&
+        typeof window !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="User menu"
+            style={{
+              position: "fixed",
+              left: coords?.left ?? -9999,
+              top: coords?.top ?? -9999,
+              visibility: coords ? "visible" : "hidden",
+              width: MENU_WIDTH,
+            }}
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 dark:bg-slate-800 dark:border-slate-700 z-[9999]"
+          >
+            {/* Header */}
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                {avatarSrc ? (
+                  <div className="relative h-9 w-9 rounded-full overflow-hidden">
+                    <Image
+                      src={avatarSrc}
+                      alt=""
+                      fill
+                      referrerPolicy="no-referrer"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <span className="h-9 w-9 grid place-items-center rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold dark:bg-indigo-900/40 dark:text-indigo-300">
+                    {initials}
+                  </span>
                 )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate dark:text-slate-100">
+                    {user.full_name || ""}
+                  </p>
+                  {user.email && (
+                    <p className="text-xs text-slate-500 truncate dark:text-slate-400">{user.email}</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="border-t border-slate-200 dark:border-slate-700" />
+            <div className="border-t border-slate-200 dark:border-slate-700" />
 
-          {/* Appearance */}
-          <div className="py-1">
-            <div className="px-4 pb-2 pt-2 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
-              Appearance
-            </div>
-            <button
-              role="menuitem"
-              onClick={() => { setTheme("light"); setOpen(false); }}
-              className={twThemeItem(theme === "light")}
-            >
-              <Sun className="h-4 w-4" />
-              <span>Light</span>
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => { setTheme("dark"); setOpen(false); }}
-              className={twThemeItem(theme === "dark")}
-            >
-              <Moon className="h-4 w-4" />
-              <span>Dark</span>
-            </button>
-          </div>
-
-          <div className="border-t border-slate-200 dark:border-slate-700" />
-
-          {/* Links */}
-          <div className="py-1">
-            <MenuLink
-              i={0}
-              bindRef={bindItemRef}
-              href="/settings"
-              icon={<Settings className="h-4 w-4" />}
-              label="Settings"
-              onClick={() => setOpen(false)}
-            />
-            <MenuLink
-              i={1}
-              bindRef={bindItemRef}
-              href="/help"
-              icon={<HelpCircle className="h-4 w-4" />}
-              label="Help"
-              onClick={() => setOpen(false)}
-            />
-          </div>
-
-          <div className="border-t border-slate-200 dark:border-slate-700" />
-
-          {/* Logout */}
-          <div className="py-1">
-            <form action="/auth/logout" method="post">
+            {/* Appearance */}
+            <div className="py-1">
+              <div className="px-4 pb-2 pt-2 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
+                Appearance
+              </div>
               <button
-                ref={bindItemRef(2)}
-                type="submit"
                 role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 focus:outline-none focus:bg-rose-50 dark:hover:bg-rose-950/30 dark:text-rose-400 dark:focus:bg-rose-950/30"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setTheme("light");
+                  setOpen(false);
+                }}
+                className={twThemeItem(theme === "light")}
               >
-                <LogOut className="h-4 w-4" />
-                Log out
+                <Sun className="h-4 w-4" />
+                <span>Light</span>
               </button>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setTheme("dark");
+                  setOpen(false);
+                }}
+                className={twThemeItem(theme === "dark")}
+              >
+                <Moon className="h-4 w-4" />
+                <span>Dark</span>
+              </button>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-700" />
+
+            {/* Links */}
+            <div className="py-1">
+              <MenuLink
+                i={0}
+                bindRef={bindItemRef}
+                href="/settings"
+                icon={<Settings className="h-4 w-4" />}
+                label="Settings"
+                onClick={() => setOpen(false)}
+              />
+              <MenuLink
+                i={1}
+                bindRef={bindItemRef}
+                href="/help"
+                icon={<HelpCircle className="h-4 w-4" />}
+                label="Help"
+                onClick={() => setOpen(false)}
+              />
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-700" />
+
+            {/* Logout */}
+            <div className="py-1">
+              <form action="/auth/logout" method="post">
+                <button
+                  ref={bindItemRef(2)}
+                  type="submit"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 focus:outline-none focus:bg-rose-50 dark:hover:bg-rose-950/30 dark:text-rose-400 dark:focus:bg-rose-950/30"
+                  onClick={() => setOpen(false)}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -300,4 +338,3 @@ function twThemeItem(active: boolean) {
       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100",
   ].join(" ");
 }
-  

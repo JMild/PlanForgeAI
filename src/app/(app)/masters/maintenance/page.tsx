@@ -5,20 +5,36 @@ import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Wrench, Calendar
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
+const statusOptions = ['Active', 'Suspended', 'Completed'] as const;
+type Status = typeof statusOptions[number];
+type PriorityType = "Critical" | "High" | "Medium" | "Low";
+type PlanType = "Preventive" | "Predictive" | "Corrective" | "Calibration" | "Inspection";
+type Frequency =
+  | "Daily"
+  | "Weekly"
+  | "Bi-Weekly"
+  | "Monthly"
+  | "Quarterly"
+  | "Semi-Annual"
+  | "Annual"
+  | "By Hours"
+  | "By Cycles";
+
+
 type MaintenancePlan = {
   id: string;
   machineCode: string;
   machineName: string;
-  planType: 'Preventive' | 'Predictive' | 'Corrective' | 'Calibration' | 'Inspection';
+  planType: PlanType;
   title: string;
   description: string;
-  frequency: 'Daily' | 'Weekly' | 'Bi-Weekly' | 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual' | 'By Hours' | 'By Cycles';
+  frequency: Frequency;
   frequencyValue?: number; // For hours/cycles based
   durationMinutes: number;
   lastExecuted?: string;
   nextDue: string;
-  status: 'Active' | 'Suspended' | 'Completed';
-  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  status: Status;
+  priority: PriorityType;
   assignedTo?: string;
   estimatedCost: number;
   spareParts?: string[];
@@ -218,16 +234,17 @@ const sampleHistory: MaintenanceHistory[] = [
   },
 ];
 
-const App = () => {
+const Maintenance = () => {
   const [plans, setPlans] = useState<MaintenancePlan[]>(initialPlans);
   const [history] = useState<MaintenanceHistory[]>(sampleHistory);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
+  // const [filterType, setFilterType] = useState<string>('all');
+  const filterType = 'all';
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [selectedPlan, setSelectedPlan] = useState<MaintenancePlan | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  // const [showHistory, setShowHistory] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table' | 'calendar'>('cards');
 
   // Form State
@@ -347,7 +364,11 @@ const App = () => {
     });
   };
 
-  const handleUpdateChecklistItem = (itemId: string, field: keyof ChecklistItem, value: any) => {
+  const handleUpdateChecklistItem = <K extends keyof ChecklistItem>(
+    itemId: string,
+    field: K,
+    value: ChecklistItem[K]
+  ) => {
     setPlanForm({
       ...planForm,
       checklist: (planForm.checklist || []).map(item =>
@@ -370,7 +391,7 @@ const App = () => {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const getDueStatus = (plan: MaintenancePlan): { status: string; color: string; icon: any } => {
+  const getDueStatus = (plan: MaintenancePlan): { status: string; color: string; icon: React.ReactNode } => {
     const days = getDaysUntilDue(plan.nextDue);
     if (days < 0) {
       return { status: 'Overdue', color: 'text-red-600 bg-red-100', icon: <AlertCircle className="w-4 h-4" /> };
@@ -508,11 +529,10 @@ const App = () => {
                 </div>
               </div>
               <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={planForm.planType}
+                onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value as PlanType })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="all">All Types</option>
                 <option value="Preventive">Preventive</option>
                 <option value="Predictive">Predictive</option>
                 <option value="Corrective">Corrective</option>
@@ -819,7 +839,7 @@ const App = () => {
                       </label>
                       <select
                         value={planForm.planType}
-                        onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value as any })}
+                        onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value as PlanType })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="Preventive">Preventive</option>
@@ -867,7 +887,7 @@ const App = () => {
                       </label>
                       <select
                         value={planForm.frequency}
-                        onChange={(e) => setPlanForm({ ...planForm, frequency: e.target.value as any })}
+                        onChange={(e) => setPlanForm({ ...planForm, frequency: e.target.value as Frequency })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="Daily">Daily</option>
@@ -945,7 +965,7 @@ const App = () => {
                       </label>
                       <select
                         value={planForm.priority}
-                        onChange={(e) => setPlanForm({ ...planForm, priority: e.target.value as any })}
+                        onChange={(e) => setPlanForm({ ...planForm, priority: e.target.value as PriorityType })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="Critical">Critical</option>
@@ -955,17 +975,19 @@ const App = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Status
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                       <select
                         value={planForm.status}
-                        onChange={(e) => setPlanForm({ ...planForm, status: e.target.value as any })}
+                        onChange={(e) =>
+                          setPlanForm({ ...planForm, status: e.target.value as Status })
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="Active">Active</option>
-                        <option value="Suspended">Suspended</option>
-                        <option value="Completed">Completed</option>
+                        {statusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -1057,7 +1079,7 @@ const App = () => {
                       </table>
                     ) : (
                       <div className="text-center py-8 text-gray-500 text-sm">
-                        No checklist items. Click "Add Task" to add tasks.
+                        No checklist items. Click &quot;Add Task&quot; to add tasks.
                       </div>
                     )}
                   </div>
@@ -1144,4 +1166,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default Maintenance;

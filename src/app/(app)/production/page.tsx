@@ -1,292 +1,361 @@
-// @ts-nocheck
-
 "use client";
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from "react";
 import {
-  Play, Pause, CheckCircle, AlertTriangle, Clock, Package,
-  User, Calendar, Zap, RotateCcw, TrendingUp, TrendingDown,
-  Filter, Search, ChevronRight, Settings, FileText, AlertCircle,
-  X
-} from 'lucide-react';
-import PageHeader from '@/src/components/layout/PageHeader';
+  Play, Pause, CheckCircle, AlertTriangle, Clock,
+  Zap, TrendingUp, Search, Settings, FileText, AlertCircle, X
+} from "lucide-react";
+import PageHeader from "@/src/components/layout/PageHeader";
+import { JobStatusEnum } from "@/src/types";
 
-// Sample data
-const INITIAL_JOBS = [
+/* ---------- Types ---------- */
+// สถานะจริงของงาน (ไม่รวม "all")
+type JobLifecycleStatus =
+  | "In Progress"
+  | "Ready"
+  | "Completed"
+  | "Paused"
+  | "Late"
+  | "Pending"
+  | "Scheduled";
+
+// สถานะสำหรับตัวกรอง (มี "all")
+type JobStatusFilter = JobLifecycleStatus | "all";
+
+type ShiftType = "Day Shift" | "Night Shift";
+
+type Job = {
+  jobId: string;
+  orderNo: string;
+  itemNo: number;
+  seq: number;
+  product: string;
+  process: string;
+  machineCode: string;
+  machineName: string;
+  operator: string | null;
+  plannedStart: string; // ISO
+  plannedEnd: string;   // ISO
+  actualStart: string | null; // ISO | null
+  actualEnd: string | null;   // ISO | null
+  status: JobLifecycleStatus;
+  setupMin: number;
+  runMin: number;
+  qty: number;
+  qtyCompleted: number;
+  priority: 1 | 2 | 3;
+  shift: ShiftType;
+};
+
+type Operator = { id: string; name: string };
+
+type FormState = {
+  operator: string;
+  qtyCompleted: number;
+  notes: string;
+  downReason: string;
+  downDuration: number;
+};
+
+type Stats = {
+  inProgress: number;
+  completed: number;
+  ready: number;
+  late: number;
+  completionRate: number; // %
+  onTimeRate: number;     // %
+};
+
+/* ---------- Sample data ---------- */
+const INITIAL_JOBS: Job[] = [
   {
-    jobId: 'JOB001',
-    orderNo: 'ORD001',
+    jobId: "JOB001",
+    orderNo: "ORD001",
     itemNo: 1,
     seq: 1,
-    product: 'Widget A',
-    process: 'Machining',
-    machineCode: 'M001',
-    machineName: 'CNC Machine 1',
-    operator: 'John Smith',
-    plannedStart: '2025-10-01T08:00:00',
-    plannedEnd: '2025-10-01T10:30:00',
-    actualStart: '2025-10-01T08:15:00',
+    product: "Widget A",
+    process: "Machining",
+    machineCode: "M001",
+    machineName: "CNC Machine 1",
+    operator: "John Smith",
+    plannedStart: "2025-10-01T08:00:00",
+    plannedEnd: "2025-10-01T10:30:00",
+    actualStart: "2025-10-01T08:15:00",
     actualEnd: null,
-    status: 'In Progress',
+    status: "In Progress",
     setupMin: 30,
     runMin: 120,
     qty: 100,
     qtyCompleted: 45,
     priority: 1,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB002',
-    orderNo: 'ORD002',
+    jobId: "JOB002",
+    orderNo: "ORD002",
     itemNo: 1,
     seq: 1,
-    product: 'Widget C',
-    process: 'Machining',
-    machineCode: 'M002',
-    machineName: 'CNC Machine 2',
-    operator: 'Sarah Johnson',
-    plannedStart: '2025-10-01T08:00:00',
-    plannedEnd: '2025-10-01T10:00:00',
-    actualStart: '2025-10-01T08:00:00',
+    product: "Widget C",
+    process: "Machining",
+    machineCode: "M002",
+    machineName: "CNC Machine 2",
+    operator: "Sarah Johnson",
+    plannedStart: "2025-10-01T08:00:00",
+    plannedEnd: "2025-10-01T10:00:00",
+    actualStart: "2025-10-01T08:00:00",
     actualEnd: null,
-    status: 'In Progress',
+    status: "In Progress",
     setupMin: 30,
     runMin: 90,
     qty: 75,
     qtyCompleted: 60,
     priority: 2,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB003',
-    orderNo: 'ORD001',
+    jobId: "JOB003",
+    orderNo: "ORD001",
     itemNo: 1,
     seq: 2,
-    product: 'Widget A',
-    process: 'Drilling',
-    machineCode: 'M001',
-    machineName: 'CNC Machine 1',
+    product: "Widget A",
+    process: "Drilling",
+    machineCode: "M001",
+    machineName: "CNC Machine 1",
     operator: null,
-    plannedStart: '2025-10-01T10:30:00',
-    plannedEnd: '2025-10-01T11:50:00',
+    plannedStart: "2025-10-01T10:30:00",
+    plannedEnd: "2025-10-01T11:50:00",
     actualStart: null,
     actualEnd: null,
-    status: 'Ready',
+    status: "Ready",
     setupMin: 20,
     runMin: 60,
     qty: 100,
     qtyCompleted: 0,
     priority: 1,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB004',
-    orderNo: 'ORD003',
+    jobId: "JOB004",
+    orderNo: "ORD003",
     itemNo: 1,
     seq: 1,
-    product: 'Widget D',
-    process: 'Pressing',
-    machineCode: 'M004',
-    machineName: 'Press Machine 1',
-    operator: 'Mike Wilson',
-    plannedStart: '2025-10-01T09:00:00',
-    plannedEnd: '2025-10-01T12:00:00',
-    actualStart: '2025-10-01T09:00:00',
+    product: "Widget D",
+    process: "Pressing",
+    machineCode: "M004",
+    machineName: "Press Machine 1",
+    operator: "Mike Wilson",
+    plannedStart: "2025-10-01T09:00:00",
+    plannedEnd: "2025-10-01T12:00:00",
+    actualStart: "2025-10-01T09:00:00",
     actualEnd: null,
-    status: 'In Progress',
+    status: "In Progress",
     setupMin: 25,
     runMin: 155,
     qty: 200,
     qtyCompleted: 85,
     priority: 1,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB005',
-    orderNo: 'ORD004',
+    jobId: "JOB005",
+    orderNo: "ORD004",
     itemNo: 1,
     seq: 1,
-    product: 'Widget B',
-    process: 'Pressing',
-    machineCode: 'M004',
-    machineName: 'Press Machine 1',
+    product: "Widget B",
+    process: "Pressing",
+    machineCode: "M004",
+    machineName: "Press Machine 1",
     operator: null,
-    plannedStart: '2025-10-01T12:00:00',
-    plannedEnd: '2025-10-01T14:00:00',
+    plannedStart: "2025-10-01T12:00:00",
+    plannedEnd: "2025-10-01T14:00:00",
     actualStart: null,
     actualEnd: null,
-    status: 'Ready',
+    status: "Ready",
     setupMin: 25,
     runMin: 95,
     qty: 120,
     qtyCompleted: 0,
     priority: 2,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB006',
-    orderNo: 'ORD005',
+    jobId: "JOB006",
+    orderNo: "ORD005",
     itemNo: 1,
     seq: 1,
-    product: 'Widget C',
-    process: 'Machining',
-    machineCode: 'M001',
-    machineName: 'CNC Machine 1',
+    product: "Widget C",
+    process: "Machining",
+    machineCode: "M001",
+    machineName: "CNC Machine 1",
     operator: null,
-    plannedStart: '2025-10-01T11:50:00',
-    plannedEnd: '2025-10-01T14:00:00',
+    plannedStart: "2025-10-01T11:50:00",
+    plannedEnd: "2025-10-01T14:00:00",
     actualStart: null,
     actualEnd: null,
-    status: 'Pending',
+    status: "Pending",
     setupMin: 30,
     runMin: 100,
     qty: 80,
     qtyCompleted: 0,
     priority: 3,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
   {
-    jobId: 'JOB007',
-    orderNo: 'ORD001',
+    jobId: "JOB007",
+    orderNo: "ORD001",
     itemNo: 2,
     seq: 1,
-    product: 'Widget B',
-    process: 'Pressing',
-    machineCode: 'M004',
-    machineName: 'Press Machine 1',
+    product: "Widget B",
+    process: "Pressing",
+    machineCode: "M004",
+    machineName: "Press Machine 1",
     operator: null,
-    plannedStart: '2025-10-01T14:00:00',
-    plannedEnd: '2025-10-01T16:00:00',
+    plannedStart: "2025-10-01T14:00:00",
+    plannedEnd: "2025-10-01T16:00:00",
     actualStart: null,
     actualEnd: null,
-    status: 'Scheduled',
+    status: "Scheduled",
     setupMin: 25,
     runMin: 95,
     qty: 50,
     qtyCompleted: 0,
     priority: 1,
-    shift: 'Day Shift',
+    shift: "Day Shift",
   },
 ];
 
-const OPERATORS = [
-  { id: 'OP001', name: 'John Smith' },
-  { id: 'OP002', name: 'Sarah Johnson' },
-  { id: 'OP003', name: 'Mike Wilson' },
-  { id: 'OP004', name: 'Emily Davis' },
-  { id: 'OP005', name: 'David Brown' },
+const OPERATORS: Operator[] = [
+  { id: "OP001", name: "John Smith" },
+  { id: "OP002", name: "Sarah Johnson" },
+  { id: "OP003", name: "Mike Wilson" },
+  { id: "OP004", name: "Emily Davis" },
+  { id: "OP005", name: "David Brown" },
 ];
 
-const ProductionExecution = () => {
-  const [jobs, setJobs] = useState(INITIAL_JOBS);
-  const [selectedJob, setSelectedJob] = useState(null);
+const ProductionExecution: React.FC = () => {
+  const [jobs, setJobs] = useState<Job[]>(INITIAL_JOBS);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'start' | 'complete' | 'pause' | 'report' | null>(null);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterShift, setFilterShift] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentTime] = useState(new Date('2025-10-01T10:15:00'));
+  const [modalMode, setModalMode] =
+    useState<"start" | "complete" | "pause" | "report" | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    operator: '',
+  const [filterStatus, setFilterStatus] = useState<JobStatusFilter>(JobStatusEnum.All);
+  const [filterShift, setFilterShift] = useState<"all" | ShiftType>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentTime] = useState<Date>(new Date("2025-10-01T10:15:00"));
+
+  const [formData, setFormData] = useState<FormState>({
+    operator: "",
     qtyCompleted: 0,
-    notes: '',
-    downReason: '',
+    notes: "",
+    downReason: "",
     downDuration: 0,
   });
 
-  const getStatusColor = (status: string): string => {
+  const getStatusColor = (status: JobLifecycleStatus): string => {
     switch (status) {
-      case 'In Progress': return 'bg-green-100 text-green-700 border-green-300';
-      case 'Ready': return 'bg-blue-100 text-blue-700 border-blue-300';
-      case 'Completed': return 'bg-gray-100 text-gray-700 border-gray-300';
-      case 'Paused': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'Late': return 'bg-red-100 text-red-700 border-red-300';
-      case 'Pending': return 'bg-purple-100 text-purple-700 border-purple-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+      case "In Progress": return "bg-green-100 text-green-700 border-green-300";
+      case "Ready": return "bg-blue-100 text-blue-700 border-blue-300";
+      case "Completed": return "bg-gray-100 text-gray-700 border-gray-300";
+      case "Paused": return "bg-yellow-100 text-yellow-700 border-yellow-300";
+      case "Late": return "bg-red-100 text-red-700 border-red-300";
+      case "Pending": return "bg-purple-100 text-purple-700 border-purple-300";
+      case "Scheduled": return "bg-slate-100 text-slate-700 border-slate-300";
     }
   };
 
-  const getPriorityColor = (priority: number) => {
+  const getPriorityColor = (priority: 1 | 2 | 3): string => {
     switch (priority) {
-      case 1: return 'bg-red-100 text-red-700';
-      case 2: return 'bg-yellow-100 text-yellow-700';
-      case 3: return 'bg-green-100 text-green-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 1: return "bg-red-100 text-red-700";
+      case 2: return "bg-yellow-100 text-yellow-700";
+      case 3: return "bg-green-100 text-green-700";
     }
   };
 
-  const calculateProgress = (job) => {
+  const calculateProgress = (job: Job): number => {
     if (job.qty === 0) return 0;
     return Math.round((job.qtyCompleted / job.qty) * 100);
   };
 
-  const calculateTimeVariance = (job) => {
+  // คงที่และไม่ต้องใส่ใน deps ที่อื่น
+  const calculateTimeVariance = useCallback((job: Job): number | null => {
     if (!job.actualStart) return null;
-    const planned = new Date(job.plannedStart);
-    const actual = new Date(job.actualStart);
+    const planned = new Date(job.plannedStart).getTime();
+    const actual = new Date(job.actualStart).getTime();
     return Math.round((actual - planned) / 60000); // minutes
-  };
+  }, []);
 
-  const isLate = (job) => {
-    if (job.status === 'Completed') return false;
-    const planned = new Date(job.plannedEnd);
-    return currentTime > planned;
-  };
+  const isLate = useCallback((job: Job): boolean => {
+    if (job.status === "Completed") return false;
+    const plannedEnd = new Date(job.plannedEnd);
+    return currentTime > plannedEnd;
+  }, [currentTime]);
 
-  // Statistics
-  const stats = useMemo(() => {
-    const inProgress = jobs.filter(j => j.status === 'In Progress').length;
-    const completed = jobs.filter(j => j.status === 'Completed').length;
-    const ready = jobs.filter(j => j.status === 'Ready').length;
+  const stats: Stats = useMemo(() => {
+    const inProgress = jobs.filter(j => j.status === "In Progress").length;
+    const completed = jobs.filter(j => j.status === "Completed").length;
+    const ready = jobs.filter(j => j.status === "Ready").length;
     const late = jobs.filter(j => isLate(j)).length;
 
     const totalPlanned = jobs.length;
-    const completionRate = totalPlanned > 0 ? Math.round((completed / totalPlanned) * 100) : 0;
+    const completionRate = totalPlanned > 0
+      ? Math.round((completed / totalPlanned) * 100)
+      : 0;
 
     const onTimeJobs = jobs.filter(j => {
-      if (j.status !== 'Completed') return false;
+      if (j.status !== "Completed") return false;
       const variance = calculateTimeVariance(j);
       return variance !== null && variance <= 0;
     }).length;
 
-    const onTimeRate = completed > 0 ? Math.round((onTimeJobs / completed) * 100) : 100;
+    const onTimeRate = completed > 0
+      ? Math.round((onTimeJobs / completed) * 100)
+      : 100;
 
-    return {
-      inProgress,
-      completed,
-      ready,
-      late,
-      completionRate,
-      onTimeRate,
-    };
-  }, [jobs, currentTime]);
+    return { inProgress, completed, ready, late, completionRate, onTimeRate };
+  }, [jobs, isLate, calculateTimeVariance]);
 
-  const filteredJobs = jobs.filter(job => {
-    const matchesSearch = job.orderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.machineCode.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || job.status === filterStatus;
-    const matchesShift = filterShift === 'all' || job.shift === filterShift;
-    return matchesSearch && matchesStatus && matchesShift;
-  });
+  const filteredJobs = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return jobs.filter(job => {
+      const matchesSearch =
+        job.orderNo.toLowerCase().includes(q) ||
+        job.product.toLowerCase().includes(q) ||
+        job.machineCode.toLowerCase().includes(q);
 
-  // Group jobs by status
-  const groupedJobs = {
-    'In Progress': filteredJobs.filter(j => j.status === 'In Progress'),
-    'Ready': filteredJobs.filter(j => j.status === 'Ready'),
-    'Scheduled': filteredJobs.filter(j => j.status === 'Scheduled'),
-    'Pending': filteredJobs.filter(j => j.status === 'Pending'),
+      const matchesShift =
+        filterShift === "all" ? true : job.shift === filterShift;
+
+      const matchesStatus =
+        filterStatus === "all"
+          ? true
+          : filterStatus === "Late"
+            ? isLate(job)
+            : job.status === filterStatus;
+
+      return matchesSearch && matchesShift && matchesStatus;
+    });
+  }, [jobs, searchTerm, filterStatus, filterShift, isLate]);
+
+  // Group jobs (exclude "Late" ออก เพราะ Late เป็นสถานะคำนวณจากเวลา)
+  type GroupKey = Exclude<JobLifecycleStatus, "Late"> | "all";
+  const groupedJobs: Record<GroupKey, Job[]> = {
+    "In Progress": filteredJobs.filter(j => j.status === "In Progress"),
+    "Ready": filteredJobs.filter(j => j.status === "Ready"),
+    "Scheduled": filteredJobs.filter(j => j.status === "Scheduled"),
+    "Pending": filteredJobs.filter(j => j.status === "Pending"),
+    "Paused": filteredJobs.filter(j => j.status === "Paused"),
+    "Completed": filteredJobs.filter(j => j.status === "Completed"),
+    all: [],
   };
 
-  const openModal = (job, mode) => {
+  const openModal = (job: Job, mode: NonNullable<typeof modalMode>) => {
     setSelectedJob(job);
     setModalMode(mode);
     setFormData({
-      operator: job.operator || '',
+      operator: job.operator || "",
       qtyCompleted: job.qtyCompleted,
-      notes: '',
-      downReason: '',
+      notes: "",
+      downReason: "",
       downDuration: 0,
     });
     setIsModalOpen(true);
@@ -299,57 +368,56 @@ const ProductionExecution = () => {
   };
 
   const handleStartJob = () => {
+    if (!selectedJob) return;
     if (!formData.operator) {
-      alert('Please select an operator');
+      alert("Please select an operator");
       return;
     }
-
-    setJobs(jobs.map(j =>
+    setJobs(prev => prev.map(j =>
       j.jobId === selectedJob.jobId
         ? {
-          ...j,
-          status: 'In Progress',
-          actualStart: currentTime.toISOString(),
-          operator: formData.operator
-        }
+            ...j,
+            status: "In Progress",
+            actualStart: currentTime.toISOString(),
+            operator: formData.operator,
+          }
         : j
     ));
     closeModal();
   };
 
   const handleCompleteJob = () => {
-    setJobs(jobs.map(j =>
+    if (!selectedJob) return;
+    setJobs(prev => prev.map(j =>
       j.jobId === selectedJob.jobId
         ? {
-          ...j,
-          status: 'Completed',
-          actualEnd: currentTime.toISOString(),
-          qtyCompleted: j.qty
-        }
+            ...j,
+            status: "Completed",
+            actualEnd: currentTime.toISOString(),
+            qtyCompleted: j.qty,
+          }
         : j
     ));
     closeModal();
   };
 
   const handlePauseJob = () => {
-    setJobs(jobs.map(j =>
-      j.jobId === selectedJob.jobId
-        ? { ...j, status: 'Paused' }
-        : j
+    if (!selectedJob) return;
+    setJobs(prev => prev.map(j =>
+      j.jobId === selectedJob.jobId ? { ...j, status: "Paused" } : j
     ));
     closeModal();
   };
 
-  const handleResumeJob = (job) => {
-    setJobs(jobs.map(j =>
-      j.jobId === job.jobId
-        ? { ...j, status: 'In Progress' }
-        : j
+  const handleResumeJob = (job: Job) => {
+    setJobs(prev => prev.map(j =>
+      j.jobId === job.jobId ? { ...j, status: "In Progress" } : j
     ));
   };
 
   const handleUpdateProgress = () => {
-    setJobs(jobs.map(j =>
+    if (!selectedJob) return;
+    setJobs(prev => prev.map(j =>
       j.jobId === selectedJob.jobId
         ? { ...j, qtyCompleted: formData.qtyCompleted }
         : j
@@ -357,14 +425,12 @@ const ProductionExecution = () => {
     closeModal();
   };
 
-  const getTimeRemaining = (job) => {
-    if (!job.actualStart || job.status === 'Completed') return null;
-
-    const elapsed = (currentTime - new Date(job.actualStart)) / 60000; // minutes
+  const getTimeRemaining = (job: Job): number | null => {
+    if (!job.actualStart || job.status === "Completed") return null;
+    const elapsedMin =
+      (currentTime.getTime() - new Date(job.actualStart).getTime()) / 60000;
     const totalPlanned = job.setupMin + job.runMin;
-    const remaining = totalPlanned - elapsed;
-
-    return Math.round(remaining);
+    return Math.round(totalPlanned - elapsedMin);
   };
 
   return (
@@ -376,7 +442,7 @@ const ProductionExecution = () => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Production Execution</h1>
-                <p className="text-sm text-gray-500 mt-1">Today's dispatch queue & job tracking</p>
+                <p className="text-sm text-gray-500 mt-1">Today&#39;s dispatch queue &amp; job tracking</p>
                 <p className="text-xs text-gray-400 mt-1">Current Time: {currentTime.toLocaleTimeString()}</p>
               </div>
               <div className="flex gap-3">
@@ -451,19 +517,21 @@ const ProductionExecution = () => {
               </div>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => setFilterStatus(e.target.value as JobStatusEnum)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">All Status</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Ready">Ready</option>
-                <option value="Scheduled">Scheduled</option>
-                <option value="Pending">Pending</option>
-                <option value="Completed">Completed</option>
+                <option value={JobStatusEnum.All}>All Status</option>
+                <option value={JobStatusEnum.InProgress}>In Progress</option>
+                <option value={JobStatusEnum.Ready}>Ready</option>
+                <option value={JobStatusEnum.Scheduled}>Scheduled</option>
+                <option value={JobStatusEnum.Pending}>Pending</option>
+                <option value={JobStatusEnum.Paused}>Paused</option>
+                <option value={JobStatusEnum.Completed}>Completed</option>
+                <option value={JobStatusEnum.Late}>Late</option>
               </select>
               <select
                 value={filterShift}
-                onChange={(e) => setFilterShift(e.target.value)}
+                onChange={(e) => setFilterShift(e.target.value as 'all' | 'Day Shift' | 'Night Shift')}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Shifts</option>
@@ -472,7 +540,7 @@ const ProductionExecution = () => {
               </select>
             </div>
           </div>
-        } 
+        }
       />
 
       {/* Job Queue */}
@@ -723,7 +791,7 @@ const ProductionExecution = () => {
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows="3"
+                      // rows="3"
                       placeholder="Any notes about this job..."
                     />
                   </div>
@@ -755,7 +823,7 @@ const ProductionExecution = () => {
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows="3"
+                      // rows="3"
                       placeholder="Additional details..."
                     />
                   </div>
@@ -802,7 +870,7 @@ const ProductionExecution = () => {
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows="3"
+                      // rows="3"
                       placeholder="Any issues or observations..."
                     />
                   </div>

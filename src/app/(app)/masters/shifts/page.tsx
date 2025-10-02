@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Calendar,
   Save, X, ChevronDown, ChevronRight, Clock, Sun, Moon, Coffee,
-  AlertCircle, Copy, Check
+  AlertCircle, Copy
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 import { ModalMode } from '@/src/types';
@@ -965,7 +965,7 @@ const ShiftsCalendarsMaster = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No holidays defined. Click "Add Holiday" to add one.</p>
+                      <p className="text-sm text-gray-500 italic">No holidays defined. Click &quot;Add Holiday&quot; to add one.</p>
                     )}
                   </div>
 

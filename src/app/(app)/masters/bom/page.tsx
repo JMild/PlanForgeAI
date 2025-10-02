@@ -203,8 +203,8 @@
 
 
 
-import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, ChevronDown, ChevronRight, Package, Layers } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
@@ -271,13 +271,17 @@ const initialBOMs: BOM[] = [
   },
 ];
 
-const App = () => {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+const BOM = () => {
+  const [products, setProducts] = useState<Product[]>([]);
   const [boms, setBoms] = useState<BOM[]>(initialBOMs);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBOM, setSelectedBOM] = useState<BOM | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [expandedBOMs, setExpandedBOMs] = useState<Set<string>>(new Set(['BOM001']));
+
+  useEffect(() => {
+    setProducts(initialProducts)
+  }, []);
 
   // BOM Form State
   const [bomForm, setBomForm] = useState<Partial<BOM>>({
@@ -356,7 +360,11 @@ const App = () => {
     });
   };
 
-  const handleUpdateBOMLine = (lineId: string, field: keyof BOMLine, value: any) => {
+  const handleUpdateBOMLine = <K extends keyof BOMLine>(
+    lineId: string,
+    field: K,
+    value: BOMLine[K]
+  ) => {
     setBomForm({
       ...bomForm,
       lines: (bomForm.lines || []).map(line =>
@@ -382,15 +390,15 @@ const App = () => {
     setExpandedBOMs(newExpanded);
   };
 
-  const exportToCSV = () => {
-    const csv = 'BOM ID,Product,Version,Date,Status,Lines\n' + boms.map(b => `${b.id},${b.productCode},${b.version},${b.effectiveDate},${b.status},${b.lines.length}`).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bom_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
+  // const exportToCSV = () => {
+  //   const csv = 'BOM ID,Product,Version,Date,Status,Lines\n' + boms.map(b => `${b.id},${b.productCode},${b.version},${b.effectiveDate},${b.status},${b.lines.length}`).join('\n');
+  //   const blob = new Blob([csv], { type: 'text/csv' });
+  //   const url = window.URL.createObjectURL(blob);
+  //   const a = document.createElement('a');
+  //   a.href = url;
+  //   a.download = `bom_${new Date().toISOString().split('T')[0]}.csv`;
+  //   a.click();
+  // };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -691,7 +699,7 @@ const App = () => {
                     </table>
                     {(!bomForm.lines || bomForm.lines.length === 0) && (
                       <div className="text-center py-8 text-gray-500 text-sm">
-                        No components added. Click "Add Line" to add materials.
+                        No components added. Click &quot;Add Line&quot; to add materials.
                       </div>
                     )}
                   </div>
@@ -722,4 +730,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default BOM;

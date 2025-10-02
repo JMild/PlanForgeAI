@@ -3,8 +3,7 @@
 import React, { useState, ChangeEvent, FC } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, AlertTriangle,
-  CheckCircle, X, Save, Wrench, Zap, Clock, Settings,
-  TrendingUp, BarChart3, Filter, Copy, FileText,
+  CheckCircle, X, Save, Wrench, Zap, Clock, Settings, Copy, FileText,
   Package, Table, LayoutGrid
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';

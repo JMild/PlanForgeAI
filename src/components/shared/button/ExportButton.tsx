@@ -5,22 +5,23 @@ import { Upload, Check } from "lucide-react";
 import IconButton from "./IconButton";
 
 type ExportType = "json" | "csv" | "txt";
+type ExportData = Record<string, unknown>[] | string;
 
 type Props = {
-  label?: string;                 
-  tooltip?: string;                 
-  filename?: string;              
-  data: any;                      
-  defaultType?: ExportType;       
-  allowedTypes?: ExportType[];    
+  label?: string;
+  tooltip?: string;
+  filename?: string;
+  data: ExportData;
+  defaultType?: ExportType;
+  allowedTypes?: ExportType[];
   className?: string
-  csvDelimiter?: string;          
-  csvIncludeHeader?: boolean;     
-  csvWithBOM?: boolean;           
+  csvDelimiter?: string;
+  csvIncludeHeader?: boolean;
+  csvWithBOM?: boolean;
 };
 
 export default function ExportButton({
-  label="Export",
+  label = "Export",
   tooltip,
   filename = "data",
   data,
@@ -63,22 +64,31 @@ export default function ExportButton({
     return `${clean}.${ext}`;
   };
 
-  const toCSV = (rows: any[], delimiter = ",", includeHeader = true) => {
+  const toCSV = (
+    rows: Record<string, unknown>[], // เจาะจง array ของ object
+    delimiter = ",",
+    includeHeader = true
+  ) => {
     if (!Array.isArray(rows)) throw new Error("CSV requires an array of objects");
+
     const allKeys = Array.from(
-      new Set(rows.flatMap((r) => Object.keys((r ?? {}) as Record<string, any>)))
+      new Set(rows.flatMap((r) => Object.keys(r ?? {})))
     );
-    const esc = (v: any) => {
+
+    const esc = (v: unknown) => {
       if (v == null) return "";
       let s = Array.isArray(v) ? v.join("|") : String(v);
       s = s.replace(/"/g, '""');
       return `"${s}"`;
     };
+
     const out: string[] = [];
     if (includeHeader) out.push(allKeys.join(delimiter));
+
     for (const row of rows) {
-      out.push(allKeys.map((k) => esc((row ?? {})[k])).join(delimiter));
+      out.push(allKeys.map((k) => esc(row[k])).join(delimiter));
     }
+
     return out.join("\n");
   };
 

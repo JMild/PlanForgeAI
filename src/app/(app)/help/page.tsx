@@ -28,7 +28,7 @@ type FAQ = {
   category: string;
 };
 
-const App = () => {
+const Help = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'guide' | 'videos' | 'faq' | 'support'>('guide');
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
@@ -369,7 +369,7 @@ const App = () => {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
+                      onClick={() => setActiveTab(tab.id as 'guide' | 'videos' | 'faq' | 'support')}
                       className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium border-b-2 transition-colors ${
                         activeTab === tab.id
                           ? 'border-blue-600 text-blue-600'
@@ -916,4 +916,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default Help;

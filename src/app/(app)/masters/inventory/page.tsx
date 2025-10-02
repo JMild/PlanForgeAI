@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Package, AlertTriangle, TrendingUp, TrendingDown, History, MapPin, BarChart3, Filter, LayoutGrid, Table, Settings } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Package, AlertTriangle, TrendingUp, TrendingDown, MapPin, BarChart3, LayoutGrid, Table, Settings } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
@@ -26,17 +26,17 @@ type InventoryItem = {
   leadTimeDays: number;
 };
 
-type StockMovement = {
-  id: string;
-  materialCode: string;
-  type: 'IN' | 'OUT' | 'ADJUST' | 'TRANSFER';
-  quantity: number;
-  fromLocation?: string;
-  toLocation?: string;
-  reference: string;
-  timestamp: string;
-  user: string;
-};
+// type StockMovement = {
+//   id: string;
+//   materialCode: string;
+//   type: 'IN' | 'OUT' | 'ADJUST' | 'TRANSFER';
+//   quantity: number;
+//   fromLocation?: string;
+//   toLocation?: string;
+//   reference: string;
+//   timestamp: string;
+//   user: string;
+// };
 
 // Sample Data
 const initialInventory: InventoryItem[] = [
@@ -198,49 +198,49 @@ const initialInventory: InventoryItem[] = [
   },
 ];
 
-const sampleMovements: StockMovement[] = [
-  {
-    id: 'MOV001',
-    materialCode: 'M001',
-    type: 'IN',
-    quantity: 1000,
-    toLocation: 'A-01-01',
-    reference: 'PO-2025-123',
-    timestamp: '2025-10-02T08:30:00',
-    user: 'John Smith'
-  },
-  {
-    id: 'MOV002',
-    materialCode: 'M002',
-    type: 'OUT',
-    quantity: 120,
-    fromLocation: 'B-02-05',
-    reference: 'WO-2025-456',
-    timestamp: '2025-10-02T09:15:00',
-    user: 'Sarah Johnson'
-  },
-  {
-    id: 'MOV003',
-    materialCode: 'P001',
-    type: 'IN',
-    quantity: 50,
-    toLocation: 'FG-01-05',
-    reference: 'PROD-2025-789',
-    timestamp: '2025-10-02T11:30:00',
-    user: 'Mike Chen'
-  },
-];
+// const sampleMovements: StockMovement[] = [
+//   {
+//     id: 'MOV001',
+//     materialCode: 'M001',
+//     type: 'IN',
+//     quantity: 1000,
+//     toLocation: 'A-01-01',
+//     reference: 'PO-2025-123',
+//     timestamp: '2025-10-02T08:30:00',
+//     user: 'John Smith'
+//   },
+//   {
+//     id: 'MOV002',
+//     materialCode: 'M002',
+//     type: 'OUT',
+//     quantity: 120,
+//     fromLocation: 'B-02-05',
+//     reference: 'WO-2025-456',
+//     timestamp: '2025-10-02T09:15:00',
+//     user: 'Sarah Johnson'
+//   },
+//   {
+//     id: 'MOV003',
+//     materialCode: 'P001',
+//     type: 'IN',
+//     quantity: 50,
+//     toLocation: 'FG-01-05',
+//     reference: 'PROD-2025-789',
+//     timestamp: '2025-10-02T11:30:00',
+//     user: 'Mike Chen'
+//   },
+// ];
 
 const Inventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
-  const [movements] = useState<StockMovement[]>(sampleMovements);
+  // const [movements] = useState<StockMovement[]>(sampleMovements);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterWarehouse, setFilterWarehouse] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'low' | 'ok' | 'high'>('all');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [showMovements, setShowMovements] = useState(false);
+  // const [showMovements, setShowMovements] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Form State
@@ -366,7 +366,7 @@ const Inventory = () => {
     }
   };
 
-  const handleFormChange = (field: keyof InventoryItem, value: any) => {
+  const handleFormChange = (field: keyof InventoryItem, value: unknown) => {
     const updated = { ...itemForm, [field]: value };
     const derived = calculateDerived(updated);
     setItemForm({
@@ -376,15 +376,33 @@ const Inventory = () => {
     });
   };
 
-  const getStockStatus = (item: InventoryItem): { status: string; color: string; icon: any } => {
+  const getStockStatus = (
+    item: InventoryItem
+  ): { status: string; color: string; icon: React.ReactNode } => {
     if (item.available <= 0) {
-      return { status: 'Out of Stock', color: 'text-red-600 bg-red-100', icon: <AlertTriangle className="w-4 h-4" /> };
+      return {
+        status: "Out of Stock",
+        color: "text-red-600 bg-red-100",
+        icon: <AlertTriangle className="w-4 h-4" />,
+      };
     } else if (item.available <= item.reorderPoint) {
-      return { status: 'Low Stock', color: 'text-orange-600 bg-orange-100', icon: <TrendingDown className="w-4 h-4" /> };
+      return {
+        status: "Low Stock",
+        color: "text-orange-600 bg-orange-100",
+        icon: <TrendingDown className="w-4 h-4" />,
+      };
     } else if (item.available > item.maxStock) {
-      return { status: 'Overstock', color: 'text-purple-600 bg-purple-100', icon: <TrendingUp className="w-4 h-4" /> };
+      return {
+        status: "Overstock",
+        color: "text-purple-600 bg-purple-100",
+        icon: <TrendingUp className="w-4 h-4" />,
+      };
     } else {
-      return { status: 'Normal', color: 'text-green-600 bg-green-100', icon: <Package className="w-4 h-4" /> };
+      return {
+        status: "Normal",
+        color: "text-green-600 bg-green-100",
+        icon: <Package className="w-4 h-4" />,
+      };
     }
   };
 
@@ -427,14 +445,14 @@ const Inventory = () => {
                   <Download className="w-4 h-4" />
                   Export
                 </button>
-                          
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Item
-              </button>
+
+                <button
+                  onClick={handleAdd}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Item
+                </button>
               </div>
             </div>
 
@@ -518,7 +536,7 @@ const Inventory = () => {
               </select>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as any)}
+                onChange={(e) => setFilterStatus(e.target.value as 'all' | 'low' | 'ok' | 'high')}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
@@ -539,7 +557,7 @@ const Inventory = () => {
                 >
                   <Table size={18} />
                 </button>
-              </div>    
+              </div>
             </div>
           </div>
         }

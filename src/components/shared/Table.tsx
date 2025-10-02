@@ -9,7 +9,7 @@ import {
 import Dropdown from "./input/Dropdown";
 
 export type Column<T> = {
-  headerClassName(arg0: string, headerClassName: any): string | undefined;
+headerClassName: (key: string, col: Column<T>) => string | undefined;
   key: string;
   header: string;
   className?: string;
@@ -34,7 +34,7 @@ type Props<T> = {
   title?: React.ReactNode;
 };
 
-export default function CommonTable<T extends Record<string, any>>({
+export default function CommonTable<T extends Record<string, unknown>>({
   columns,
   data,
   className = "",
@@ -215,7 +215,7 @@ function getPageWindow(current: number, totalPages: number, windowSize = 5): (nu
 
   const half = Math.floor(windowSize / 2);
   let start = Math.max(1, current - half);
-  let end = Math.min(totalPages, start + windowSize - 1);
+  const end = Math.min(totalPages, start + windowSize - 1);
 
   if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
 

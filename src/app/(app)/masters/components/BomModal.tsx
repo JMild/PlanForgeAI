@@ -7,7 +7,6 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { Save } from "lucide-react";
 import BaseModal from "@/src/components/shared/modal/BaseModal";
 import InputText from "@/src/components/shared/input/InputText";
 
@@ -34,9 +33,6 @@ type BomModalProps = {
   theme?: ThemeMode;
 };
 
-const toNum = (v: string | number | undefined | null): number =>
-  Number(v ?? 0) || 0;
-
 const BomModal: React.FC<BomModalProps> = ({
   isOpen,
   onClose,
@@ -44,7 +40,6 @@ const BomModal: React.FC<BomModalProps> = ({
   onSave,
   fgOptions = [],
   unitOptions = ["pcs"],
-  theme = "auto",
 }) => {
   const [fgCode, setFgCode] = useState("");
   const [comp, setComp] = useState("");
@@ -57,7 +52,7 @@ const BomModal: React.FC<BomModalProps> = ({
   const isEdit = useMemo(() => !!bom?.id, [bom]);
   const initialFocusRef = useRef<HTMLInputElement>(null);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFgCode(bom?.fg_code ?? "");
     setComp(bom?.component_code ?? "");
     setUsage(bom?.usage ?? "");
@@ -65,11 +60,11 @@ const BomModal: React.FC<BomModalProps> = ({
     setSub(bom?.substitute ?? "");
     setScrap(bom?.scrap_pct ?? "");
     setRemarks(bom?.remarks ?? "");
-  };
+  }, [bom, unitOptions]);
 
   useEffect(() => {
     if (isOpen) resetForm();
-  }, [isOpen, bom, unitOptions]);
+  }, [isOpen, resetForm]);
 
   const canSave =
     fgCode.trim().length > 0 &&
@@ -101,7 +96,7 @@ const BomModal: React.FC<BomModalProps> = ({
       description="Specify Bill of Material Line"
       footer={true}
       size="md"
-      // initialFocusRef={initialFocusRef}
+    // initialFocusRef={initialFocusRef}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* FG Code */}
@@ -129,7 +124,7 @@ const BomModal: React.FC<BomModalProps> = ({
             value={fgCode}
             onChange={setFgCode}
             placeholder="เช่น ELEC-001"
-            inputRef={initialFocusRef}
+            innerRef={initialFocusRef}
           />
         )}
 

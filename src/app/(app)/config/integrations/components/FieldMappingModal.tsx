@@ -1,17 +1,44 @@
-// @ts-nocheck
+'use client';
 
-import BaseModal from '@/src/components/shared/modal/BaseModal';
 import React, { useState } from 'react';
+import BaseModal from '@/src/components/shared/modal/BaseModal';
 import * as fuzz from 'fuzzball';
 
-const FieldMappingModal = ({ initialMapping, onSave, onClose, isOpen, title }) => {
-  const [mapping, setMapping] = useState(initialMapping || []);
+// ---------- TYPES ----------
+
+type MappingDirection = 'in' | 'out' | 'bi';
+
+type FieldMapping = {
+  id: string;
+  local: string;
+  external: string;
+  dir: MappingDirection;
+};
+
+type FieldMappingModalProps = {
+  initialMapping?: FieldMapping[];
+  onSave: (mapping: FieldMapping[]) => void;
+  onClose: () => void;
+  isOpen: boolean;
+  title: string;
+};
+
+// ---------- COMPONENT ----------
+
+const FieldMappingModal: React.FC<FieldMappingModalProps> = ({
+  initialMapping = [],
+  onSave,
+  onClose,
+  isOpen,
+  title,
+}) => {
+  const [mapping, setMapping] = useState<FieldMapping[]>(initialMapping);
 
   const localFields = ['item_code', 'stock_qty', 'price'];
   const externalFields = ['sku', 'quantity_on_hand', 'cost', 'inventory', 'item_id', 'unit_price'];
 
   const handleAIGenerate = () => {
-    const autoMapping = localFields.map((local, index) => {
+    const autoMapping: FieldMapping[] = localFields.map((local, index) => {
       const [bestMatch] = fuzz.extract(local, externalFields, {
         scorer: fuzz.ratio,
         returnObjects: true,
@@ -28,9 +55,18 @@ const FieldMappingModal = ({ initialMapping, onSave, onClose, isOpen, title }) =
     setMapping(autoMapping);
   };
 
-  const handleChangeMapping = (index, key, value) => {
+  const handleChangeMapping = (
+    index: number,
+    key: keyof FieldMapping,
+    value: string
+  ) => {
     const newMapping = [...mapping];
-    newMapping[index][key] = value;
+
+    if (key === 'dir') {
+      newMapping[index][key] = value as MappingDirection; 
+    } else {
+      newMapping[index][key] = value;
+    }
     setMapping(newMapping);
   };
 
@@ -46,7 +82,7 @@ const FieldMappingModal = ({ initialMapping, onSave, onClose, isOpen, title }) =
     ]);
   };
 
-  const removeMappingRow = (index) => {
+  const removeMappingRow = (index: number) => {
     const newMapping = mapping.filter((_, i) => i !== index);
     setMapping(newMapping);
   };
@@ -85,18 +121,19 @@ const FieldMappingModal = ({ initialMapping, onSave, onClose, isOpen, title }) =
         </thead>
         <tbody>
           {mapping.map((m, i) => {
-            const localOptions = localFields.map((field) => {
-              const score = m.external ? fuzz.ratio(field, m.external) : 0;
-              return { field, score };
-            });
+            const localOptions = localFields
+              .map((field) => ({
+                field,
+                score: m.external ? fuzz.ratio(field, m.external) : 0,
+              }))
+              .sort((a, b) => b.score - a.score);
 
-            const externalOptions = externalFields.map((field) => {
-              const score = m.local ? fuzz.ratio(field, m.local) : 0;
-              return { field, score };
-            });
-
-            localOptions.sort((a, b) => b.score - a.score);
-            externalOptions.sort((a, b) => b.score - a.score);
+            const externalOptions = externalFields
+              .map((field) => ({
+                field,
+                score: m.local ? fuzz.ratio(field, m.local) : 0,
+              }))
+              .sort((a, b) => b.score - a.score);
 
             return (
               <tr key={m.id}>

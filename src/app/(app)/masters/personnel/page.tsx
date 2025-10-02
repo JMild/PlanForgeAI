@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Users, Award, Calendar, Briefcase, Mail, Phone, MapPin, Clock, UserCheck, AlertCircle, CheckCircle, LayoutGrid, Table } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, Upload, Download, Users, Award, Calendar, Briefcase, Phone, Clock, UserCheck, AlertCircle, CheckCircle, LayoutGrid, Table } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
+type EmploymentType = 'Full-Time' | 'Part-Time' | 'Contract' | 'Temporary';
+
 type Personnel = {
   empCode: string;
   firstName: string;
@@ -14,7 +16,7 @@ type Personnel = {
   phone: string;
   department: string;
   position: string;
-  employmentType: 'Full-Time' | 'Part-Time' | 'Contract' | 'Temporary';
+  employmentType: EmploymentType;
   status: 'Active' | 'On Leave' | 'Inactive';
   hireDate: string;
   calendarId: string;
@@ -257,17 +259,19 @@ const sampleSkills: Skill[] = [
   { empCode: 'EMP004', skillType: 'Process', skillName: 'MIG Welding', level: 5, certifiedDate: '2018-07-01', certifier: 'AWS' },
 ];
 
-const personnelPage = () => {
+const PersonnelPage = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>(initialPersonnel);
   const [skills] = useState<Skill[]>(sampleSkills);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all');
+  const filterType = 'all';
+  // const [filterType, setFilterType] = useState<string>('all');
   const [selectedPerson, setSelectedPerson] = useState<Personnel | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [showSkills, setShowSkills] = useState(false);
+  // const [showSkills, setShowSkills] = useState(false);
+  const statuses: Personnel['status'][] = ['Active', 'On Leave', 'Inactive'];
 
   // Form State
   const [personForm, setPersonForm] = useState<Partial<Personnel>>({
@@ -546,11 +550,13 @@ const personnelPage = () => {
                 <option value="Inactive">Inactive</option>
               </select>
               <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={personForm.employmentType}
+                onChange={(e) => {
+                  const value = e.target.value as EmploymentType; // cast ให้ตรง type
+                  setPersonForm({ ...personForm, employmentType: value });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="all">All Types</option>
                 <option value="Full-Time">Full-Time</option>
                 <option value="Part-Time">Part-Time</option>
                 <option value="Contract">Contract</option>
@@ -940,7 +946,7 @@ const personnelPage = () => {
                       </label>
                       <select
                         value={personForm.employmentType}
-                        onChange={(e) => setPersonForm({ ...personForm, employmentType: e.target.value as any })}
+                        onChange={(e) => setPersonForm({ ...personForm, employmentType: e.target.value as EmploymentType })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
                         <option value="Full-Time">Full-Time</option>
@@ -955,12 +961,19 @@ const personnelPage = () => {
                       </label>
                       <select
                         value={personForm.status}
-                        onChange={(e) => setPersonForm({ ...personForm, status: e.target.value as any })}
+                        onChange={(e) =>
+                          setPersonForm({
+                            ...personForm,
+                            status: e.target.value as Personnel['status'],
+                          })
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="Active">Active</option>
-                        <option value="On Leave">On Leave</option>
-                        <option value="Inactive">Inactive</option>
+                        {statuses.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -1179,13 +1192,4 @@ const personnelPage = () => {
   );
 };
 
-export default personnelPage;
-
-{/* <Mail className="w-4 h-4 text-gray-400" />
-                          <a href={`mailto:${person.email}`} className="hover:text-blue-600">{person.email}</a>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          <span>{person.phone}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600"> */}
+export default PersonnelPage;

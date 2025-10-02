@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Search, Filter, Download, Calendar, User, Activity,
-  FileText, AlertCircle, CheckCircle, Edit, Trash2, Eye,
-  Clock, ChevronDown, ChevronRight, Shield, Settings, Package,
-  Upload, XCircle, X
+  Search, Filter, Download, Calendar, User, Activity, CheckCircle, Edit, Trash2, Eye,
+  Clock, ChevronDown, ChevronRight, Upload, XCircle, X
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react"; // ✅ นำเข้าแบบ type เท่านั้น
+import type { LucideIcon } from "lucide-react"; 
 import PageHeader from "@/src/components/layout/PageHeader";
 
 /* -------------------- Constants (no export) -------------------- */
@@ -214,7 +212,7 @@ const INITIAL_AUDIT_LOGS: AuditLog[] = [
 // -------------------- Component --------------------
 
 const AuditLogSystem: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLog[]>([...INITIAL_AUDIT_LOGS]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterAction, setFilterAction] = useState<"all" | ActionTypeKey>("all");
   const [filterEntity, setFilterEntity] = useState<"all" | EntityType>("all");
@@ -222,6 +220,10 @@ const AuditLogSystem: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRange>({ from: '', to: '' });
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  useEffect(() => {
+    setLogs([...INITIAL_AUDIT_LOGS])
+  }, []);
 
   const getActionColor = (action: string) => {
     return ACTION_TYPES[action as ActionTypeKey]?.color || 'gray';

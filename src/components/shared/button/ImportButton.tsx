@@ -17,7 +17,7 @@ type Props = {
 };
 
 export default function ImportButton({
-  label = 'Import',
+  // label = 'Import',
   accept = '.csv,.xlsx,.xls',
   multiple = false,
   showFilename = true,
