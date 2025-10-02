@@ -1,8 +1,9 @@
-# React + Vite
+# PlanForgeAI Next.js
+note
+Converted from your HTML dashboard into a Next.js (App Router) project with TailwindCSS and Chart.js.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Run
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+pnpm install   # or npm install / yarn
+pnpm dev

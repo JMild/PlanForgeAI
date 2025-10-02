@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hover cards and small animations from the HTML */
+.kpi-card {
+  transition: all 0.3s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.status-indicator {
+  animation: pulse 2s infinite;
+}
+
+.alarm-blink {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0.3;
+  }
+}
+
+/* Circular progress style */
+.progress-ring {
+  transform: rotate(-90deg);
+}
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform-origin: 50% 50%;
+}
+
+.btn{
+  cursor:pointer;user-select:none;
+  padding:8px 12px;border-radius:10px;border:1px solid var(--line);
+  background:linear-gradient(180deg,#fff,#f4f6f8);
+  color:#0f172a;font-weight:600;
+}
+.btn:hover{background:#f3f4f6}
+.btn.ok{border-color:#059669;background:linear-gradient(180deg,#10b981,#059669);color:#fff}
+.btn.warn{border-color:#dc2626;background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff}
+.btn.ghost{background:#fff;border-color:var(--line);color:#334155}
+
+.iconbtn{
+  @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition shadow-sm;
+}
+.iconbtn:hover{background:#f8fafc}
+.iconbtn.ok{background:#10b981;border-color:#059669;color:#fff}
+.iconbtn.warn{background:#ef4444;border-color:#dc2626;color:#fff}
+
+
+/* Minimal scroll styling */
+.modal-scrollable {
+  max-height: 70vh; /* กำหนดความสูง */
+  overflow-y: auto; /* เปิด scroll แนวตั้ง */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(100,100,100,0.5) transparent; /* Firefox */
+}
+
+/* Chrome, Edge, Safari */
+.modal-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-scrollable::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 100, 100, 0.5);
+  border-radius: 3px;
+}
+
+.modal-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
