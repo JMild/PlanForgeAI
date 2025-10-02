@@ -27,7 +27,7 @@ export const NAV: Group[] = [
         sub: [
           { label: "Planner Board", href: "/planning", code: 'TRS101' },
           { label: "Mornitering", href: "/planning/timeline", code: 'TRS102' },
-          // { label: "Scenario Compare", href: "/planning/scenarios", code: 'TRS103' },
+          { label: "Scenario Compare", href: "/planning/scenarios", code: 'TRS103' },
         ],
       },
       { label: "Order Management", icon: CalendarCheck2, href: "/orders", code: 'TRS201' },
@@ -64,17 +64,10 @@ export const NAV: Group[] = [
       {
         label: "Configuration", icon: Settings2,
         sub: [
-          { label: "Settings", href: "/config/settings", code: 'CMS001' },
           { label: "Integrations", href: "/config/integrations", code: 'CMS002' },
           { label: "Audit Log", href: "/config/audit", code: 'CMS003' }
         ],
       },
-      // {
-      //   label: "Help", icon: UserRound,
-      //   sub: [
-      //     { label: "Help & Docs", href: "/help" },
-      //   ],
-      // },
     ],
   },
 ];

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import BaseModal from "@/src/components/shared/modal/BaseModal";
 

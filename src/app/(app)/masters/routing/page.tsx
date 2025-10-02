@@ -1,15 +1,73 @@
 "use client";
 
 import React, { useState } from 'react';
-import { 
+import {
   Plus, Search, Edit, Trash2, Copy, Eye, Download, Upload,
-  ArrowRight, Clock, Settings, Wrench, AlertCircle, Save, X,
+  ArrowRight, Clock, Settings, AlertCircle, Save, X,
   ChevronDown, ChevronRight, GitBranch
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
-// Sample product catalog
-const PRODUCTS = [
+// --- TYPE DEFINITIONS ---
+type Status = 'Active' | 'Draft' | 'Obsolete';
+type ViewMode = 'view' | 'edit' | null;
+
+interface Product {
+  code: string;
+  name: string;
+}
+
+interface Process {
+  code: string;
+  name: string;
+  category: string;
+}
+
+interface WorkCenter {
+  code: string;
+  name: string;
+  machines: string[];
+}
+
+// Type for final routing step data (includes derived processName)
+interface RoutingStep {
+  seq: number;
+  processCode: string;
+  processName: string;
+  workCenterCode: string;
+  machineList: string[];
+  setupMin: number;
+  runMinPerUnit: number;
+  batchSize: number;
+  changeoverFamily: string | null;
+  queueTimeMin: number;
+  moveTimeMin: number;
+  notes: string;  
+}
+
+// Type for routing step data within a form (no derived processName)
+interface RoutingStepFormData extends Omit<RoutingStep, 'processName'> { }
+
+// Type for final routing data (includes derived productName)
+interface Routing {
+  id: string;
+  productCode: string;
+  productName: string;
+  version: string;
+  status: Status;
+  effectiveDate: string;
+  description: string;
+  steps: RoutingStep[];
+}
+
+// Type for routing data within a form (no derived productName and uses form-specific steps)
+interface RoutingFormData extends Omit<Routing, 'productName' | 'steps'> {
+  steps: RoutingStepFormData[];
+}
+
+
+// --- SAMPLE DATA ---
+const PRODUCTS: Product[] = [
   { code: 'WDGT-A', name: 'Widget A' },
   { code: 'WDGT-B', name: 'Widget B' },
   { code: 'WDGT-C', name: 'Widget C' },
@@ -17,8 +75,7 @@ const PRODUCTS = [
   { code: 'GEAR-100', name: 'Gear Assembly 100' },
 ];
 
-// Sample processes
-const PROCESSES = [
+const PROCESSES: Process[] = [
   { code: 'MACH', name: 'Machining', category: 'Fabrication' },
   { code: 'DRILL', name: 'Drilling', category: 'Fabrication' },
   { code: 'PRESS', name: 'Pressing', category: 'Forming' },
@@ -29,198 +86,62 @@ const PROCESSES = [
   { code: 'INSP', name: 'Inspection', category: 'Quality' },
 ];
 
-// Sample work centers
-const WORK_CENTERS = [
+const WORK_CENTERS: WorkCenter[] = [
   { code: 'WC-MACH', name: 'Machining Center', machines: ['M001', 'M002'] },
   { code: 'WC-PRESS', name: 'Press Area', machines: ['M004'] },
   { code: 'WC-PAINT', name: 'Paint Booth', machines: ['M005'] },
   { code: 'WC-ASSY', name: 'Assembly Line', machines: ['M003'] },
 ];
 
-// Initial routing data
-const INITIAL_ROUTINGS = [
+const INITIAL_ROUTINGS: Routing[] = [
   {
-    id: 'RT001',
-    productCode: 'WDGT-A',
-    productName: 'Widget A',
-    version: '1.0',
-    status: 'Active',
-    effectiveDate: '2025-01-01',
-    description: 'Standard routing for Widget A',
+    id: 'RT001', productCode: 'WDGT-A', productName: 'Widget A', version: '1.0', status: 'Active', effectiveDate: '2025-10-02', description: 'Standard routing for Widget A',
     steps: [
-      {
-        seq: 10,
-        processCode: 'MACH',
-        processName: 'Machining',
-        workCenterCode: 'WC-MACH',
-        machineList: ['M001', 'M002'],
-        setupMin: 30,
-        runMinPerUnit: 1.2,
-        batchSize: 50,
-        changeoverFamily: 'METAL-A',
-        queueTimeMin: 0,
-        moveTimeMin: 5,
-        notes: 'Use carbide tooling'
-      },
-      {
-        seq: 20,
-        processCode: 'DRILL',
-        processName: 'Drilling',
-        workCenterCode: 'WC-MACH',
-        machineList: ['M001', 'M002'],
-        setupMin: 20,
-        runMinPerUnit: 0.6,
-        batchSize: 50,
-        changeoverFamily: 'METAL-A',
-        queueTimeMin: 30,
-        moveTimeMin: 5,
-        notes: '4 holes per unit'
-      },
-      {
-        seq: 30,
-        processCode: 'ASSY',
-        processName: 'Assembly',
-        workCenterCode: 'WC-ASSY',
-        machineList: ['M003'],
-        setupMin: 15,
-        runMinPerUnit: 0.9,
-        batchSize: 100,
-        changeoverFamily: null,
-        queueTimeMin: 60,
-        moveTimeMin: 10,
-        notes: 'Include fasteners'
-      },
+      { seq: 10, processCode: 'MACH', processName: 'Machining', workCenterCode: 'WC-MACH', machineList: ['M001', 'M002'], setupMin: 30, runMinPerUnit: 1.2, batchSize: 50, changeoverFamily: 'METAL-A', queueTimeMin: 0, moveTimeMin: 5, notes: 'Use carbide tooling' },
+      { seq: 20, processCode: 'DRILL', processName: 'Drilling', workCenterCode: 'WC-MACH', machineList: ['M001', 'M002'], setupMin: 20, runMinPerUnit: 0.6, batchSize: 50, changeoverFamily: 'METAL-A', queueTimeMin: 30, moveTimeMin: 5, notes: '4 holes per unit' },
+      { seq: 30, processCode: 'ASSY', processName: 'Assembly', workCenterCode: 'WC-ASSY', machineList: ['M003'], setupMin: 15, runMinPerUnit: 0.9, batchSize: 100, changeoverFamily: null, queueTimeMin: 60, moveTimeMin: 10, notes: 'Include fasteners' },
     ]
   },
   {
-    id: 'RT002',
-    productCode: 'WDGT-B',
-    productName: 'Widget B',
-    version: '1.0',
-    status: 'Active',
-    effectiveDate: '2025-01-01',
-    description: 'Standard routing for Widget B',
+    id: 'RT002', productCode: 'WDGT-B', productName: 'Widget B', version: '1.0', status: 'Active', effectiveDate: '2025-10-02', description: 'Standard routing for Widget B',
     steps: [
-      {
-        seq: 10,
-        processCode: 'PRESS',
-        processName: 'Pressing',
-        workCenterCode: 'WC-PRESS',
-        machineList: ['M004'],
-        setupMin: 25,
-        runMinPerUnit: 1.6,
-        batchSize: 20,
-        changeoverFamily: 'PRESS-STD',
-        queueTimeMin: 0,
-        moveTimeMin: 5,
-        notes: 'Use die #12'
-      },
-      {
-        seq: 20,
-        processCode: 'PAINT',
-        processName: 'Painting',
-        workCenterCode: 'WC-PAINT',
-        machineList: ['M005'],
-        setupMin: 30,
-        runMinPerUnit: 1.4,
-        batchSize: 30,
-        changeoverFamily: 'PAINT-BLUE',
-        queueTimeMin: 120,
-        moveTimeMin: 10,
-        notes: 'Dry time 2 hours'
-      },
-      {
-        seq: 30,
-        processCode: 'ASSY',
-        processName: 'Assembly',
-        workCenterCode: 'WC-ASSY',
-        machineList: ['M003'],
-        setupMin: 15,
-        runMinPerUnit: 1.0,
-        batchSize: 100,
-        changeoverFamily: null,
-        queueTimeMin: 0,
-        moveTimeMin: 5,
-        notes: ''
-      },
+      { seq: 10, processCode: 'PRESS', processName: 'Pressing', workCenterCode: 'WC-PRESS', machineList: ['M004'], setupMin: 25, runMinPerUnit: 1.6, batchSize: 20, changeoverFamily: 'PRESS-STD', queueTimeMin: 0, moveTimeMin: 5, notes: 'Use die #12' },
+      { seq: 20, processCode: 'PAINT', processName: 'Painting', workCenterCode: 'WC-PAINT', machineList: ['M005'], setupMin: 30, runMinPerUnit: 1.4, batchSize: 30, changeoverFamily: 'PAINT-BLUE', queueTimeMin: 120, moveTimeMin: 10, notes: 'Dry time 2 hours' },
+      { seq: 30, processCode: 'ASSY', processName: 'Assembly', workCenterCode: 'WC-ASSY', machineList: ['M003'], setupMin: 15, runMinPerUnit: 1.0, batchSize: 100, changeoverFamily: null, queueTimeMin: 0, moveTimeMin: 5, notes: '' },
     ]
   },
   {
-    id: 'RT003',
-    productCode: 'WDGT-C',
-    productName: 'Widget C',
-    version: '1.0',
-    status: 'Active',
-    effectiveDate: '2025-01-01',
-    description: 'Standard routing for Widget C',
+    id: 'RT003', productCode: 'WDGT-C', productName: 'Widget C', version: '1.0', status: 'Active', effectiveDate: '2025-10-02', description: 'Standard routing for Widget C',
     steps: [
-      {
-        seq: 10,
-        processCode: 'MACH',
-        processName: 'Machining',
-        workCenterCode: 'WC-MACH',
-        machineList: ['M001', 'M002'],
-        setupMin: 30,
-        runMinPerUnit: 1.3,
-        batchSize: 50,
-        changeoverFamily: 'METAL-A',
-        queueTimeMin: 0,
-        moveTimeMin: 5,
-        notes: ''
-      },
-      {
-        seq: 20,
-        processCode: 'PAINT',
-        processName: 'Painting',
-        workCenterCode: 'WC-PAINT',
-        machineList: ['M005'],
-        setupMin: 30,
-        runMinPerUnit: 0.8,
-        batchSize: 40,
-        changeoverFamily: 'PAINT-RED',
-        queueTimeMin: 120,
-        moveTimeMin: 10,
-        notes: ''
-      },
-      {
-        seq: 30,
-        processCode: 'PACK',
-        processName: 'Packaging',
-        workCenterCode: 'WC-ASSY',
-        machineList: ['M003'],
-        setupMin: 10,
-        runMinPerUnit: 0.5,
-        batchSize: 200,
-        changeoverFamily: null,
-        queueTimeMin: 0,
-        moveTimeMin: 5,
-        notes: 'Use protective wrapping'
-      },
+      { seq: 10, processCode: 'MACH', processName: 'Machining', workCenterCode: 'WC-MACH', machineList: ['M001', 'M002'], setupMin: 30, runMinPerUnit: 1.3, batchSize: 50, changeoverFamily: 'METAL-A', queueTimeMin: 0, moveTimeMin: 5, notes: '' },
+      { seq: 20, processCode: 'PAINT', processName: 'Painting', workCenterCode: 'WC-PAINT', machineList: ['M005'], setupMin: 30, runMinPerUnit: 0.8, batchSize: 40, changeoverFamily: 'PAINT-RED', queueTimeMin: 120, moveTimeMin: 10, notes: '' },
+      { seq: 30, processCode: 'PACK', processName: 'Packaging', workCenterCode: 'WC-ASSY', machineList: ['M003'], setupMin: 10, runMinPerUnit: 0.5, batchSize: 200, changeoverFamily: null, queueTimeMin: 0, moveTimeMin: 5, notes: 'Use protective wrapping' },
     ]
   },
 ];
 
 const RoutingMasterData = () => {
-  const [routings, setRoutings] = useState(INITIAL_ROUTINGS);
+  const [routings, setRoutings] = useState<Routing[]>(INITIAL_ROUTINGS);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [expandedRoutings, setExpandedRoutings] = useState({});
+  const [expandedRoutings, setExpandedRoutings] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRouting, setEditingRouting] = useState(null);
-  const [viewMode, setViewMode] = useState(null);
-
-  const [formData, setFormData] = useState({
+  const [editingRouting, setEditingRouting] = useState<Routing | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(null);
+  const emptyFormData: RoutingFormData = {
     id: '',
     productCode: '',
     version: '1.0',
-    status: 'Active',
+    status: 'Draft',
     effectiveDate: '',
     description: '',
     steps: []
-  });
+  };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const [formData, setFormData] = useState<RoutingFormData>(emptyFormData);
+
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
       'Active': 'bg-green-100 text-green-700',
       'Draft': 'bg-yellow-100 text-yellow-700',
       'Obsolete': 'bg-gray-100 text-gray-700',
@@ -230,13 +151,13 @@ const RoutingMasterData = () => {
 
   const filteredRoutings = routings.filter(routing => {
     const matchesSearch = routing.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         routing.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         routing.id.toLowerCase().includes(searchTerm.toLowerCase());
+      routing.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      routing.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || routing.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
-  const toggleRoutingExpand = (id) => {
+  const toggleRoutingExpand = (id: string) => {
     setExpandedRoutings(prev => ({
       ...prev,
       [id]: !prev[id]
@@ -252,19 +173,7 @@ const RoutingMasterData = () => {
       effectiveDate: new Date().toISOString().split('T')[0],
       description: '',
       steps: [
-        {
-          seq: 10,
-          processCode: '',
-          workCenterCode: '',
-          machineList: [],
-          setupMin: 0,
-          runMinPerUnit: 0,
-          batchSize: 1,
-          changeoverFamily: null,
-          queueTimeMin: 0,
-          moveTimeMin: 0,
-          notes: ''
-        }
+        { seq: 10, processCode: '', workCenterCode: '', machineList: [], setupMin: 0, runMinPerUnit: 0, batchSize: 1, changeoverFamily: null, queueTimeMin: 0, moveTimeMin: 0, notes: '' }
       ]
     });
     setEditingRouting(null);
@@ -272,22 +181,20 @@ const RoutingMasterData = () => {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (routing) => {
+  const openEditModal = (routing: Routing) => {
+    const { productName, steps, ...restOfRouting } = routing;
+    const formSteps = steps.map(({ processName, ...step }) => step);
+
     setFormData({
-      id: routing.id,
-      productCode: routing.productCode,
-      version: routing.version,
-      status: routing.status,
-      effectiveDate: routing.effectiveDate,
-      description: routing.description,
-      steps: routing.steps.map(step => ({ ...step }))
+      ...restOfRouting,
+      steps: formSteps
     });
     setEditingRouting(routing);
     setViewMode('edit');
     setIsModalOpen(true);
   };
 
-  const openViewModal = (routing) => {
+  const openViewModal = (routing: Routing) => {
     setEditingRouting(routing);
     setViewMode('view');
     setIsModalOpen(true);
@@ -311,7 +218,7 @@ const RoutingMasterData = () => {
     }
 
     const product = PRODUCTS.find(p => p.code === formData.productCode);
-    
+
     const newRouting = {
       id: formData.id,
       productCode: formData.productCode,
@@ -337,15 +244,15 @@ const RoutingMasterData = () => {
     closeModal();
   };
 
-  const handleDeleteRouting = (id) => {
+  const handleDeleteRouting = (id: string) => {
     if (confirm(`Are you sure you want to delete routing ${id}?`)) {
       setRoutings(routings.filter(r => r.id !== id));
     }
   };
 
-  const handleCopyRouting = (routing) => {
+  const handleCopyRouting = (routing: Routing) => {
     const newId = `RT${String(routings.length + 1).padStart(3, '0')}`;
-    const copiedRouting = {
+    const copiedRouting: Routing = {
       ...routing,
       id: newId,
       version: '1.0',
@@ -378,7 +285,7 @@ const RoutingMasterData = () => {
     });
   };
 
-  const removeStep = (seq) => {
+  const removeStep = (seq: number) => {
     if (formData.steps.length === 1) {
       alert('Routing must have at least one step');
       return;
@@ -389,51 +296,52 @@ const RoutingMasterData = () => {
     });
   };
 
-  const updateStep = (seq, field, value) => {
-    setFormData({
-      ...formData,
-      steps: formData.steps.map(step => {
+  const updateStep = (seq: number, field: keyof Omit<RoutingStep, 'processName'>, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      steps: prev.steps.map(step => {
         if (step.seq === seq) {
           const updated = { ...step, [field]: value };
-          
-          // Auto-populate machines when work center changes
           if (field === 'workCenterCode') {
             const wc = WORK_CENTERS.find(w => w.code === value);
             updated.machineList = wc ? wc.machines : [];
           }
-          
           return updated;
         }
         return step;
       })
-    });
+    }));
   };
 
-  const moveStep = (seq, direction) => {
+  const moveStep = (seq: number, direction: 'up' | 'down') => {
     const index = formData.steps.findIndex(s => s.seq === seq);
     if ((direction === 'up' && index === 0) || (direction === 'down' && index === formData.steps.length - 1)) {
       return;
     }
-    
+
     const newSteps = [...formData.steps];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     [newSteps[index], newSteps[targetIndex]] = [newSteps[targetIndex], newSteps[index]];
-    
+
     // Resequence
-    newSteps.forEach((step, idx) => {
-      step.seq = (idx + 1) * 10;
-    });
-    
-    setFormData({ ...formData, steps: newSteps });
+    const resequencedSteps = newSteps.map((step, idx) => ({
+      ...step,
+      seq: (idx + 1) * 10
+    }));
+
+    setFormData({ ...formData, steps: resequencedSteps });
   };
 
-  const calculateTotalTime = (steps, qty = 100) => {
+  const calculateTotalTime = (steps: (RoutingStep | RoutingStepFormData)[], qty: number = 100): number => {
     return steps.reduce((total, step) => {
-      const batches = Math.ceil(qty / step.batchSize);
-      const batchTime = step.setupMin + (step.batchSize * step.runMinPerUnit);
-      return total + (batches * batchTime) + step.queueTimeMin + step.moveTimeMin;
+      const batchSize = step.batchSize ?? 1;
+      if (batchSize <= 0) return total;
+      const batches = Math.ceil(qty / batchSize);
+      const batchTime = (step.setupMin ?? 0) + (batchSize * (step.runMinPerUnit ?? 0));
+      return total + (batches * batchTime) + (step.queueTimeMin ?? 0) + (step.moveTimeMin ?? 0);
     }, 0);
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -455,7 +363,7 @@ const RoutingMasterData = () => {
                   <Download size={18} />
                   Export
                 </button>
-                <button 
+                <button
                   onClick={openCreateModal}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                 >
@@ -500,7 +408,7 @@ const RoutingMasterData = () => {
               <GitBranch size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No routings found</h3>
               <p className="text-gray-500 mb-4">Create your first routing to get started</p>
-              <button 
+              <button
                 onClick={openCreateModal}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
@@ -524,7 +432,7 @@ const RoutingMasterData = () => {
                           >
                             {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                           </button>
-                          
+
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <h3 className="text-lg font-semibold text-gray-900">
@@ -535,7 +443,7 @@ const RoutingMasterData = () => {
                                 {routing.status}
                               </span>
                             </div>
-                            
+
                             <div className="flex items-center gap-6 text-sm text-gray-600">
                               <div className="flex items-center gap-1">
                                 <GitBranch size={14} />
@@ -557,28 +465,28 @@ const RoutingMasterData = () => {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             onClick={() => openViewModal(routing)}
                             className="p-2 hover:bg-gray-200 rounded"
                             title="View Details"
                           >
                             <Eye size={18} className="text-gray-600" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleCopyRouting(routing)}
                             className="p-2 hover:bg-gray-200 rounded"
                             title="Copy Routing"
                           >
                             <Copy size={18} className="text-gray-600" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => openEditModal(routing)}
                             className="p-2 hover:bg-gray-200 rounded"
                             title="Edit Routing"
                           >
                             <Edit size={18} className="text-blue-600" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteRouting(routing.id)}
                             className="p-2 hover:bg-gray-200 rounded"
                             title="Delete Routing"
@@ -601,13 +509,13 @@ const RoutingMasterData = () => {
                                       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold text-sm flex-shrink-0">
                                         {idx + 1}
                                       </div>
-                                      
+
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                           <span className="font-semibold text-gray-900">{step.processName}</span>
                                           <span className="text-sm text-gray-500">({step.processCode})</span>
                                         </div>
-                                        
+
                                         <div className="grid grid-cols-4 gap-4 text-sm text-gray-600 mt-2">
                                           <div>
                                             <span className="text-gray-500">Work Center:</span>
@@ -651,7 +559,7 @@ const RoutingMasterData = () => {
                                     </div>
                                   </div>
                                 </div>
-                                
+
                                 {idx < routing.steps.length - 1 && (
                                   <ArrowRight size={20} className="text-gray-400 flex-shrink-0" />
                                 )}
@@ -734,7 +642,7 @@ const RoutingMasterData = () => {
                             </div>
                             <div className="flex-1">
                               <h4 className="font-semibold text-gray-900 mb-2">{step.processName}</h4>
-                                                              <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div className="grid grid-cols-3 gap-4 text-sm">
                                 <div>
                                   <span className="text-gray-500">Work Center:</span>
                                   <div className="font-medium">{step.workCenterCode}</div>
@@ -814,7 +722,7 @@ const RoutingMasterData = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Status *</label>
                       <select
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as Status })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="Draft">Draft</option>
@@ -1044,7 +952,7 @@ const RoutingMasterData = () => {
                         <div className="text-sm">
                           <div className="font-medium text-blue-900 mb-1">Routing Summary</div>
                           <div className="text-blue-800">
-                            Total Steps: {formData.steps.length} | 
+                            Total Steps: {formData.steps.length} |
                             Estimated Time (100 units): {Math.round(calculateTotalTime(formData.steps, 100))} minutes
                           </div>
                         </div>

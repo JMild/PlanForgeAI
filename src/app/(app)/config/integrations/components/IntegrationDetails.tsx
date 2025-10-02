@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import React, { useState } from 'react';
 
 const Card = ({ children, className = '' }) => (

@@ -1,221 +1,241 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Search, Filter, Download, Calendar, User, Activity,
   FileText, AlertCircle, CheckCircle, Edit, Trash2, Eye,
   Clock, ChevronDown, ChevronRight, Shield, Settings, Package,
-  Upload,
-  XCircle
-} from 'lucide-react';
-import PageHeader from '@/src/components/layout/PageHeader';
+  Upload, XCircle, X
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react"; // ✅ นำเข้าแบบ type เท่านั้น
+import PageHeader from "@/src/components/layout/PageHeader";
 
-// Action types with icons
-const ACTION_TYPES = {
-  'CREATE': { label: 'Create', color: 'green', icon: CheckCircle },
-  'UPDATE': { label: 'Update', color: 'blue', icon: Edit },
-  'DELETE': { label: 'Delete', color: 'red', icon: Trash2 },
-  'VIEW': { label: 'View', color: 'gray', icon: Eye },
-  'LOGIN': { label: 'Login', color: 'purple', icon: User },
-  'LOGOUT': { label: 'Logout', color: 'purple', icon: User },
-  'EXPORT': { label: 'Export', color: 'orange', icon: Download },
-  'IMPORT': { label: 'Import', color: 'orange', icon: Upload },
-  'APPROVE': { label: 'Approve', color: 'green', icon: CheckCircle },
-  'REJECT': { label: 'Reject', color: 'red', icon: XCircle },
-};
-
-// Entity types
+/* -------------------- Constants (no export) -------------------- */
 const ENTITY_TYPES = [
-  'Order',
-  'Production Plan',
-  'Machine',
-  'Material',
-  'Product',
-  'Routing',
-  'User',
-  'Role',
-  'Integration',
-  'Shift Calendar',
-  'Skills Matrix',
-];
+  "Order",
+  "Production Plan",
+  "Machine",
+  "Material",
+  "Product",
+  "Routing",
+  "User",
+  "Role",
+  "Integration",
+  "Shift Calendar",
+  "Skills Matrix",
+] as const;
 
-// Sample audit log data
-const INITIAL_AUDIT_LOGS = [
+const ACTION_TYPES = {
+  CREATE: { label: "Create", color: "green", icon: CheckCircle },
+  UPDATE: { label: "Update", color: "blue", icon: Edit },
+  DELETE: { label: "Delete", color: "red", icon: Trash2 },
+  VIEW: { label: "View", color: "gray", icon: Eye },
+  LOGIN: { label: "Login", color: "purple", icon: User },
+  LOGOUT: { label: "Logout", color: "purple", icon: User },
+  EXPORT: { label: "Export", color: "orange", icon: Download },
+  IMPORT: { label: "Import", color: "orange", icon: Upload },
+  APPROVE: { label: "Approve", color: "green", icon: CheckCircle },
+  REJECT: { label: "Reject", color: "red", icon: XCircle },
+} as const satisfies Record<string, { label: string; color: string; icon: LucideIcon }>;
+
+/* -------------------- Types (no export) -------------------- */
+type EntityType = (typeof ENTITY_TYPES)[number];
+type ActionTypeKey = keyof typeof ACTION_TYPES;
+
+interface AuditLog {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  action: ActionTypeKey;
+  entity: EntityType;
+  entityId: string;
+  description: string;
+  ipAddress: string;
+  changes: Record<string, unknown> | null;
+}
+
+interface DateRange { from: string; to: string; }
+
+/* -------------------- Initial data (typed) -------------------- */
+const INITIAL_AUDIT_LOGS: AuditLog[] = [
   {
-    id: 'LOG001',
-    timestamp: '2025-10-02T09:45:23',
-    userId: 'USR002',
-    userName: 'John Smith',
-    action: 'CREATE',
-    entity: 'Production Plan',
-    entityId: 'PLAN-2025-10-02-001',
-    description: 'Created new production plan for October 2025',
-    ipAddress: '192.168.1.105',
+    id: "LOG001",
+    timestamp: "2025-10-02T09:45:23",
+    userId: "USR002",
+    userName: "John Smith",
+    action: "CREATE",
+    entity: "Production Plan",
+    entityId: "PLAN-2025-10-02-001",
+    description: "Created new production plan for October 2025",
+    ipAddress: "192.168.1.105",
     changes: {
-      status: 'Draft',
+      status: "Draft",
       totalJobs: 45,
-      startDate: '2025-10-02',
-      endDate: '2025-10-15'
-    }
+      startDate: "2025-10-02",
+      endDate: "2025-10-15",
+    },
   },
   {
-    id: 'LOG002',
-    timestamp: '2025-10-02T09:30:15',
-    userId: 'USR002',
-    userName: 'John Smith',
-    action: 'UPDATE',
-    entity: 'Order',
-    entityId: 'ORD003',
-    description: 'Updated order priority from 2 to 1',
-    ipAddress: '192.168.1.105',
+    id: "LOG002",
+    timestamp: "2025-10-02T09:30:15",
+    userId: "USR002",
+    userName: "John Smith",
+    action: "UPDATE",
+    entity: "Order",
+    entityId: "ORD003",
+    description: "Updated order priority from 2 to 1",
+    ipAddress: "192.168.1.105",
     changes: {
       before: { priority: 2 },
-      after: { priority: 1 }
-    }
+      after: { priority: 1 },
+    },
   },
   {
-    id: 'LOG003',
-    timestamp: '2025-10-02T09:15:00',
-    userId: 'USR001',
-    userName: 'System Administrator',
-    action: 'LOGIN',
-    entity: 'User',
-    entityId: 'USR001',
-    description: 'User logged in successfully',
-    ipAddress: '192.168.1.100',
-    changes: null
+    id: "LOG003",
+    timestamp: "2025-10-02T09:15:00",
+    userId: "USR001",
+    userName: "System Administrator",
+    action: "LOGIN",
+    entity: "User",
+    entityId: "USR001",
+    description: "User logged in successfully",
+    ipAddress: "192.168.1.100",
+    changes: null,
   },
   {
-    id: 'LOG004',
-    timestamp: '2025-10-02T09:00:45',
-    userId: 'USR003',
-    userName: 'Sarah Johnson',
-    action: 'APPROVE',
-    entity: 'Production Plan',
-    entityId: 'PLAN-2025-09-28-005',
-    description: 'Approved production plan for execution',
-    ipAddress: '192.168.1.108',
+    id: "LOG004",
+    timestamp: "2025-10-02T09:00:45",
+    userId: "USR003",
+    userName: "Sarah Johnson",
+    action: "APPROVE",
+    entity: "Production Plan",
+    entityId: "PLAN-2025-09-28-005",
+    description: "Approved production plan for execution",
+    ipAddress: "192.168.1.108",
     changes: {
-      before: { status: 'Pending Approval' },
-      after: { status: 'Approved' }
-    }
+      before: { status: "Pending Approval" },
+      after: { status: "Approved" },
+    },
   },
   {
-    id: 'LOG005',
-    timestamp: '2025-10-02T08:45:30',
-    userId: 'USR006',
-    userName: 'Emma Davis',
-    action: 'UPDATE',
-    entity: 'Machine',
-    entityId: 'M001',
-    description: 'Updated machine status from Idle to PM',
-    ipAddress: '192.168.1.112',
+    id: "LOG005",
+    timestamp: "2025-10-02T08:45:30",
+    userId: "USR006",
+    userName: "Emma Davis",
+    action: "UPDATE",
+    entity: "Machine",
+    entityId: "M001",
+    description: "Updated machine status from Idle to PM",
+    ipAddress: "192.168.1.112",
     changes: {
-      before: { status: 'Idle' },
-      after: { status: 'PM', nextPMDate: '2025-10-15' }
-    }
+      before: { status: "Idle" },
+      after: { status: "PM", nextPMDate: "2025-10-15" },
+    },
   },
   {
-    id: 'LOG006',
-    timestamp: '2025-10-02T08:30:20',
-    userId: 'USR002',
-    userName: 'John Smith',
-    action: 'EXPORT',
-    entity: 'Order',
-    entityId: 'ALL',
-    description: 'Exported all orders to CSV',
-    ipAddress: '192.168.1.105',
+    id: "LOG006",
+    timestamp: "2025-10-02T08:30:20",
+    userId: "USR002",
+    userName: "John Smith",
+    action: "EXPORT",
+    entity: "Order",
+    entityId: "ALL",
+    description: "Exported all orders to CSV",
+    ipAddress: "192.168.1.105",
     changes: {
       recordCount: 25,
-      format: 'CSV'
-    }
+      format: "CSV",
+    },
   },
   {
-    id: 'LOG007',
-    timestamp: '2025-10-02T08:15:10',
-    userId: 'USR007',
-    userName: 'Tom Anderson',
-    action: 'CREATE',
-    entity: 'Material',
-    entityId: 'MAT-007',
-    description: 'Created new material: Steel Plate 5mm',
-    ipAddress: '192.168.1.115',
+    id: "LOG007",
+    timestamp: "2025-10-02T08:15:10",
+    userId: "USR007",
+    userName: "Tom Anderson",
+    action: "CREATE",
+    entity: "Material",
+    entityId: "MAT-007",
+    description: "Created new material: Steel Plate 5mm",
+    ipAddress: "192.168.1.115",
     changes: {
-      code: 'MAT-007',
-      name: 'Steel Plate 5mm',
-      category: 'Raw Material'
-    }
+      code: "MAT-007",
+      name: "Steel Plate 5mm",
+      category: "Raw Material",
+    },
   },
   {
-    id: 'LOG008',
-    timestamp: '2025-10-02T08:00:00',
-    userId: 'USR004',
-    userName: 'Mike Chen',
-    action: 'UPDATE',
-    entity: 'User',
-    entityId: 'USR008',
-    description: 'Updated user role from Operator to Supervisor',
-    ipAddress: '192.168.1.110',
+    id: "LOG008",
+    timestamp: "2025-10-02T08:00:00",
+    userId: "USR004",
+    userName: "Mike Chen",
+    action: "UPDATE",
+    entity: "User",
+    entityId: "USR008",
+    description: "Updated user role from Operator to Supervisor",
+    ipAddress: "192.168.1.110",
     changes: {
-      before: { roleId: 'ROLE004', roleName: 'Operator' },
-      after: { roleId: 'ROLE003', roleName: 'Supervisor' }
-    }
+      before: { roleId: "ROLE004", roleName: "Operator" },
+      after: { roleId: "ROLE003", roleName: "Supervisor" },
+    },
   },
   {
-    id: 'LOG009',
-    timestamp: '2025-10-01T17:45:00',
-    userId: 'USR002',
-    userName: 'John Smith',
-    action: 'DELETE',
-    entity: 'Production Plan',
-    entityId: 'PLAN-2025-09-25-DRAFT',
-    description: 'Deleted draft production plan',
-    ipAddress: '192.168.1.105',
+    id: "LOG009",
+    timestamp: "2025-10-01T17:45:00",
+    userId: "USR002",
+    userName: "John Smith",
+    action: "DELETE",
+    entity: "Production Plan",
+    entityId: "PLAN-2025-09-25-DRAFT",
+    description: "Deleted draft production plan",
+    ipAddress: "192.168.1.105",
     changes: {
-      reason: 'Outdated draft'
-    }
+      reason: "Outdated draft",
+    },
   },
   {
-    id: 'LOG010',
-    timestamp: '2025-10-01T17:30:00',
-    userId: 'USR001',
-    userName: 'System Administrator',
-    action: 'CREATE',
-    entity: 'Integration',
-    entityId: 'INT004',
-    description: 'Created new ERP integration',
-    ipAddress: '192.168.1.100',
+    id: "LOG010",
+    timestamp: "2025-10-01T17:30:00",
+    userId: "USR001",
+    userName: "System Administrator",
+    action: "CREATE",
+    entity: "Integration",
+    entityId: "INT004",
+    description: "Created new ERP integration",
+    ipAddress: "192.168.1.100",
     changes: {
-      type: 'ERP',
-      name: 'SAP ERP',
-      status: 'Active'
-    }
+      type: "ERP",
+      name: "SAP ERP",
+      status: "Active",
+    },
   },
 ];
 
-const AuditLogSystem = () => {
-  const [logs, setLogs] = useState(INITIAL_AUDIT_LOGS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterAction, setFilterAction] = useState('all');
-  const [filterEntity, setFilterEntity] = useState('all');
-  const [filterUser, setFilterUser] = useState('all');
-  const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  const [expandedLogs, setExpandedLogs] = useState({});
-  const [selectedLog, setSelectedLog] = useState(null);
+// -------------------- Component --------------------
 
-  const getActionColor = (action) => {
-    return ACTION_TYPES[action]?.color || 'gray';
+const AuditLogSystem: React.FC = () => {
+  const [logs, setLogs] = useState<AuditLog[]>([...INITIAL_AUDIT_LOGS]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterAction, setFilterAction] = useState<"all" | ActionTypeKey>("all");
+  const [filterEntity, setFilterEntity] = useState<"all" | EntityType>("all");
+  const [filterUser, setFilterUser] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: '', to: '' });
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  const getActionColor = (action: string) => {
+    return ACTION_TYPES[action as ActionTypeKey]?.color || 'gray';
   };
 
-  const getActionIcon = (action) => {
-    const ActionIcon = ACTION_TYPES[action]?.icon || Activity;
+  const getActionIcon = (action: string) => {
+    const ActionIcon = ACTION_TYPES[action as ActionTypeKey]?.icon || Activity;
     return <ActionIcon size={16} />;
   };
 
-  const formatTimestamp = (dateStr) => {
+  const formatTimestamp = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
 
     if (diffMins < 1) return 'Just now';
@@ -254,14 +274,14 @@ const AuditLogSystem = () => {
     return matchesSearch && matchesAction && matchesEntity && matchesUser && matchesDateRange;
   });
 
-  const toggleLogExpand = (id) => {
+  const toggleLogExpand = (id: string) => {
     setExpandedLogs(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
   };
 
-  const viewLogDetails = (log) => {
+  const viewLogDetails = (log: AuditLog) => {
     setSelectedLog(log);
   };
 
@@ -342,7 +362,7 @@ const AuditLogSystem = () => {
               </div>
               <select
                 value={filterAction}
-                onChange={(e) => setFilterAction(e.target.value)}
+                onChange={(e) => setFilterAction(e.target.value as 'all' | ActionTypeKey)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Actions</option>
@@ -352,7 +372,7 @@ const AuditLogSystem = () => {
               </select>
               <select
                 value={filterEntity}
-                onChange={(e) => setFilterEntity(e.target.value)}
+                onChange={(e) => setFilterEntity(e.target.value as 'all' | EntityType)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Entities</option>
@@ -362,7 +382,7 @@ const AuditLogSystem = () => {
               </select>
               <select
                 value={filterUser}
-                onChange={(e) => setFilterUser(e.target.value)}
+                onChange={(e) => setFilterUser(e.target.value as 'all' | string)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Users</option>

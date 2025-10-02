@@ -4,51 +4,33 @@ import React, { useState } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Users,
   Save, X, Shield, Lock, Mail, Phone, Calendar, CheckCircle,
-  XCircle, AlertCircle, Key, UserCheck, Activity
+  XCircle, AlertCircle, Key, UserCheck, Activity, Clock
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
+import { ModalMode } from '@/src/types';
 
-// Sample roles
-const ROLES = [
-  {
-    id: 'ROLE001',
-    name: 'Administrator',
-    description: 'Full system access',
-    permissions: ['all']
-  },
-  {
-    id: 'ROLE002',
-    name: 'Planner',
-    description: 'Create and manage production plans',
-    permissions: ['view_orders', 'create_plan', 'edit_plan', 'view_reports', 'view_machines', 'view_materials']
-  },
-  {
-    id: 'ROLE003',
-    name: 'Supervisor',
-    description: 'Monitor and approve production',
-    permissions: ['view_orders', 'view_plan', 'approve_plan', 'view_production', 'view_reports']
-  },
-  {
-    id: 'ROLE004',
-    name: 'Operator',
-    description: 'Execute production tasks',
-    permissions: ['view_production', 'update_production', 'view_orders']
-  },
-  {
-    id: 'ROLE005',
-    name: 'Maintenance',
-    description: 'Manage equipment maintenance',
-    permissions: ['view_machines', 'edit_maintenance', 'view_downtime']
-  },
-  {
-    id: 'ROLE006',
-    name: 'Viewer',
-    description: 'Read-only access to reports',
-    permissions: ['view_reports', 'view_orders', 'view_plan']
-  },
+/* =========================
+   Types
+========================= */
+type Status = 'Active' | 'Inactive' | 'Suspended' | 'Pending';
+
+type Role = {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[]; // e.g., 'all' or granular perms
+};
+
+const ROLES: Role[] = [
+  { id: 'ROLE001', name: 'Administrator', description: 'Full system access', permissions: ['all'] },
+  { id: 'ROLE002', name: 'Planner', description: 'Create and manage production plans', permissions: ['view_orders', 'create_plan', 'edit_plan', 'view_reports', 'view_machines', 'view_materials'] },
+  { id: 'ROLE003', name: 'Supervisor', description: 'Monitor and approve production', permissions: ['view_orders', 'view_plan', 'approve_plan', 'view_production', 'view_reports'] },
+  { id: 'ROLE004', name: 'Operator', description: 'Execute production tasks', permissions: ['view_production', 'update_production', 'view_orders'] },
+  { id: 'ROLE005', name: 'Maintenance', description: 'Manage equipment maintenance', permissions: ['view_machines', 'edit_maintenance', 'view_downtime'] },
+  { id: 'ROLE006', name: 'Viewer', description: 'Read-only access to reports', permissions: ['view_reports', 'view_orders', 'view_plan'] },
 ];
 
-// Sample departments
+/** Departments as a readonly literal array -> Department is a union of those strings */
 const DEPARTMENTS = [
   'Production Planning',
   'Manufacturing',
@@ -56,10 +38,43 @@ const DEPARTMENTS = [
   'Maintenance',
   'Management',
   'IT',
-];
+] as const;
 
-// Initial users data
-const INITIAL_USERS = [
+type Department = typeof DEPARTMENTS[number];
+
+type User = {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  department: Department;
+  roleId: Role['id'];
+  roleName: string;
+  status: Status;
+  lastLogin: string | null;   // ISO string or null
+  createdDate: string;        // YYYY-MM-DD
+  notes: string;
+};
+
+type UserFormData = {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  department: Department | '';
+  roleId: Role['id'] | '';
+  status: Status;
+  notes: string;
+};
+
+/* =========================
+   Initial Data (typed)
+========================= */
+const INITIAL_USERS: User[] = [
   {
     id: 'USR001',
     username: 'admin',
@@ -152,19 +167,22 @@ const INITIAL_USERS = [
   },
 ];
 
+/* =========================
+   Component
+========================= */
 const UserManagement = () => {
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterDept, setFilterDept] = useState('all');
-  const [filterRole, setFilterRole] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [modalMode, setModalMode] = useState(null);
-  const [showPermissions, setShowPermissions] = useState(false);
-  const [selectedRole, setSelectedRole] = useState(null);
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterDept, setFilterDept] = useState<'all' | Department>('all');
+  const [filterRole, setFilterRole] = useState<'all' | Role['id']>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | Status>('all');
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [showPermissions, setShowPermissions] = useState<boolean>(false);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<UserFormData>({
     id: '',
     username: '',
     email: '',
@@ -177,30 +195,29 @@ const UserManagement = () => {
     notes: ''
   });
 
-  const getStatusColor = (status) => {
-    const colors = {
-      'Active': 'bg-green-100 text-green-700',
-      'Inactive': 'bg-gray-100 text-gray-700',
-      'Suspended': 'bg-red-100 text-red-700',
-      'Pending': 'bg-yellow-100 text-yellow-700',
+  const getStatusColor = (status: Status): string => {
+    const colors: Record<Status, string> = {
+      Active: 'bg-green-100 text-green-700',
+      Inactive: 'bg-gray-100 text-gray-700',
+      Suspended: 'bg-red-100 text-red-700',
+      Pending: 'bg-yellow-100 text-yellow-700',
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status];
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: Status) => {
     switch (status) {
       case 'Active': return <CheckCircle size={16} className="text-green-600" />;
       case 'Inactive': return <XCircle size={16} className="text-gray-600" />;
       case 'Suspended': return <AlertCircle size={16} className="text-red-600" />;
       case 'Pending': return <Clock size={16} className="text-yellow-600" />;
-      default: return <Users size={16} className="text-gray-600" />;
     }
   };
 
-  const formatLastLogin = (dateStr) => {
+  const formatLastLogin = (dateStr: string | number | Date) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
@@ -210,14 +227,17 @@ const UserManagement = () => {
     return date.toLocaleDateString();
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesDept = filterDept === 'all' || user.department === filterDept;
     const matchesRole = filterRole === 'all' || user.roleId === filterRole;
     const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
+
     return matchesSearch && matchesDept && matchesRole && matchesStatus;
   });
 
@@ -239,7 +259,7 @@ const UserManagement = () => {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (user) => {
+  const openEditModal = (user: User) => {
     setFormData({
       id: user.id,
       username: user.username,
@@ -257,7 +277,7 @@ const UserManagement = () => {
     setIsModalOpen(true);
   };
 
-  const openViewModal = (user) => {
+  const openViewModal = (user: User) => {
     setEditingUser(user);
     setModalMode('view');
     setIsModalOpen(true);
@@ -270,40 +290,57 @@ const UserManagement = () => {
   };
 
   const handleSaveUser = () => {
-    if (!formData.username || !formData.email || !formData.firstName || !formData.lastName || !formData.roleId) {
+    if (
+      !formData.username ||
+      !formData.email ||
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.roleId ||
+      !formData.department
+    ) {
       alert('Please fill in all required fields');
       return;
     }
 
-    const role = ROLES.find(r => r.id === formData.roleId);
+    const role = ROLES.find((r) => r.id === formData.roleId);
 
-    const newUser = {
-      ...formData,
-      roleName: role?.name || '',
-      lastLogin: editingUser?.lastLogin || null,
-      createdDate: editingUser?.createdDate || new Date().toISOString().split('T')[0]
+    const newUser: User = {
+      id: formData.id,
+      username: formData.username,
+      email: formData.email,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phone: formData.phone,
+      department: formData.department as Department,
+      roleId: formData.roleId as Role['id'],
+      roleName: role?.name ?? '',
+      status: formData.status,
+      lastLogin: editingUser?.lastLogin ?? null,
+      createdDate: editingUser?.createdDate ?? new Date().toISOString().split('T')[0],
+      notes: formData.notes,
     };
 
     if (editingUser) {
-      setUsers(users.map(u => u.id === editingUser.id ? newUser : u));
+      setUsers(users.map((u) => (u.id === editingUser.id ? newUser : u)));
     } else {
       setUsers([...users, newUser]);
     }
     closeModal();
   };
 
-  const handleDeleteUser = (id) => {
+  const handleDeleteUser = (id: User['id']) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(u => u.id !== id));
+      setUsers(users.filter((u) => u.id !== id));
     }
   };
 
-  const handleResetPassword = (user) => {
+  const handleResetPassword = (user: User) => {
     alert(`Password reset link sent to ${user.email}`);
   };
 
-  const viewRolePermissions = (roleId) => {
-    const role = ROLES.find(r => r.id === roleId);
+  const viewRolePermissions = (roleId: Role['id']) => {
+    const role = ROLES.find((r) => r.id === roleId);
+    if (!role) return;
     setSelectedRole(role);
     setShowPermissions(true);
   };
@@ -311,9 +348,9 @@ const UserManagement = () => {
   const getUserStats = () => {
     return {
       total: users.length,
-      active: users.filter(u => u.status === 'Active').length,
-      inactive: users.filter(u => u.status === 'Inactive').length,
-      suspended: users.filter(u => u.status === 'Suspended').length
+      active: users.filter((u) => u.status === 'Active').length,
+      inactive: users.filter((u) => u.status === 'Inactive').length,
+      suspended: users.filter((u) => u.status === 'Suspended').length,
     };
   };
 
@@ -403,27 +440,27 @@ const UserManagement = () => {
               </div>
               <select
                 value={filterDept}
-                onChange={(e) => setFilterDept(e.target.value)}
+                onChange={(e) => setFilterDept(e.target.value as 'all' | Department)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Departments</option>
-                {DEPARTMENTS.map(dept => (
+                {DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
               <select
                 value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
+                onChange={(e) => setFilterRole(e.target.value as 'all' | Role['id'])}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Roles</option>
-                {ROLES.map(role => (
+                {ROLES.map((role) => (
                   <option key={role.id} value={role.id}>{role.name}</option>
                 ))}
               </select>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => setFilterStatus(e.target.value as 'all' | Status)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Status</option>
@@ -467,7 +504,7 @@ const UserManagement = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredUsers.map(user => (
+                  {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -498,9 +535,7 @@ const UserManagement = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {user.department}
-                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{user.department}</td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => viewRolePermissions(user.roleId)}
@@ -704,12 +739,12 @@ const UserManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Department *</label>
                       <select
                         value={formData.department}
-                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value as Department | '' })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       >
                         <option value="">Select Department</option>
-                        {DEPARTMENTS.map(dept => (
+                        {DEPARTMENTS.map((dept) => (
                           <option key={dept} value={dept}>{dept}</option>
                         ))}
                       </select>
@@ -718,12 +753,12 @@ const UserManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Role *</label>
                       <select
                         value={formData.roleId}
-                        onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, roleId: e.target.value as Role['id'] | '' })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         required
                       >
                         <option value="">Select Role</option>
-                        {ROLES.map(role => (
+                        {ROLES.map((role) => (
                           <option key={role.id} value={role.id}>{role.name}</option>
                         ))}
                       </select>
@@ -732,7 +767,7 @@ const UserManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Status *</label>
                       <select
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as Status })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="Active">Active</option>
@@ -843,11 +878,11 @@ const UserManagement = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {selectedRole.permissions.map(permission => (
+                      {selectedRole.permissions.map((permission) => (
                         <div key={permission} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                           <CheckCircle size={16} className="text-green-600" />
                           <span className="text-sm text-gray-900">
-                            {permission.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            {permission.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                           </span>
                         </div>
                       ))}
@@ -859,7 +894,7 @@ const UserManagement = () => {
                   <div className="text-sm text-gray-700">
                     <div className="font-medium mb-2">Users with this role:</div>
                     <div className="space-y-1">
-                      {users.filter(u => u.roleId === selectedRole.id).map(user => (
+                      {users.filter((u) => u.roleId === selectedRole.id).map((user) => (
                         <div key={user.id} className="flex items-center gap-2">
                           <UserCheck size={14} className="text-gray-500" />
                           <span>{user.firstName} {user.lastName}</span>

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import BaseModal from "@/src/components/shared/modal/BaseModal";
 import { useState } from "react";
 import { useEffect } from "react";

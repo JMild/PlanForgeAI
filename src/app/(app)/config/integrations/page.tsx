@@ -1,4 +1,3 @@
-"use client";
 // import PageHeader from '@/src/components/layout/PageHeader';
 // import React, { useState, useEffect, useMemo } from 'react';
 // import SettingsModal from './components/SettingsModal';
@@ -182,339 +181,400 @@
 //   );
 // }
 
-import React, { useState } from 'react';
+"use client";
+
+import React, { useState } from "react";
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Settings,
   Save, X, CheckCircle, XCircle, AlertCircle, RefreshCw, Zap,
   Database, Server, Link, Activity, Clock, PlayCircle, PauseCircle,
   Package
-} from 'lucide-react';
-import PageHeader from '@/src/components/layout/PageHeader';
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import PageHeader from "@/src/components/layout/PageHeader";
+import { ModalMode } from "@/src/types";
 
-// Integration types
+/* ==================== Types ==================== */
+
+type IntegrationField = {
+  name: string;
+  label: string;
+  type: "text" | "password" | "number" | "checkbox" | "json" | "multiselect";
+  required?: boolean;
+  default?: unknown;
+  placeholder?: string;
+  options?: string[];
+};
+
+type IntegrationType = {
+  id: string;
+  name: string;
+  description: string;
+  icon: LucideIcon;
+  color: string; // tailwind color key like "blue" | "green" | ...
+  fields: IntegrationField[];
+};
+
+type IntegrationStats = {
+  totalCalls: number;
+  successRate: number;      // %
+  avgResponseTime: number;  // ms
+};
+
+type IntegrationConfig = Record<string, unknown>;
+
+type IntegrationStatus = "Active" | "Inactive" | "Testing" | "Error";
+type IntegrationHealth = "Healthy" | "Warning" | "Error" | "Unknown";
+
+type Integration = {
+  id: string;
+  name: string;
+  type: string; // could be narrowed to union of INTEGRATION_TYPES ids if desired
+  status: IntegrationStatus;
+  health?: IntegrationHealth;
+  lastSync?: string;
+  createdDate?: string;
+  config: IntegrationConfig;
+  stats: IntegrationStats;
+};
+
+// State types
+type FormData = {
+  id: string;
+  name: string;
+  type: string;
+  status: Exclude<IntegrationStatus, "Error">; // Editing form doesn’t set "Error" directly
+  config: IntegrationConfig;
+};
+
+type SelectedType = IntegrationType | null;
+
+/* ==================== Constants ==================== */
+
 const INTEGRATION_TYPES = [
   {
-    id: 'EMS',
-    name: 'Equipment Monitoring System (EMS)',
-    description: 'Real-time machine status, OEE, and downtime tracking',
+    id: "EMS",
+    name: "Equipment Monitoring System (EMS)",
+    description: "Real-time machine status, OEE, and downtime tracking",
     icon: Activity,
-    color: 'blue',
+    color: "blue",
     fields: [
-      { name: 'apiUrl', label: 'API URL', type: 'text', required: true, placeholder: 'https://ems.company.com/api' },
-      { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-      { name: 'pollInterval', label: 'Poll Interval (seconds)', type: 'number', required: true, default: 30 },
-      { name: 'machineMapping', label: 'Machine ID Mapping', type: 'json', required: false },
-    ]
+      { name: "apiUrl", label: "API URL", type: "text", required: true, placeholder: "https://ems.company.com/api" },
+      { name: "apiKey", label: "API Key", type: "password", required: true },
+      { name: "pollInterval", label: "Poll Interval (seconds)", type: "number", required: true, default: 30 },
+      { name: "machineMapping", label: "Machine ID Mapping", type: "json" },
+    ],
   },
   {
-    id: 'ERP',
-    name: 'Enterprise Resource Planning (ERP)',
-    description: 'Order sync, inventory, and material management',
+    id: "ERP",
+    name: "Enterprise Resource Planning (ERP)",
+    description: "Order sync, inventory, and material management",
     icon: Database,
-    color: 'green',
+    color: "green",
     fields: [
-      { name: 'apiUrl', label: 'API URL', type: 'text', required: true, placeholder: 'https://erp.company.com/api' },
-      { name: 'username', label: 'Username', type: 'text', required: true },
-      { name: 'password', label: 'Password', type: 'password', required: true },
-      { name: 'companyId', label: 'Company ID', type: 'text', required: true },
-      { name: 'syncInterval', label: 'Sync Interval (minutes)', type: 'number', required: true, default: 60 },
-    ]
+      { name: "apiUrl", label: "API URL", type: "text", required: true, placeholder: "https://erp.company.com/api" },
+      { name: "username", label: "Username", type: "text", required: true },
+      { name: "password", label: "Password", type: "password", required: true },
+      { name: "companyId", label: "Company ID", type: "text", required: true },
+      { name: "syncInterval", label: "Sync Interval (minutes)", type: "number", required: true, default: 60 },
+    ],
   },
   {
-    id: 'MES',
-    name: 'Manufacturing Execution System (MES)',
-    description: 'Production tracking and shop floor data collection',
+    id: "MES",
+    name: "Manufacturing Execution System (MES)",
+    description: "Production tracking and shop floor data collection",
     icon: Settings,
-    color: 'purple',
+    color: "purple",
     fields: [
-      { name: 'apiUrl', label: 'API URL', type: 'text', required: true, placeholder: 'https://mes.company.com/api' },
-      { name: 'apiToken', label: 'API Token', type: 'password', required: true },
-      { name: 'plantCode', label: 'Plant Code', type: 'text', required: true },
-      { name: 'enableRealtime', label: 'Enable Real-time Updates', type: 'checkbox', required: false, default: true },
-    ]
+      { name: "apiUrl", label: "API URL", type: "text", required: true, placeholder: "https://mes.company.com/api" },
+      { name: "apiToken", label: "API Token", type: "password", required: true },
+      { name: "plantCode", label: "Plant Code", type: "text", required: true },
+      { name: "enableRealtime", label: "Enable Real-time Updates", type: "checkbox", default: true },
+    ],
   },
   {
-    id: 'WMS',
-    name: 'Warehouse Management System (WMS)',
-    description: 'Material availability and inventory levels',
+    id: "WMS",
+    name: "Warehouse Management System (WMS)",
+    description: "Material availability and inventory levels",
     icon: Package,
-    color: 'orange',
+    color: "orange",
     fields: [
-      { name: 'apiUrl', label: 'API URL', type: 'text', required: true, placeholder: 'https://wms.company.com/api' },
-      { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-      { name: 'warehouseId', label: 'Warehouse ID', type: 'text', required: true },
-    ]
+      { name: "apiUrl", label: "API URL", type: "text", required: true, placeholder: "https://wms.company.com/api" },
+      { name: "apiKey", label: "API Key", type: "password", required: true },
+      { name: "warehouseId", label: "Warehouse ID", type: "text", required: true },
+    ],
   },
   {
-    id: 'WEBHOOK',
-    name: 'Webhook / Custom Integration',
-    description: 'Send events to external systems via webhooks',
+    id: "WEBHOOK",
+    name: "Webhook / Custom Integration",
+    description: "Send events to external systems via webhooks",
     icon: Zap,
-    color: 'yellow',
+    color: "yellow",
     fields: [
-      { name: 'webhookUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-system.com/webhook' },
-      { name: 'secretKey', label: 'Secret Key', type: 'password', required: false },
+      { name: "webhookUrl", label: "Webhook URL", type: "text", required: true, placeholder: "https://your-system.com/webhook" },
+      { name: "secretKey", label: "Secret Key", type: "password" },
       {
-        name: 'events', label: 'Events to Subscribe', type: 'multiselect', required: true,
-        options: ['order.created', 'plan.generated', 'job.started', 'job.completed', 'machine.down']
+        name: "events",
+        label: "Events to Subscribe",
+        type: "multiselect",
+        required: true,
+        options: ["order.created", "plan.generated", "job.started", "job.completed", "machine.down"],
       },
-    ]
+    ],
   },
-];
+] as const satisfies IntegrationType[];
 
-// Initial integrations
 const INITIAL_INTEGRATIONS = [
   {
-    id: 'INT001',
-    name: 'Production EMS',
-    type: 'EMS',
-    status: 'Active',
-    lastSync: '2025-10-02T09:30:00',
-    health: 'Healthy',
+    id: "INT001",
+    name: "Production EMS",
+    type: "EMS",
+    status: "Active",
+    lastSync: "2025-10-02T09:30:00",
+    health: "Healthy",
     config: {
-      apiUrl: 'https://ems.company.com/api',
-      apiKey: '••••••••••••',
+      apiUrl: "https://ems.company.com/api",
+      apiKey: "••••••••••••",
       pollInterval: 30,
-      machineMapping: '{}'
+      machineMapping: "{}",
     },
-    stats: {
-      totalCalls: 15420,
-      successRate: 99.2,
-      avgResponseTime: 145
-    },
-    createdDate: '2024-01-15'
+    stats: { totalCalls: 15420, successRate: 99.2, avgResponseTime: 145 },
+    createdDate: "2024-01-15",
   },
   {
-    id: 'INT002',
-    name: 'SAP ERP',
-    type: 'ERP',
-    status: 'Active',
-    lastSync: '2025-10-02T09:00:00',
-    health: 'Healthy',
+    id: "INT002",
+    name: "SAP ERP",
+    type: "ERP",
+    status: "Active",
+    lastSync: "2025-10-02T09:00:00",
+    health: "Healthy",
     config: {
-      apiUrl: 'https://erp.company.com/api',
-      username: 'api_user',
-      password: '••••••••',
-      companyId: 'COMP001',
-      syncInterval: 60
+      apiUrl: "https://erp.company.com/api",
+      username: "api_user",
+      password: "••••••••",
+      companyId: "COMP001",
+      syncInterval: 60,
     },
-    stats: {
-      totalCalls: 8230,
-      successRate: 98.5,
-      avgResponseTime: 320
-    },
-    createdDate: '2024-02-01'
+    stats: { totalCalls: 8230, successRate: 98.5, avgResponseTime: 320 },
+    createdDate: "2024-02-01",
   },
   {
-    id: 'INT003',
-    name: 'Notification Webhook',
-    type: 'WEBHOOK',
-    status: 'Inactive',
-    lastSync: '2025-09-28T14:30:00',
-    health: 'Warning',
+    id: "INT003",
+    name: "Notification Webhook",
+    type: "WEBHOOK",
+    status: "Inactive",
+    lastSync: "2025-09-28T14:30:00",
+    health: "Warning",
     config: {
-      webhookUrl: 'https://notifications.company.com/webhook',
-      secretKey: '••••••••',
-      events: ['job.started', 'job.completed', 'machine.down']
+      webhookUrl: "https://notifications.company.com/webhook",
+      secretKey: "••••••••",
+      events: ["job.started", "job.completed", "machine.down"],
     },
-    stats: {
-      totalCalls: 1240,
-      successRate: 92.3,
-      avgResponseTime: 89
-    },
-    createdDate: '2024-06-15'
+    stats: { totalCalls: 1240, successRate: 92.3, avgResponseTime: 89 },
+    createdDate: "2024-06-15",
   },
-];
+] as const satisfies Integration[];
 
-const IntegrationsManagement = () => {
-  const [integrations, setIntegrations] = useState(INITIAL_INTEGRATIONS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingIntegration, setEditingIntegration] = useState(null);
-  const [modalMode, setModalMode] = useState(null);
-  const [selectedType, setSelectedType] = useState(null);
+/* ==================== Component ==================== */
 
-  const [formData, setFormData] = useState({
-    id: '',
-    name: '',
-    type: '',
-    status: 'Inactive',
-    config: {}
+const IntegrationsManagement: React.FC = () => {
+  // ใช้ spread ให้ state เป็น mutable แม้ INITIAL_INTEGRATIONS จะเป็น readonly
+  const [integrations, setIntegrations] = useState<Integration[]>([...INITIAL_INTEGRATIONS]);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [editingIntegration, setEditingIntegration] = useState<Integration | null>(null);
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [selectedType, setSelectedType] = useState<SelectedType>(null);
+  const [formData, setFormData] = useState<FormData>({
+    id: "",
+    name: "",
+    type: "",
+    status: "Inactive",
+    config: {},
   });
 
-  const getStatusColor = (status) => {
-    const colors = {
-      'Active': 'bg-green-100 text-green-700',
-      'Inactive': 'bg-gray-100 text-gray-700',
-      'Error': 'bg-red-100 text-red-700',
-      'Testing': 'bg-yellow-100 text-yellow-700',
+  /* ---------- helpers ---------- */
+
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
+      Active: "bg-green-100 text-green-700",
+      Inactive: "bg-gray-100 text-gray-700",
+      Error: "bg-red-100 text-red-700",
+      Testing: "bg-yellow-100 text-yellow-700",
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status] || "bg-gray-100 text-gray-700";
   };
 
-  const getHealthColor = (health) => {
-    const colors = {
-      'Healthy': 'text-green-600',
-      'Warning': 'text-yellow-600',
-      'Error': 'text-red-600',
-      'Unknown': 'text-gray-600',
+  const getHealthColor = (health?: string): string => {
+    const colors: Record<string, string> = {
+      Healthy: "text-green-600",
+      Warning: "text-yellow-600",
+      Error: "text-red-600",
+      Unknown: "text-gray-600",
     };
-    return colors[health] || 'text-gray-600';
+    return health ? colors[health] || "text-gray-600" : "text-gray-600";
   };
 
-  const getHealthIcon = (health) => {
+  const getHealthIcon = (health?: string) => {
     switch (health) {
-      case 'Healthy': return <CheckCircle size={16} />;
-      case 'Warning': return <AlertCircle size={16} />;
-      case 'Error': return <XCircle size={16} />;
-      default: return <AlertCircle size={16} />;
+      case "Healthy":
+        return <CheckCircle size={16} />;
+      case "Warning":
+        return <AlertCircle size={16} />;
+      case "Error":
+        return <XCircle size={16} />;
+      default:
+        return <AlertCircle size={16} />;
     }
   };
 
-  const getTypeColor = (typeId) => {
-    const type = INTEGRATION_TYPES.find(t => t.id === typeId);
-    return type?.color || 'gray';
+  const getTypeColor = (typeId: string): string => {
+    const type = INTEGRATION_TYPES.find((t) => t.id === typeId);
+    return type?.color ?? "gray";
   };
 
-  const getTypeInfo = (typeId) => {
-    return INTEGRATION_TYPES.find(t => t.id === typeId);
-  };
+  const getTypeInfo = (typeId: string): IntegrationType | undefined =>
+    INTEGRATION_TYPES.find((t) => t.id === typeId);
 
-  const formatLastSync = (dateStr) => {
+  const formatLastSync = (dateStr: string | number | Date): string => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     return date.toLocaleDateString();
   };
 
-  const filteredIntegrations = integrations.filter(integration => {
-    const matchesSearch = integration.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  /* ---------- derived ---------- */
+  const filteredIntegrations = integrations.filter((integration) => {
+    const matchesSearch =
+      integration.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       integration.type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'all' || integration.type === filterType;
-    const matchesStatus = filterStatus === 'all' || integration.status === filterStatus;
+    const matchesType = filterType === "all" || integration.type === filterType;
+    const matchesStatus = filterStatus === "all" || integration.status === filterStatus;
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const openCreateModal = () => {
+  /* ---------- actions ---------- */
+  const openCreateModal = (): void => {
     setFormData({
-      id: `INT${String(integrations.length + 1).padStart(3, '0')}`,
-      name: '',
-      type: '',
-      status: 'Inactive',
-      config: {}
+      id: `INT${String(integrations.length + 1).padStart(3, "0")}`,
+      name: "",
+      type: "",
+      status: "Inactive",
+      config: {},
     });
     setSelectedType(null);
     setEditingIntegration(null);
-    setModalMode('edit');
+    setModalMode("edit");
     setIsModalOpen(true);
   };
 
-  const openEditModal = (integration) => {
+  const openEditModal = (integration: Integration): void => {
     setFormData({
       id: integration.id,
       name: integration.name,
       type: integration.type,
-      status: integration.status,
-      config: { ...integration.config }
+      status: (["Active", "Inactive", "Testing"].includes(integration.status)
+        ? (integration.status as FormData["status"])
+        : "Inactive"),
+      config: { ...integration.config },
     });
-    setSelectedType(getTypeInfo(integration.type));
+    setSelectedType(getTypeInfo(integration.type) ?? null);
     setEditingIntegration(integration);
-    setModalMode('edit');
+    setModalMode("edit");
     setIsModalOpen(true);
   };
 
-  const openViewModal = (integration) => {
+  const openViewModal = (integration: Integration): void => {
     setEditingIntegration(integration);
-    setModalMode('view');
+    setModalMode("view");
     setIsModalOpen(true);
   };
 
-  const closeModal = () => {
+  const closeModal = (): void => {
     setIsModalOpen(false);
     setEditingIntegration(null);
     setModalMode(null);
     setSelectedType(null);
   };
 
-  const handleSaveIntegration = () => {
+  const handleSaveIntegration = (): void => {
     if (!formData.name || !formData.type) {
-      alert('Please fill in name and type');
+      alert("Please fill in name and type");
       return;
     }
 
-    const newIntegration = {
+    const newIntegration: Integration = {
       ...formData,
-      lastSync: editingIntegration?.lastSync || null,
-      health: editingIntegration?.health || 'Unknown',
-      stats: editingIntegration?.stats || { totalCalls: 0, successRate: 0, avgResponseTime: 0 },
-      createdDate: editingIntegration?.createdDate || new Date().toISOString().split('T')[0]
+      lastSync: editingIntegration?.lastSync, // อย่าเซ็ต null เพราะ type เป็น string | undefined
+      health: editingIntegration?.health ?? "Unknown",
+      stats: editingIntegration?.stats ?? { totalCalls: 0, successRate: 0, avgResponseTime: 0 },
+      createdDate: editingIntegration?.createdDate ?? new Date().toISOString().split("T")[0],
     };
 
     if (editingIntegration) {
-      setIntegrations(integrations.map(i => i.id === editingIntegration.id ? newIntegration : i));
+      setIntegrations((prev) => prev.map((i) => (i.id === editingIntegration.id ? newIntegration : i)));
     } else {
-      setIntegrations([...integrations, newIntegration]);
+      setIntegrations((prev) => [...prev, newIntegration]);
     }
     closeModal();
   };
 
-  const handleDeleteIntegration = (id) => {
-    if (confirm('Are you sure you want to delete this integration?')) {
-      setIntegrations(integrations.filter(i => i.id !== id));
+  const handleDeleteIntegration = (id: string): void => {
+    if (confirm("Are you sure you want to delete this integration?")) {
+      setIntegrations((prev) => prev.filter((i) => i.id !== id));
     }
   };
 
-  const handleTestConnection = (integration) => {
+  const handleTestConnection = (integration: Integration): void => {
     alert(`Testing connection for ${integration.name}...\n\nConnection successful! ✓`);
   };
 
-  const handleSyncNow = (integration) => {
+  const handleSyncNow = (integration: Integration): void => {
     alert(`Syncing ${integration.name}...\n\nSync completed successfully!`);
-    setIntegrations(integrations.map(i =>
-      i.id === integration.id
-        ? { ...i, lastSync: new Date().toISOString(), health: 'Healthy' }
-        : i
-    ));
+    setIntegrations((prev) =>
+      prev.map((i) =>
+        i.id === integration.id ? { ...i, lastSync: new Date().toISOString(), health: "Healthy" } : i
+      )
+    );
   };
 
-  const handleToggleStatus = (id) => {
-    setIntegrations(integrations.map(i =>
-      i.id === id
-        ? { ...i, status: i.status === 'Active' ? 'Inactive' : 'Active' }
-        : i
-    ));
+  const handleToggleStatus = (id: string): void => {
+    setIntegrations((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, status: i.status === "Active" ? "Inactive" : "Active" } : i
+      )
+    );
   };
 
-  const handleTypeSelect = (typeId) => {
-    const type = INTEGRATION_TYPES.find(t => t.id === typeId);
+  const handleTypeSelect = (typeId: string): void => {
+    const type = getTypeInfo(typeId) ?? null;
     setSelectedType(type);
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       type: typeId,
-      config: type.fields.reduce((acc, field) => ({
-        ...acc,
-        [field.name]: field.default || ''
-      }), {})
+      config: (type?.fields ?? []).reduce<Record<string, unknown>>(
+        (acc, field) => ({ ...acc, [field.name]: field.default ?? (field.type === "checkbox" ? false : "") }),
+        {}
+      ),
     }));
   };
 
-  const updateConfigField = (fieldName, value) => {
-    setFormData(prev => ({
+  const updateConfigField = (fieldName: string, value: string | number | boolean | string[]): void => {
+    setFormData((prev) => ({
       ...prev,
-      config: {
-        ...prev.config,
-        [fieldName]: value
-      }
+      config: { ...prev.config, [fieldName]: value },
     }));
   };
+
+  /* ==================== UI ==================== */
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -542,7 +602,6 @@ const IntegrationsManagement = () => {
               </div>
             </div>
 
-
             {/* Stats */}
             <div className="grid grid-cols-4 gap-4 mt-4">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -559,7 +618,7 @@ const IntegrationsManagement = () => {
                   <div>
                     <p className="text-sm text-gray-500">Active</p>
                     <p className="text-2xl font-bold text-green-600">
-                      {integrations.filter(i => i.status === 'Active').length}
+                      {integrations.filter((i) => i.status === "Active").length}
                     </p>
                   </div>
                   <CheckCircle size={32} className="text-green-600" />
@@ -570,7 +629,7 @@ const IntegrationsManagement = () => {
                   <div>
                     <p className="text-sm text-gray-500">Healthy</p>
                     <p className="text-2xl font-bold text-green-600">
-                      {integrations.filter(i => i.health === 'Healthy').length}
+                      {integrations.filter((i) => i.health === "Healthy").length}
                     </p>
                   </div>
                   <Activity size={32} className="text-green-600" />
@@ -581,7 +640,7 @@ const IntegrationsManagement = () => {
                   <div>
                     <p className="text-sm text-gray-500">Issues</p>
                     <p className="text-2xl font-bold text-red-600">
-                      {integrations.filter(i => i.health === 'Error' || i.health === 'Warning').length}
+                      {integrations.filter((i) => i.health === "Error" || i.health === "Warning").length}
                     </p>
                   </div>
                   <AlertCircle size={32} className="text-red-600" />
@@ -607,8 +666,10 @@ const IntegrationsManagement = () => {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Types</option>
-                {INTEGRATION_TYPES.map(type => (
-                  <option key={type.id} value={type.id}>{type.name}</option>
+                {INTEGRATION_TYPES.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
                 ))}
               </select>
               <select
@@ -620,6 +681,7 @@ const IntegrationsManagement = () => {
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
                 <option value="Error">Error</option>
+                <option value="Testing">Testing</option>
               </select>
             </div>
           </div>
@@ -643,7 +705,7 @@ const IntegrationsManagement = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {filteredIntegrations.map(integration => {
+              {filteredIntegrations.map((integration) => {
                 const typeInfo = getTypeInfo(integration.type);
                 const TypeIcon = typeInfo?.icon || Server;
 
@@ -677,7 +739,7 @@ const IntegrationsManagement = () => {
                             <div>
                               <span className="text-gray-500">Last Sync:</span>
                               <div className="font-medium text-gray-900">
-                                {integration.lastSync ? formatLastSync(integration.lastSync) : 'Never'}
+                                {integration.lastSync ? formatLastSync(integration.lastSync) : "Never"}
                               </div>
                             </div>
                             <div>
@@ -696,9 +758,9 @@ const IntegrationsManagement = () => {
                         <button
                           onClick={() => handleToggleStatus(integration.id)}
                           className="p-2 hover:bg-gray-200 rounded"
-                          title={integration.status === 'Active' ? 'Deactivate' : 'Activate'}
+                          title={integration.status === "Active" ? "Deactivate" : "Activate"}
                         >
-                          {integration.status === 'Active' ? (
+                          {integration.status === "Active" ? (
                             <PauseCircle size={18} className="text-gray-600" />
                           ) : (
                             <PlayCircle size={18} className="text-green-600" />
@@ -708,9 +770,12 @@ const IntegrationsManagement = () => {
                           onClick={() => handleSyncNow(integration)}
                           className="p-2 hover:bg-gray-200 rounded"
                           title="Sync Now"
-                          disabled={integration.status !== 'Active'}
+                          disabled={integration.status !== "Active"}
                         >
-                          <RefreshCw size={18} className={integration.status === 'Active' ? 'text-blue-600' : 'text-gray-400'} />
+                          <RefreshCw
+                            size={18}
+                            className={integration.status === "Active" ? "text-blue-600" : "text-gray-400"}
+                          />
                         </button>
                         <button
                           onClick={() => handleTestConnection(integration)}
@@ -756,7 +821,7 @@ const IntegrationsManagement = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">
-                {modalMode === 'view' ? 'Integration Details' : editingIntegration ? 'Edit Integration' : 'New Integration'}
+                {modalMode === "view" ? "Integration Details" : editingIntegration ? "Edit Integration" : "New Integration"}
               </h2>
               <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
                 <X size={20} />
@@ -764,7 +829,7 @@ const IntegrationsManagement = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {modalMode === 'view' && editingIntegration ? (
+              {modalMode === "view" && editingIntegration ? (
                 <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     {(() => {
@@ -803,13 +868,13 @@ const IntegrationsManagement = () => {
                     <div>
                       <label className="text-sm font-medium text-gray-700">Last Sync</label>
                       <p className="mt-1 text-gray-900">
-                        {editingIntegration.lastSync ? new Date(editingIntegration.lastSync).toLocaleString() : 'Never'}
+                        {editingIntegration.lastSync ? new Date(editingIntegration.lastSync).toLocaleString() : "Never"}
                       </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700">Created</label>
                       <p className="mt-1 text-gray-900">
-                        {new Date(editingIntegration.createdDate).toLocaleDateString()}
+                        {editingIntegration.createdDate ? new Date(editingIntegration.createdDate).toLocaleDateString() : "-"}
                       </p>
                     </div>
                   </div>
@@ -819,15 +884,21 @@ const IntegrationsManagement = () => {
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-gray-50 rounded-lg p-4">
                         <div className="text-sm text-gray-500">Total API Calls</div>
-                        <div className="text-2xl font-bold text-gray-900">{editingIntegration.stats.totalCalls.toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {editingIntegration.stats.totalCalls.toLocaleString()}
+                        </div>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-4">
                         <div className="text-sm text-gray-500">Success Rate</div>
-                        <div className="text-2xl font-bold text-green-600">{editingIntegration.stats.successRate}%</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {editingIntegration.stats.successRate}%
+                        </div>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-4">
                         <div className="text-sm text-gray-500">Avg Response</div>
-                        <div className="text-2xl font-bold text-blue-600">{editingIntegration.stats.avgResponseTime}ms</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {editingIntegration.stats.avgResponseTime}ms
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -838,7 +909,7 @@ const IntegrationsManagement = () => {
                       {Object.entries(editingIntegration.config).map(([key, value]) => (
                         <div key={key} className="flex justify-between text-sm">
                           <span className="text-gray-600">{key}:</span>
-                          <span className="text-gray-900 font-mono">{value}</span>
+                          <span className="text-gray-900 font-mono">{String(value)}</span>
                         </div>
                       ))}
                     </div>
@@ -863,17 +934,19 @@ const IntegrationsManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Integration Type *</label>
                       {!editingIntegration ? (
                         <div className="grid grid-cols-2 gap-3">
-                          {INTEGRATION_TYPES.map(type => {
+                          {INTEGRATION_TYPES.map((type) => {
                             const TypeIcon = type.icon;
+                            const isSelected = formData.type === type.id;
                             return (
                               <button
                                 key={type.id}
                                 type="button"
                                 onClick={() => handleTypeSelect(type.id)}
-                                className={`p-4 border-2 rounded-lg text-left transition-colors ${formData.type === type.id
-                                  ? `border-${type.color}-500 bg-${type.color}-50`
-                                  : 'border-gray-200 hover:border-gray-300'
-                                  }`}
+                                className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                                  isSelected
+                                    ? `border-${type.color}-500 bg-${type.color}-50`
+                                    : "border-gray-200 hover:border-gray-300"
+                                }`}
                               >
                                 <div className="flex items-start gap-3">
                                   <TypeIcon size={24} className={`text-${type.color}-600`} />
@@ -897,7 +970,7 @@ const IntegrationsManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
                       <select
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as FormData["status"] })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="Active">Active</option>
@@ -912,79 +985,92 @@ const IntegrationsManagement = () => {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Configuration</h3>
                       <div className="space-y-4">
-                        {selectedType.fields.map(field => (
+                        {selectedType.fields.map((field) => (
                           <div key={field.name}>
                             <label className="text-sm font-medium text-gray-700 block mb-2">
-                              {field.label} {field.required && '*'}
+                              {field.label} {field.required && "*"}
                             </label>
-                            {field.type === 'text' && (
+
+                            {field.type === "text" && (
                               <input
                                 type="text"
-                                value={formData.config[field.name] || ''}
+                                value={(formData.config[field.name] as string) || ""}
                                 onChange={(e) => updateConfigField(field.name, e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder={field.placeholder}
                                 required={field.required}
                               />
                             )}
-                            {field.type === 'password' && (
+
+                            {field.type === "password" && (
                               <input
                                 type="password"
-                                value={formData.config[field.name] || ''}
+                                value={(formData.config[field.name] as string) || ""}
                                 onChange={(e) => updateConfigField(field.name, e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="••••••••"
                                 required={field.required}
                               />
                             )}
-                            {field.type === 'number' && (
+
+                            {field.type === "number" && (
                               <input
                                 type="number"
-                                value={formData.config[field.name] || ''}
-                                onChange={(e) => updateConfigField(field.name, parseInt(e.target.value) || 0)}
+                                value={
+                                  typeof formData.config[field.name] === "number"
+                                    ? (formData.config[field.name] as number)
+                                    : ""
+                                }
+                                onChange={(e) => updateConfigField(field.name, Number(e.target.value) || 0)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required={field.required}
                               />
                             )}
-                            {field.type === 'checkbox' && (
+
+                            {field.type === "checkbox" && (
                               <label className="flex items-center gap-2">
                                 <input
                                   type="checkbox"
-                                  checked={formData.config[field.name] || false}
+                                  checked={Boolean(formData.config[field.name])}
                                   onChange={(e) => updateConfigField(field.name, e.target.checked)}
                                   className="rounded"
                                 />
                                 <span className="text-sm text-gray-600">Enable this option</span>
                               </label>
                             )}
-                            {field.type === 'json' && (
+
+                            {field.type === "json" && (
                               <textarea
-                                value={formData.config[field.name] || ''}
+                                value={(formData.config[field.name] as string) || ""}
                                 onChange={(e) => updateConfigField(field.name, e.target.value)}
                                 rows={3}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                                 placeholder='{"internal_id": "external_id"}'
                               />
                             )}
-                            {field.type === 'multiselect' && (
+
+                            {field.type === "multiselect" && (
                               <div className="space-y-2">
-                                {field.options.map(option => (
-                                  <label key={option} className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={(formData.config[field.name] || []).includes(option)}
-                                      onChange={(e) => {
-                                        const current = formData.config[field.name] || [];
-                                        const updated = e.target.checked
-                                          ? [...current, option]
-                                          : current.filter(o => o !== option);
-                                        updateConfigField(field.name, updated);
-                                      }}
-                                      className="rounded"
-                                    />
-                                    <span className="text-sm text-gray-700">{option}</span>
-                                  </label>
-                                ))}
+                                {(field.options ?? []).map((option) => {
+                                  const current = (formData.config[field.name] as string[]) ?? [];
+                                  const checked = current.includes(option);
+                                  return (
+                                    <label key={option} className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          const updated = e.target.checked
+                                            ? [...current, option]
+                                            : current.filter((o) => o !== option);
+                                          updateConfigField(field.name, updated);
+                                        }}
+                                        className="rounded"
+                                      />
+                                      <span className="text-sm text-gray-700">{option}</span>
+                                    </label>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1014,7 +1100,7 @@ const IntegrationsManagement = () => {
 
             <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
               <div>
-                {modalMode === 'view' && editingIntegration && (
+                {modalMode === "view" && editingIntegration && (
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleTestConnection(editingIntegration)}
@@ -1034,15 +1120,12 @@ const IntegrationsManagement = () => {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
+                <button onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                   Cancel
                 </button>
-                {modalMode === 'view' ? (
+                {modalMode === "view" ? (
                   <button
-                    onClick={() => setModalMode('edit')}
+                    onClick={() => setModalMode("edit")}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                   >
                     <Edit size={18} />

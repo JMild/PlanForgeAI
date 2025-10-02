@@ -8,12 +8,12 @@ import {
 } from "lucide-react";
 import Dropdown from "./input/Dropdown";
 
-type Column<T> = {
-  key: keyof T | string;
+export type Column<T> = {
+  headerClassName(arg0: string, headerClassName: any): string | undefined;
+  key: string;
   header: string;
-  render?: (row: T, rowIndex: number) => React.ReactNode;
   className?: string;
-  headerClassName?: string;
+  render: (row: T, index: number) => React.ReactNode;
 };
 
 type PaginationProps = {

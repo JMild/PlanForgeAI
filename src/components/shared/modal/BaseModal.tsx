@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { CancelButton, SaveButton } from "../button/ActionButtons";
+import { createPortal } from "react-dom";
 
 type ModalSize = "sm" | "md" | "lg" | "xl";
 
@@ -163,3 +163,4 @@ export default function BaseModal({
     document.body
   );
 }
+

@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { Edit3, Trash2 } from "react-feather";
 
 type Column<T> = {
   label: string;

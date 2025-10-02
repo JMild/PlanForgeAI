@@ -9,6 +9,27 @@ import {
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Permission categories and definitions
+type Status = 'Active' | 'Inactive';
+
+type Role = {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  userCount: number;
+  isSystem: boolean;
+  status: Status;
+  createdDate: string;
+};
+
+type RoleFormData = {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  status: Status;
+};
+
 const PERMISSION_CATEGORIES = [
   {
     category: 'Orders',
@@ -89,7 +110,7 @@ const PERMISSION_CATEGORIES = [
 ];
 
 // Initial roles data
-const INITIAL_ROLES = [
+const INITIAL_ROLES: Role[] = [
   {
     id: 'ROLE001',
     name: 'Administrator',
@@ -169,15 +190,15 @@ const INITIAL_ROLES = [
 ];
 
 const RoleManagement = () => {
-  const [roles, setRoles] = useState(INITIAL_ROLES);
+  const [roles, setRoles] = useState<Role[]>(INITIAL_ROLES);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [modalMode, setModalMode] = useState(null);
-  const [expandedCategories, setExpandedCategories] = useState({});
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [modalMode, setModalMode] = useState<'edit' | 'view' | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RoleFormData>({
     id: '',
     name: '',
     description: '',
@@ -185,10 +206,10 @@ const RoleManagement = () => {
     status: 'Active',
   });
 
-  const getStatusColor = (status) => {
-    const colors = {
-      'Active': 'bg-green-100 text-green-700',
-      'Inactive': 'bg-gray-100 text-gray-700',
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
+      Active: 'bg-green-100 text-green-700',
+      Inactive: 'bg-gray-100 text-gray-700',
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
@@ -197,7 +218,7 @@ const RoleManagement = () => {
     return PERMISSION_CATEGORIES.flatMap(cat => cat.permissions.map(p => p.id));
   };
 
-  const getPermissionName = (permId) => {
+  const getPermissionName = (permId: string) => {
     for (const cat of PERMISSION_CATEGORIES) {
       const perm = cat.permissions.find(p => p.id === permId);
       if (perm) return perm.name;
@@ -226,7 +247,7 @@ const RoleManagement = () => {
     setExpandedCategories({});
   };
 
-  const openEditModal = (role) => {
+  const openEditModal = (role: Role) => {
     setFormData({
       id: role.id,
       name: role.name,
@@ -240,7 +261,7 @@ const RoleManagement = () => {
     setExpandedCategories({});
   };
 
-  const openViewModal = (role) => {
+  const openViewModal = (role: Role) => {
     setEditingRole(role);
     setModalMode('view');
     setIsModalOpen(true);
@@ -269,6 +290,7 @@ const RoleManagement = () => {
       userCount: editingRole?.userCount || 0,
       isSystem: editingRole?.isSystem || false,
       createdDate: editingRole?.createdDate || new Date().toISOString().split('T')[0],
+      status: formData.status as 'Active' | 'Inactive',
     };
 
     if (editingRole) {
@@ -279,8 +301,10 @@ const RoleManagement = () => {
     closeModal();
   };
 
-  const handleDeleteRole = (id) => {
+  const handleDeleteRole = (id: string) => {
     const role = roles.find(r => r.id === id);
+    if (!role) return;
+
     if (role.isSystem) {
       alert('System roles cannot be deleted');
       return;
@@ -294,20 +318,20 @@ const RoleManagement = () => {
     }
   };
 
-  const handleCopyRole = (role) => {
+  const handleCopyRole = (role: Role) => {
     const newId = `ROLE${String(roles.length + 1).padStart(3, '0')}`;
-    const copiedRole = {
+    const copiedRole: Role = {
       ...role,
       id: newId,
       name: `${role.name} (Copy)`,
       userCount: 0,
       isSystem: false,
       createdDate: new Date().toISOString().split('T')[0],
+      status: role.status as 'Active' | 'Inactive',
     };
     setRoles([...roles, copiedRole]);
   };
-
-  const togglePermission = (permId) => {
+  const togglePermission = (permId: string) => {
     if (formData.permissions.includes('all')) {
       // If "all" is selected, deselect it and select this specific permission
       setFormData(prev => ({
@@ -331,14 +355,14 @@ const RoleManagement = () => {
     }
   };
 
-  const toggleCategory = (category) => {
+  const toggleCategory = (category: string) => {
     setExpandedCategories(prev => ({
       ...prev,
       [category]: !prev[category]
     }));
   };
 
-  const selectAllInCategory = (category) => {
+  const selectAllInCategory = (category: string) => {
     const cat = PERMISSION_CATEGORIES.find(c => c.category === category);
     if (!cat) return;
 
@@ -360,7 +384,7 @@ const RoleManagement = () => {
     }
   };
 
-  const getPermissionCount = (permissions) => {
+  const getPermissionCount = (permissions: string | string[]) => {
     if (permissions.includes('all')) return 'All';
     return permissions.length;
   };
@@ -696,7 +720,7 @@ const RoleManagement = () => {
                       <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
                       <select
                         value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData,  status: e.target.value as 'Active' | 'Inactive' })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="Active">Active</option>

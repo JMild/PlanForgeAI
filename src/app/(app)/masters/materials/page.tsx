@@ -1,27 +1,58 @@
 "use client";
-import React, { useState } from 'react';
+
+import React, { useState, ChangeEvent, FC } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, Package,
   Save, X, ChevronDown, ChevronRight, Box, AlertCircle, Clock,
-  TrendingUp, DollarSign, Truck, Factory
+  TrendingUp, DollarSign,
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
-// Sample material categories
+// --- CONSTANTS & TYPE DEFINITIONS ---
+
 const MATERIAL_CATEGORIES = [
-  'Raw Material',
-  'Component',
-  'Subassembly',
-  'Packaging',
-  'Consumable',
-  'Tool',
-];
+  'Raw Material', 'Component', 'Subassembly', 'Packaging', 'Consumable', 'Tool'
+] as const;
+const UNITS = ['PCS', 'KG', 'M', 'L', 'SET', 'BOX', 'ROLL'] as const;
+const STATUSES = ['Active', 'Inactive', 'Discontinued'] as const;
 
-// Sample units of measure
-const UNITS = ['PCS', 'KG', 'M', 'L', 'SET', 'BOX', 'ROLL'];
+type MaterialCategory = typeof MATERIAL_CATEGORIES[number];
+type Unit = typeof UNITS[number];
+type Status = typeof STATUSES[number];
 
-// Sample suppliers
-const SUPPLIERS = [
+type Supplier = {
+  code: string;
+  name: string;
+};
+
+type Material = {
+  code: string;
+  name: string;
+  description: string;
+  category: MaterialCategory;
+  unit: Unit;
+  standardCost: number;
+  leadTimeDays: number;
+  minStock: number;
+  maxStock: number;
+  reorderPoint: number;
+  supplierCode: string;
+  supplierName: string;
+  storageLocation: string;
+  batchTracking: boolean;
+  status: Status;
+  notes: string;
+};
+
+type StockStatusInfo = {
+  status: 'Low' | 'Medium' | 'Good';
+  color: string;
+  stock: number;
+};
+
+// --- SAMPLE DATA ---
+
+const SUPPLIERS: Supplier[] = [
   { code: 'SUP001', name: 'ABC Metals Inc' },
   { code: 'SUP002', name: 'XYZ Components Ltd' },
   { code: 'SUP003', name: 'Global Parts Co' },
@@ -29,157 +60,55 @@ const SUPPLIERS = [
   { code: 'SUP005', name: 'Local Supplier A' },
 ];
 
-// Initial materials data
-const INITIAL_MATERIALS = [
+const INITIAL_MATERIALS: Material[] = [
   {
-    code: 'MAT-001',
-    name: 'Steel Sheet 2mm',
-    description: 'Cold rolled steel sheet, 2mm thickness',
-    category: 'Raw Material',
-    unit: 'KG',
-    standardCost: 45.50,
-    leadTimeDays: 7,
-    minStock: 500,
-    maxStock: 2000,
-    reorderPoint: 800,
-    supplierCode: 'SUP001',
-    supplierName: 'ABC Metals Inc',
-    storageLocation: 'WH-A-01',
-    batchTracking: true,
-    status: 'Active',
-    notes: 'Store in dry area'
+    code: 'MAT-001', name: 'Steel Sheet 2mm', description: 'Cold rolled steel sheet, 2mm thickness', category: 'Raw Material', unit: 'KG', standardCost: 45.50, leadTimeDays: 7, minStock: 500, maxStock: 2000, reorderPoint: 800, supplierCode: 'SUP001', supplierName: 'ABC Metals Inc', storageLocation: 'WH-A-01', batchTracking: true, status: 'Active', notes: 'Store in dry area'
   },
   {
-    code: 'MAT-002',
-    name: 'Bearing 608ZZ',
-    description: '608ZZ Deep groove ball bearing',
-    category: 'Component',
-    unit: 'PCS',
-    standardCost: 2.80,
-    leadTimeDays: 14,
-    minStock: 100,
-    maxStock: 500,
-    reorderPoint: 200,
-    supplierCode: 'SUP002',
-    supplierName: 'XYZ Components Ltd',
-    storageLocation: 'WH-B-12',
-    batchTracking: false,
-    status: 'Active',
-    notes: ''
+    code: 'MAT-002', name: 'Bearing 608ZZ', description: '608ZZ Deep groove ball bearing', category: 'Component', unit: 'PCS', standardCost: 2.80, leadTimeDays: 14, minStock: 100, maxStock: 500, reorderPoint: 200, supplierCode: 'SUP002', supplierName: 'XYZ Components Ltd', storageLocation: 'WH-B-12', batchTracking: false, status: 'Active', notes: ''
   },
   {
-    code: 'MAT-003',
-    name: 'Aluminum Rod 10mm',
-    description: 'Aluminum 6061-T6 round rod, 10mm diameter',
-    category: 'Raw Material',
-    unit: 'M',
-    standardCost: 12.30,
-    leadTimeDays: 10,
-    minStock: 200,
-    maxStock: 1000,
-    reorderPoint: 400,
-    supplierCode: 'SUP001',
-    supplierName: 'ABC Metals Inc',
-    storageLocation: 'WH-A-05',
-    batchTracking: true,
-    status: 'Active',
-    notes: ''
+    code: 'MAT-003', name: 'Aluminum Rod 10mm', description: 'Aluminum 6061-T6 round rod, 10mm diameter', category: 'Raw Material', unit: 'M', standardCost: 12.30, leadTimeDays: 10, minStock: 200, maxStock: 1000, reorderPoint: 400, supplierCode: 'SUP001', supplierName: 'ABC Metals Inc', storageLocation: 'WH-A-05', batchTracking: true, status: 'Active', notes: ''
   },
   {
-    code: 'MAT-004',
-    name: 'Paint - Blue RAL5015',
-    description: 'Industrial paint, blue color RAL5015',
-    category: 'Consumable',
-    unit: 'L',
-    standardCost: 28.00,
-    leadTimeDays: 5,
-    minStock: 50,
-    maxStock: 200,
-    reorderPoint: 100,
-    supplierCode: 'SUP004',
-    supplierName: 'Premium Materials',
-    storageLocation: 'WH-C-08',
-    batchTracking: true,
-    status: 'Active',
-    notes: 'Flammable - store in designated area'
+    code: 'MAT-004', name: 'Paint - Blue RAL5015', description: 'Industrial paint, blue color RAL5015', category: 'Consumable', unit: 'L', standardCost: 28.00, leadTimeDays: 5, minStock: 50, maxStock: 200, reorderPoint: 100, supplierCode: 'SUP004', supplierName: 'Premium Materials', storageLocation: 'WH-C-08', batchTracking: true, status: 'Active', notes: 'Flammable - store in designated area'
   },
   {
-    code: 'MAT-005',
-    name: 'Cardboard Box 30x30x30',
-    description: 'Corrugated cardboard shipping box',
-    category: 'Packaging',
-    unit: 'PCS',
-    standardCost: 1.50,
-    leadTimeDays: 3,
-    minStock: 200,
-    maxStock: 1000,
-    reorderPoint: 400,
-    supplierCode: 'SUP005',
-    supplierName: 'Local Supplier A',
-    storageLocation: 'WH-D-01',
-    batchTracking: false,
-    status: 'Active',
-    notes: ''
+    code: 'MAT-005', name: 'Cardboard Box 30x30x30', description: 'Corrugated cardboard shipping box', category: 'Packaging', unit: 'PCS', standardCost: 1.50, leadTimeDays: 3, minStock: 200, maxStock: 1000, reorderPoint: 400, supplierCode: 'SUP005', supplierName: 'Local Supplier A', storageLocation: 'WH-D-01', batchTracking: false, status: 'Active', notes: ''
   },
   {
-    code: 'MAT-006',
-    name: 'Hydraulic Oil ISO 46',
-    description: 'Hydraulic oil ISO VG 46',
-    category: 'Consumable',
-    unit: 'L',
-    standardCost: 8.50,
-    leadTimeDays: 7,
-    minStock: 100,
-    maxStock: 500,
-    reorderPoint: 200,
-    supplierCode: 'SUP004',
-    supplierName: 'Premium Materials',
-    storageLocation: 'WH-C-12',
-    batchTracking: true,
-    status: 'Active',
-    notes: 'Check expiry date'
+    code: 'MAT-006', name: 'Hydraulic Oil ISO 46', description: 'Hydraulic oil ISO VG 46', category: 'Consumable', unit: 'L', standardCost: 8.50, leadTimeDays: 7, minStock: 100, maxStock: 500, reorderPoint: 200, supplierCode: 'SUP004', supplierName: 'Premium Materials', storageLocation: 'WH-C-12', batchTracking: true, status: 'Active', notes: 'Check expiry date'
   },
 ];
 
-const MaterialsMasterData = () => {
-  const [materials, setMaterials] = useState(INITIAL_MATERIALS);
+
+const MaterialsMasterData: FC = () => {
+  const [materials, setMaterials] = useState<Material[]>(INITIAL_MATERIALS);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [expandedMaterials, setExpandedMaterials] = useState({});
+  const [filterCategory, setFilterCategory] = useState<MaterialCategory | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
+  const [expandedMaterials, setExpandedMaterials] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState(null);
-  const [viewMode, setViewMode] = useState(null);
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [viewMode, setViewMode] = useState<'view' | 'edit' | null>(null);
 
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    description: '',
-    category: 'Raw Material',
-    unit: 'PCS',
-    standardCost: 0,
-    leadTimeDays: 0,
-    minStock: 0,
-    maxStock: 0,
-    reorderPoint: 0,
-    supplierCode: '',
-    storageLocation: '',
-    batchTracking: false,
-    status: 'Active',
-    notes: ''
-  });
+  const initialFormData: Omit<Material, 'supplierName'> = {
+    code: '', name: '', description: '', category: 'Raw Material', unit: 'PCS', standardCost: 0, leadTimeDays: 0, minStock: 0, maxStock: 0, reorderPoint: 0, supplierCode: '', storageLocation: '', batchTracking: false, status: 'Active', notes: ''
+  };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const [formData, setFormData] = useState(initialFormData);
+
+  const getStatusColor = (status: Status): string => {
+    const colors: Record<Status, string> = {
       'Active': 'bg-green-100 text-green-700',
       'Inactive': 'bg-gray-100 text-gray-700',
       'Discontinued': 'bg-red-100 text-red-700',
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status];
   };
 
-  const getCategoryColor = (category) => {
-    const colors = {
+  const getCategoryColor = (category: MaterialCategory): string => {
+    const colors: Record<MaterialCategory, string> = {
       'Raw Material': 'bg-blue-100 text-blue-700',
       'Component': 'bg-purple-100 text-purple-700',
       'Subassembly': 'bg-indigo-100 text-indigo-700',
@@ -187,19 +116,20 @@ const MaterialsMasterData = () => {
       'Consumable': 'bg-yellow-100 text-yellow-700',
       'Tool': 'bg-gray-100 text-gray-700',
     };
-    return colors[category] || 'bg-gray-100 text-gray-700';
+    return colors[category];
   };
 
-  const filteredMaterials = materials.filter(material => {
-    const matchesSearch = material.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.description.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredMaterials = materials.filter((material) => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = material.code.toLowerCase().includes(searchLower) ||
+      material.name.toLowerCase().includes(searchLower) ||
+      material.description.toLowerCase().includes(searchLower);
     const matchesCategory = filterCategory === 'all' || material.category === filterCategory;
     const matchesStatus = filterStatus === 'all' || material.status === filterStatus;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const toggleMaterialExpand = (code) => {
+  const toggleMaterialExpand = (code: string) => {
     setExpandedMaterials(prev => ({
       ...prev,
       [code]: !prev[code]
@@ -208,35 +138,23 @@ const MaterialsMasterData = () => {
 
   const openCreateModal = () => {
     setFormData({
+      ...initialFormData,
       code: `MAT-${String(materials.length + 1).padStart(3, '0')}`,
-      name: '',
-      description: '',
-      category: 'Raw Material',
-      unit: 'PCS',
-      standardCost: 0,
-      leadTimeDays: 0,
-      minStock: 0,
-      maxStock: 0,
-      reorderPoint: 0,
-      supplierCode: '',
-      storageLocation: '',
-      batchTracking: false,
-      status: 'Active',
-      notes: ''
+      supplierCode: SUPPLIERS.length > 0 ? SUPPLIERS[0].code : '',
     });
     setEditingMaterial(null);
     setViewMode('edit');
     setIsModalOpen(true);
   };
 
-  const openEditModal = (material) => {
+  const openEditModal = (material: Material) => {
     setFormData({ ...material });
     setEditingMaterial(material);
     setViewMode('edit');
     setIsModalOpen(true);
   };
 
-  const openViewModal = (material) => {
+  const openViewModal = (material: Material) => {
     setEditingMaterial(material);
     setViewMode('view');
     setIsModalOpen(true);
@@ -254,16 +172,20 @@ const MaterialsMasterData = () => {
       return;
     }
 
-    if (formData.standardCost < 0 || formData.leadTimeDays < 0) {
-      alert('Cost and lead time cannot be negative');
+    if (formData.standardCost < 0 || formData.leadTimeDays < 0 || formData.minStock < 0 || formData.maxStock < 0 || formData.reorderPoint < 0) {
+      alert('Numeric values cannot be negative.');
       return;
+    }
+    
+    if (formData.minStock > formData.maxStock) {
+        alert('Min Stock cannot be greater than Max Stock.');
+        return;
     }
 
     const supplier = SUPPLIERS.find(s => s.code === formData.supplierCode);
-
-    const newMaterial = {
+    const newMaterial: Material = {
       ...formData,
-      supplierName: supplier?.name || ''
+      supplierName: supplier?.name || 'N/A'
     };
 
     if (editingMaterial) {
@@ -274,24 +196,38 @@ const MaterialsMasterData = () => {
     closeModal();
   };
 
-  const handleDeleteMaterial = (code) => {
-    if (confirm(`Are you sure you want to delete material ${code}?`)) {
+  const handleDeleteMaterial = (code: string) => {
+    if (window.confirm(`Are you sure you want to delete material ${code}?`)) {
       setMaterials(materials.filter(m => m.code !== code));
     }
   };
 
-  const calculateStockStatus = (material) => {
+  const calculateStockStatus = (material: Material): StockStatusInfo => {
     // Simulated current stock for demo
-    const currentStock = Math.floor(Math.random() * (material.maxStock - material.minStock) + material.minStock);
+    const currentStock = Math.floor(Math.random() * (material.maxStock + 1));
 
     if (currentStock <= material.reorderPoint) return { status: 'Low', color: 'text-red-600', stock: currentStock };
-    if (currentStock <= material.minStock * 1.2) return { status: 'Medium', color: 'text-yellow-600', stock: currentStock };
+    if (currentStock < material.minStock) return { status: 'Medium', color: 'text-yellow-600', stock: currentStock };
     return { status: 'Good', color: 'text-green-600', stock: currentStock };
+  };
+
+  const handleFormChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    
+    const isCheckbox = type === 'checkbox';
+    const checked = isCheckbox ? (e.target as HTMLInputElement).checked : undefined;
+    
+    const isNumber = type === 'number';
+    const numValue = isNumber ? parseFloat(value) || 0 : undefined;
+
+    setFormData(prev => ({
+        ...prev,
+        [name]: isCheckbox ? checked : (isNumber ? numValue : value)
+    }));
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <PageHeader
         title={
           <div className="px-6 py-4">
@@ -301,233 +237,77 @@ const MaterialsMasterData = () => {
                 <p className="text-sm text-gray-500 mt-1">Manage raw materials, components, and supplies</p>
               </div>
               <div className="flex gap-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Upload size={18} />
-                  Import
-                </button>
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Download size={18} />
-                  Export
-                </button>
-                <button
-                  onClick={openCreateModal}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  New Material
-                </button>
+                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"><Upload size={18} /> Import</button>
+                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"><Download size={18} /> Export</button>
+                <button onClick={openCreateModal} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"><Plus size={18} /> New Material</button>
               </div>
             </div>
-
-            {/* Filters */}
             <div className="flex gap-4 mt-4">
               <div className="flex-1 relative">
                 <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search materials..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" placeholder="Search materials by code, name..." value={searchTerm} onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={filterCategory} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterCategory(e.target.value as MaterialCategory | 'all')} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="all">All Categories</option>
-                {MATERIAL_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+                {MATERIAL_CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={filterStatus} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterStatus(e.target.value as Status | 'all')} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Discontinued">Discontinued</option>
+                {STATUSES.map(stat => (<option key={stat} value={stat}>{stat}</option>))}
               </select>
             </div>
           </div>
-        } 
+        }
       />
 
-      {/* Materials List */}
       <div className="p-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           {filteredMaterials.length === 0 ? (
             <div className="text-center py-12">
               <Box size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No materials found</h3>
-              <p className="text-gray-500 mb-4">Create your first material to get started</p>
-              <button
-                onClick={openCreateModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Create Material
-              </button>
+              <p className="text-gray-500 mb-4">Try adjusting your filters or create a new material.</p>
+              <button onClick={openCreateModal} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Material</button>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {filteredMaterials.map(material => {
-                const isExpanded = expandedMaterials[material.code];
+              {filteredMaterials.map((material) => {
+                const isExpanded = !!expandedMaterials[material.code];
                 const stockStatus = calculateStockStatus(material);
-
                 return (
                   <div key={material.code} className="hover:bg-gray-50 transition-colors">
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1">
-                          <button
-                            onClick={() => toggleMaterialExpand(material.code)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                          >
-                            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                          </button>
-
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-lg font-semibold text-gray-900">{material.name}</h3>
-                              <span className="text-sm text-gray-500">({material.code})</span>
-                              <span className={`text-xs px-2 py-1 rounded ${getCategoryColor(material.category)}`}>
-                                {material.category}
-                              </span>
-                              <span className={`text-xs px-2 py-1 rounded ${getStatusColor(material.status)}`}>
-                                {material.status}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-6 text-sm text-gray-600">
-                              <div className="flex items-center gap-1">
-                                <Package size={14} />
-                                <span>{material.unit}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <DollarSign size={14} />
-                                <span>${material.standardCost.toFixed(2)}/{material.unit}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock size={14} />
-                                <span>Lead time: {material.leadTimeDays} days</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <TrendingUp size={14} />
-                                <span className={stockStatus.color}>Stock: {stockStatus.status}</span>
-                              </div>
-                            </div>
+                    <div className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <button onClick={() => toggleMaterialExpand(material.code)} className="p-1 hover:bg-gray-200 rounded-full">{isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</button>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">{material.name}</h3>
+                            <span className="text-sm text-gray-500">({material.code})</span>
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${getCategoryColor(material.category)}`}>{material.category}</span>
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(material.status)}`}>{material.status}</span>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openViewModal(material)}
-                            className="p-2 hover:bg-gray-200 rounded"
-                            title="View Details"
-                          >
-                            <Eye size={18} className="text-gray-600" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(material)}
-                            className="p-2 hover:bg-gray-200 rounded"
-                            title="Edit Material"
-                          >
-                            <Edit size={18} className="text-blue-600" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMaterial(material.code)}
-                            className="p-2 hover:bg-gray-200 rounded"
-                            title="Delete Material"
-                          >
-                            <Trash2 size={18} className="text-red-600" />
-                          </button>
+                          <div className="flex items-center gap-6 text-sm text-gray-600">
+                            <div className="flex items-center gap-1.5"><Package size={14} /><span>{material.unit}</span></div>
+                            <div className="flex items-center gap-1.5"><DollarSign size={14} /><span>${material.standardCost.toFixed(2)}/{material.unit}</span></div>
+                            <div className="flex items-center gap-1.5"><Clock size={14} /><span>Lead time: {material.leadTimeDays} days</span></div>
+                            <div className="flex items-center gap-1.5"><TrendingUp size={14} /><span className={stockStatus.color}>Stock: {stockStatus.status}</span></div>
+                          </div>
                         </div>
                       </div>
-
-                      {/* Expanded Details */}
-                      {isExpanded && (
-                        <div className="mt-4 ml-12 grid grid-cols-3 gap-6">
-                          <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Basic Information</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-gray-500">Description:</span>
-                                <div className="text-gray-900">{material.description}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Storage Location:</span>
-                                <div className="text-gray-900">{material.storageLocation}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Batch Tracking:</span>
-                                <div className="text-gray-900">{material.batchTracking ? 'Yes' : 'No'}</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Stock Levels</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-gray-500">Min Stock:</span>
-                                <div className="text-gray-900">{material.minStock} {material.unit}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Max Stock:</span>
-                                <div className="text-gray-900">{material.maxStock} {material.unit}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Reorder Point:</span>
-                                <div className="text-gray-900">{material.reorderPoint} {material.unit}</div>
-                              </div>
-                              <div className="pt-2 border-t">
-                                <span className="text-gray-500">Current Stock (Demo):</span>
-                                <div className={`font-semibold ${stockStatus.color}`}>
-                                  {stockStatus.stock} {material.unit} - {stockStatus.status}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Supplier Information</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-gray-500">Supplier:</span>
-                                <div className="text-gray-900">{material.supplierName}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Supplier Code:</span>
-                                <div className="text-gray-900">{material.supplierCode}</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Lead Time:</span>
-                                <div className="text-gray-900">{material.leadTimeDays} days</div>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Standard Cost:</span>
-                                <div className="text-gray-900">${material.standardCost.toFixed(2)}</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {material.notes && (
-                            <div className="col-span-3 border border-yellow-200 rounded-lg p-4 bg-yellow-50">
-                              <div className="flex items-start gap-2">
-                                <AlertCircle size={16} className="text-yellow-600 mt-0.5" />
-                                <div>
-                                  <div className="text-sm font-medium text-yellow-900 mb-1">Notes</div>
-                                  <div className="text-sm text-yellow-800">{material.notes}</div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openViewModal(material)} className="p-2 hover:bg-gray-200 rounded" title="View Details"><Eye size={18} className="text-gray-600" /></button>
+                        <button onClick={() => openEditModal(material)} className="p-2 hover:bg-gray-200 rounded" title="Edit Material"><Edit size={18} className="text-blue-600" /></button>
+                        <button onClick={() => handleDeleteMaterial(material.code)} className="p-2 hover:bg-gray-200 rounded" title="Delete Material"><Trash2 size={18} className="text-red-600" /></button>
+                      </div>
                     </div>
+                    {isExpanded && (
+                      <div className="pb-4 px-4 ml-12 grid grid-cols-3 gap-6">
+                        <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-2 text-sm"><h4 className="font-semibold text-gray-700 mb-1">Description</h4><p>{material.description || 'N/A'}</p></div>
+                        <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-2 text-sm"><h4 className="font-semibold text-gray-700 mb-1">Stock Levels</h4><div>Min: {material.minStock} / Max: {material.maxStock} / Reorder: {material.reorderPoint} {material.unit}</div><div className={`font-semibold ${stockStatus.color}`}>Current (Demo): {stockStatus.stock} {material.unit}</div></div>
+                        <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-2 text-sm"><h4 className="font-semibold text-gray-700 mb-1">Supplier</h4><p>{material.supplierName} ({material.supplierCode})</p><p>Location: {material.storageLocation}</p></div>
+                        {material.notes && (<div className="col-span-3 border border-yellow-200 rounded-lg p-4 bg-yellow-50 flex items-start gap-2"><AlertCircle size={16} className="text-yellow-600 mt-0.5" /><div className="text-sm"><div className="font-medium text-yellow-900">Notes</div><div className="text-yellow-800">{material.notes}</div></div></div>)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -536,338 +316,54 @@ const MaterialsMasterData = () => {
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {viewMode === 'view' ? 'Material Details' : editingMaterial ? 'Edit Material' : 'Create New Material'}
-              </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
-                <X size={20} />
-              </button>
-            </div>
-
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between"><h2 className="text-xl font-semibold text-gray-900">{viewMode === 'view' ? 'Material Details' : editingMaterial ? 'Edit Material' : 'Create New Material'}</h2><button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full"><X size={20} /></button></div>
             <div className="flex-1 overflow-y-auto p-6">
               {viewMode === 'view' && editingMaterial ? (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-3 gap-6">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Material Code</label>
-                      <p className="mt-1 text-lg font-semibold">{editingMaterial.code}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Name</label>
-                      <p className="mt-1 text-gray-900">{editingMaterial.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Category</label>
-                      <p className="mt-1">
-                        <span className={`text-sm px-3 py-1 rounded ${getCategoryColor(editingMaterial.category)}`}>
-                          {editingMaterial.category}
-                        </span>
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Unit</label>
-                      <p className="mt-1 text-gray-900">{editingMaterial.unit}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Standard Cost</label>
-                      <p className="mt-1 text-gray-900">${editingMaterial.standardCost.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Status</label>
-                      <p className="mt-1">
-                        <span className={`text-sm px-3 py-1 rounded ${getStatusColor(editingMaterial.status)}`}>
-                          {editingMaterial.status}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Description</label>
-                    <p className="mt-1 text-gray-900">{editingMaterial.description}</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3">Stock Parameters</h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Min Stock:</span>
-                          <span className="font-medium">{editingMaterial.minStock} {editingMaterial.unit}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Max Stock:</span>
-                          <span className="font-medium">{editingMaterial.maxStock} {editingMaterial.unit}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Reorder Point:</span>
-                          <span className="font-medium">{editingMaterial.reorderPoint} {editingMaterial.unit}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3">Supplier Details</h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Supplier:</span>
-                          <span className="font-medium">{editingMaterial.supplierName}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Lead Time:</span>
-                          <span className="font-medium">{editingMaterial.leadTimeDays} days</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Storage:</span>
-                          <span className="font-medium">{editingMaterial.storageLocation}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {editingMaterial.notes && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Notes</label>
-                      <p className="mt-1 text-gray-900 p-3 bg-gray-50 rounded">{editingMaterial.notes}</p>
-                    </div>
-                  )}
+                    <div className="grid grid-cols-3 gap-6"><p><label className="text-sm text-gray-500">Code</label><span className="block mt-1 text-lg font-semibold">{editingMaterial.code}</span></p><p><label className="text-sm text-gray-500">Name</label><span className="block mt-1">{editingMaterial.name}</span></p><p><label className="text-sm text-gray-500">Category</label><span className={`block mt-1 text-xs font-medium px-2 py-1 rounded-full w-fit ${getCategoryColor(editingMaterial.category)}`}>{editingMaterial.category}</span></p></div>
+                    <p><label className="text-sm text-gray-500">Description</label><span className="block mt-1">{editingMaterial.description}</span></p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 p-4 border rounded-lg"><h3 className="col-span-2 text-md font-semibold mb-2">Details</h3><p><label className="text-sm text-gray-500">Unit</label><span className="block mt-1">{editingMaterial.unit}</span></p><p><label className="text-sm text-gray-500">Standard Cost</label><span className="block mt-1">${editingMaterial.standardCost.toFixed(2)}</span></p><p><label className="text-sm text-gray-500">Lead Time</label><span className="block mt-1">{editingMaterial.leadTimeDays} days</span></p><p><label className="text-sm text-gray-500">Supplier</label><span className="block mt-1">{editingMaterial.supplierName}</span></p><p><label className="text-sm text-gray-500">Min/Max Stock</label><span className="block mt-1">{editingMaterial.minStock} / {editingMaterial.maxStock} {editingMaterial.unit}</span></p><p><label className="text-sm text-gray-500">Reorder Point</label><span className="block mt-1">{editingMaterial.reorderPoint} {editingMaterial.unit}</span></p></div>
+                    {editingMaterial.notes && <p className="p-3 bg-yellow-50 rounded-lg"><label className="text-sm font-semibold text-yellow-800">Notes</label><span className="block mt-1 text-yellow-700">{editingMaterial.notes}</span></p>}
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Basic Information */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Material Code *</label>
-                        <input
-                          type="text"
-                          value={formData.code}
-                          onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          readOnly={!!editingMaterial}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Name *</label>
-                        <input
-                          type="text"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Description</label>
-                        <textarea
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Category *</label>
-                        <select
-                          value={formData.category}
-                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          {MATERIAL_CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Unit of Measure *</label>
-                        <select
-                          value={formData.unit}
-                          onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          {UNITS.map(unit => (
-                            <option key={unit} value={unit}>{unit}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Standard Cost *</label>
-                        <input
-                          type="number"
-                          value={formData.standardCost}
-                          onChange={(e) => setFormData({ ...formData, standardCost: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Status *</label>
-                        <select
-                          value={formData.status}
-                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                          <option value="Discontinued">Discontinued</option>
-                        </select>
-                      </div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Material Code *</label><input type="text" name="code" value={formData.code} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100" readOnly={!!editingMaterial}/></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Name *</label><input type="text" name="name" value={formData.name} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" required /></div>
+                      <div className="col-span-2"><label className="text-sm font-medium text-gray-700 block mb-2">Description</label><textarea name="description" value={formData.description} onChange={handleFormChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Category *</label><select name="category" value={formData.category} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg">{MATERIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Unit of Measure *</label><select name="unit" value={formData.unit} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg">{UNITS.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Standard Cost *</label><input type="number" name="standardCost" value={formData.standardCost} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" min="0" step="0.01" /></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Status *</label><select name="status" value={formData.status} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg">{STATUSES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
                     </div>
                   </div>
-
-                  {/* Stock Management */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock Management</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock & Supplier</h3>
                     <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Min Stock Level</label>
-                        <input
-                          type="number"
-                          value={formData.minStock}
-                          onChange={(e) => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Max Stock Level</label>
-                        <input
-                          type="number"
-                          value={formData.maxStock}
-                          onChange={(e) => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Reorder Point</label>
-                        <input
-                          type="number"
-                          value={formData.reorderPoint}
-                          onChange={(e) => setFormData({ ...formData, reorderPoint: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Storage Location</label>
-                        <input
-                          type="text"
-                          value={formData.storageLocation}
-                          onChange={(e) => setFormData({ ...formData, storageLocation: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="e.g., WH-A-01"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="flex items-center gap-2 mt-8">
-                          <input
-                            type="checkbox"
-                            checked={formData.batchTracking}
-                            onChange={(e) => setFormData({ ...formData, batchTracking: e.target.checked })}
-                            className="rounded"
-                          />
-                          <span className="text-sm font-medium text-gray-700">Enable Batch/Lot Tracking</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Supplier Information */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Supplier Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Primary Supplier</label>
-                        <select
-                          value={formData.supplierCode}
-                          onChange={(e) => setFormData({ ...formData, supplierCode: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select Supplier</option>
-                          {SUPPLIERS.map(supplier => (
-                            <option key={supplier.code} value={supplier.code}>
-                              {supplier.name} ({supplier.code})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Lead Time (Days)</label>
-                        <input
-                          type="number"
-                          value={formData.leadTimeDays}
-                          onChange={(e) => setFormData({ ...formData, leadTimeDays: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="0"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes</label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Storage requirements, handling instructions, etc."
-                    />
-                  </div>
-
-                  {/* Info Box */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-blue-800">
-                        <div className="font-medium mb-1">Material Configuration Tips</div>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>Set reorder point between min and max stock levels</li>
-                          <li>Enable batch tracking for materials requiring traceability</li>
-                          <li>Include storage location for efficient warehouse management</li>
-                          <li>Add notes for special handling or safety requirements</li>
-                        </ul>
-                      </div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Min Stock Level</label><input type="number" name="minStock" value={formData.minStock} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" min="0" /></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Max Stock Level</label><input type="number" name="maxStock" value={formData.maxStock} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" min="0" /></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Reorder Point</label><input type="number" name="reorderPoint" value={formData.reorderPoint} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" min="0" /></div>
+                      <div className="col-span-2"><label className="text-sm font-medium text-gray-700 block mb-2">Supplier *</label><select name="supplierCode" value={formData.supplierCode} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg">{SUPPLIERS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select></div>
+                      <div><label className="text-sm font-medium text-gray-700 block mb-2">Lead Time (days)</label><input type="number" name="leadTimeDays" value={formData.leadTimeDays} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" min="0" /></div>
+                      <div className="col-span-3"><label className="text-sm font-medium text-gray-700 block mb-2">Storage Location</label><input type="text" name="storageLocation" value={formData.storageLocation} onChange={handleFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                      <div className="col-span-3"><label className="flex items-center gap-2"><input type="checkbox" name="batchTracking" checked={formData.batchTracking} onChange={handleFormChange} className="h-4 w-4 rounded border-gray-300" /> <span className="text-sm font-medium text-gray-700">Enable Batch Tracking</span></label></div>
+                      <div className="col-span-3"><label className="text-sm font-medium text-gray-700 block mb-2">Notes</label><textarea name="notes" value={formData.notes} onChange={handleFormChange} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              {viewMode === 'view' ? (
-                <button
-                  onClick={() => setViewMode('edit')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Edit size={18} />
-                  Edit Material
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveMaterial}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Save size={18} />
-                  Save Material
-                </button>
-              )}
-            </div>
+            {viewMode !== 'view' && (
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button onClick={handleSaveMaterial} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"><Save size={18} />Save Changes</button>
+              </div>
+            )}
           </div>
         </div>
       )}

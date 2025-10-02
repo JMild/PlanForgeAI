@@ -7,12 +7,46 @@ import {
   AlertCircle, Copy, Check
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
+import { ModalMode } from '@/src/types';
 
-// Days of week
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+// --- TYPE DEFINITIONS ---
+type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+type CalendarStatus = 'Active' | 'Inactive' | 'Draft';
+
+interface Break {
+  name: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface Shift {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  breaks: Break[];
+}
+
+interface Holiday {
+  date: string;
+  name: string;
+}
+
+interface CalendarData {
+  id: string;
+  name: string;
+  description: string;
+  workingDays: DayOfWeek[];
+  shifts: Shift[];
+  holidays: Holiday[];
+  status: CalendarStatus;
+}
+
+// --- CONSTANTS ---
+const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 // Initial calendars data
-const INITIAL_CALENDARS = [
+const INITIAL_CALENDARS: CalendarData[] = [
   {
     id: 'CAL-001',
     name: 'Standard 5-Day Week',
@@ -75,36 +109,9 @@ const INITIAL_CALENDARS = [
     description: 'Round the clock operation, three shifts',
     workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
     shifts: [
-      {
-        id: 'S1',
-        name: 'Morning Shift',
-        startTime: '06:00',
-        endTime: '14:00',
-        breaks: [
-          { name: 'Break', startTime: '09:00', endTime: '09:15' },
-          { name: 'Lunch', startTime: '11:30', endTime: '12:00' },
-        ]
-      },
-      {
-        id: 'S2',
-        name: 'Afternoon Shift',
-        startTime: '14:00',
-        endTime: '22:00',
-        breaks: [
-          { name: 'Break', startTime: '17:00', endTime: '17:15' },
-          { name: 'Dinner', startTime: '19:30', endTime: '20:00' },
-        ]
-      },
-      {
-        id: 'S3',
-        name: 'Night Shift',
-        startTime: '22:00',
-        endTime: '06:00',
-        breaks: [
-          { name: 'Break', startTime: '01:00', endTime: '01:15' },
-          { name: 'Midnight Meal', startTime: '03:30', endTime: '04:00' },
-        ]
-      }
+      { id: 'S1', name: 'Morning Shift', startTime: '06:00', endTime: '14:00', breaks: [{ name: 'Break', startTime: '09:00', endTime: '09:15' }, { name: 'Lunch', startTime: '11:30', endTime: '12:00' },] },
+      { id: 'S2', name: 'Afternoon Shift', startTime: '14:00', endTime: '22:00', breaks: [{ name: 'Break', startTime: '17:00', endTime: '17:15' }, { name: 'Dinner', startTime: '19:30', endTime: '20:00' },] },
+      { id: 'S3', name: 'Night Shift', startTime: '22:00', endTime: '06:00', breaks: [{ name: 'Break', startTime: '01:00', endTime: '01:15' }, { name: 'Midnight Meal', startTime: '03:30', endTime: '04:00' },] }
     ],
     holidays: [],
     status: 'Active'
@@ -112,15 +119,15 @@ const INITIAL_CALENDARS = [
 ];
 
 const ShiftsCalendarsMaster = () => {
-  const [calendars, setCalendars] = useState(INITIAL_CALENDARS);
+  const [calendars, setCalendars] = useState<CalendarData[]>(INITIAL_CALENDARS);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [expandedCalendars, setExpandedCalendars] = useState({});
+  const [filterStatus, setFilterStatus] = useState<CalendarStatus | 'all'>('all');
+  const [expandedCalendars, setExpandedCalendars] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCalendar, setEditingCalendar] = useState(null);
-  const [viewMode, setViewMode] = useState(null);
+  const [editingCalendar, setEditingCalendar] = useState<CalendarData | null>(null);
+  const [viewMode, setViewMode] = useState<ModalMode>(null);
 
-  const [formData, setFormData] = useState({
+  const emptyFormData: CalendarData = {
     id: '',
     name: '',
     description: '',
@@ -128,10 +135,12 @@ const ShiftsCalendarsMaster = () => {
     shifts: [],
     holidays: [],
     status: 'Active'
-  });
+  };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const [formData, setFormData] = useState<CalendarData>(emptyFormData);
+
+  const getStatusColor = (status: CalendarStatus): string => {
+    const colors: Record<string, string> = {
       'Active': 'bg-green-100 text-green-700',
       'Inactive': 'bg-gray-100 text-gray-700',
       'Draft': 'bg-yellow-100 text-yellow-700',
@@ -139,14 +148,14 @@ const ShiftsCalendarsMaster = () => {
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
 
-  const getShiftIcon = (shiftName) => {
+  const getShiftIcon = (shiftName: string) => {
     const name = shiftName.toLowerCase();
     if (name.includes('morning') || name.includes('day')) return <Sun size={16} className="text-yellow-600" />;
     if (name.includes('night')) return <Moon size={16} className="text-indigo-600" />;
     return <Clock size={16} className="text-blue-600" />;
   };
 
-  const calculateShiftDuration = (startTime, endTime) => {
+  const calculateShiftDuration = (startTime: string, endTime: string): string => {
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
 
@@ -155,10 +164,10 @@ const ShiftsCalendarsMaster = () => {
 
     const hours = Math.floor(durationMin / 60);
     const mins = durationMin % 60;
-    return `${hours}h ${mins > 0 ? mins + 'm' : ''}`;
+    return `${hours}h ${mins > 0 ? mins + 'm' : ''}`.trim();
   };
 
-  const calculateWorkingHours = (shifts, breaks) => {
+  const calculateWorkingHours = (shifts: Shift[]): string => {
     let totalMin = 0;
     shifts.forEach(shift => {
       const [startHour, startMin] = shift.startTime.split(':').map(Number);
@@ -166,12 +175,13 @@ const ShiftsCalendarsMaster = () => {
       let shiftMin = (endHour * 60 + endMin) - (startHour * 60 + startMin);
       if (shiftMin < 0) shiftMin += 24 * 60;
 
-      // Subtract breaks
       shift.breaks.forEach(br => {
         const [bStartHour, bStartMin] = br.startTime.split(':').map(Number);
         const [bEndHour, bEndMin] = br.endTime.split(':').map(Number);
         const breakMin = (bEndHour * 60 + bEndMin) - (bStartHour * 60 + bStartMin);
-        shiftMin -= breakMin;
+        if (breakMin > 0) {
+          shiftMin -= breakMin;
+        }
       });
 
       totalMin += shiftMin;
@@ -188,11 +198,8 @@ const ShiftsCalendarsMaster = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const toggleCalendarExpand = (id) => {
-    setExpandedCalendars(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+  const toggleCalendarExpand = (id: string) => {
+    setExpandedCalendars(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const openCreateModal = () => {
@@ -202,23 +209,19 @@ const ShiftsCalendarsMaster = () => {
       description: '',
       workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       shifts: [{
-        id: 'S1',
-        name: 'Day Shift',
-        startTime: '08:00',
-        endTime: '17:00',
-        breaks: [
-          { name: 'Lunch', startTime: '12:00', endTime: '13:00' }
-        ]
+        id: 'S1', name: 'Day Shift', startTime: '08:00', endTime: '17:00',
+        breaks: [{ name: 'Lunch', startTime: '12:00', endTime: '13:00' }]
       }],
       holidays: [],
-      status: 'Active'
+      status: 'Draft'
     });
     setEditingCalendar(null);
     setViewMode('edit');
     setIsModalOpen(true);
   };
 
-  const openEditModal = (calendar) => {
+
+  const openEditModal = (calendar: CalendarData) => {
     setFormData({
       id: calendar.id,
       name: calendar.name,
@@ -236,7 +239,7 @@ const ShiftsCalendarsMaster = () => {
     setIsModalOpen(true);
   };
 
-  const openViewModal = (calendar) => {
+  const openViewModal = (calendar: CalendarData) => {
     setEditingCalendar(calendar);
     setViewMode('view');
     setIsModalOpen(true);
@@ -264,24 +267,24 @@ const ShiftsCalendarsMaster = () => {
     closeModal();
   };
 
-  const handleDeleteCalendar = (id) => {
+  const handleDeleteCalendar = (id: string) => {
     if (confirm(`Are you sure you want to delete calendar ${id}?`)) {
       setCalendars(calendars.filter(c => c.id !== id));
     }
   };
 
-  const handleCopyCalendar = (calendar) => {
+  const handleCopyCalendar = (calendar: CalendarData) => {
     const newId = `CAL-${String(calendars.length + 1).padStart(3, '0')}`;
-    const copiedCalendar = {
-      ...calendar,
-      id: newId,
-      name: `${calendar.name} (Copy)`,
-      status: 'Draft'
-    };
+    // Deep copy to create a new object
+    const copiedCalendar: CalendarData = JSON.parse(JSON.stringify(calendar));
+    copiedCalendar.id = newId;
+    copiedCalendar.name = `${calendar.name} (Copy)`;
+    copiedCalendar.status = 'Draft';
+
     setCalendars([...calendars, copiedCalendar]);
   };
 
-  const toggleWorkingDay = (day) => {
+  const toggleWorkingDay = (day: DayOfWeek) => {
     setFormData(prev => ({
       ...prev,
       workingDays: prev.workingDays.includes(day)
@@ -304,7 +307,7 @@ const ShiftsCalendarsMaster = () => {
     }));
   };
 
-  const removeShift = (shiftId) => {
+  const removeShift = (shiftId: string) => {
     if (formData.shifts.length === 1) {
       alert('Calendar must have at least one shift');
       return;
@@ -315,14 +318,14 @@ const ShiftsCalendarsMaster = () => {
     }));
   };
 
-  const updateShift = (shiftId, field, value) => {
+  const updateShift = (shiftId: string, field: keyof Shift, value: string) => {
     setFormData(prev => ({
       ...prev,
       shifts: prev.shifts.map(s => s.id === shiftId ? { ...s, [field]: value } : s)
     }));
   };
 
-  const addBreak = (shiftId) => {
+  const addBreak = (shiftId: string) => {
     setFormData(prev => ({
       ...prev,
       shifts: prev.shifts.map(s =>
@@ -333,7 +336,7 @@ const ShiftsCalendarsMaster = () => {
     }));
   };
 
-  const removeBreak = (shiftId, breakIndex) => {
+  const removeBreak = (shiftId: string, breakIndex: number) => {
     setFormData(prev => ({
       ...prev,
       shifts: prev.shifts.map(s =>
@@ -344,7 +347,7 @@ const ShiftsCalendarsMaster = () => {
     }));
   };
 
-  const updateBreak = (shiftId, breakIndex, field, value) => {
+  const updateBreak = (shiftId: string, breakIndex: number, field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       shifts: prev.shifts.map(s =>
@@ -367,14 +370,14 @@ const ShiftsCalendarsMaster = () => {
     }));
   };
 
-  const removeHoliday = (index) => {
+  const removeHoliday = (index: number) => {
     setFormData(prev => ({
       ...prev,
       holidays: prev.holidays.filter((_, idx) => idx !== index)
     }));
   };
 
-  const updateHoliday = (index, field, value) => {
+  const updateHoliday = (index: number, field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       holidays: prev.holidays.map((h, idx) =>
@@ -427,7 +430,7 @@ const ShiftsCalendarsMaster = () => {
               </div>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => setFilterStatus(e.target.value as CalendarStatus)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Status</option>
@@ -458,7 +461,7 @@ const ShiftsCalendarsMaster = () => {
             <div className="divide-y divide-gray-200">
               {filteredCalendars.map(calendar => {
                 const isExpanded = expandedCalendars[calendar.id];
-                const workingHours = calculateWorkingHours(calendar.shifts, calendar.breaks);
+                const workingHours = calculateWorkingHours(calendar.shifts);
 
                 return (
                   <div key={calendar.id} className="hover:bg-gray-50 transition-colors">
@@ -550,8 +553,8 @@ const ShiftsCalendarsMaster = () => {
                                 <span
                                   key={day}
                                   className={`px-3 py-1 rounded text-sm ${calendar.workingDays.includes(day)
-                                      ? 'bg-blue-100 text-blue-700 font-medium'
-                                      : 'bg-gray-100 text-gray-400'
+                                    ? 'bg-blue-100 text-blue-700 font-medium'
+                                    : 'bg-gray-100 text-gray-400'
                                     }`}
                                 >
                                   {day}
@@ -673,8 +676,8 @@ const ShiftsCalendarsMaster = () => {
                         <span
                           key={day}
                           className={`px-3 py-1 rounded text-sm ${editingCalendar.workingDays.includes(day)
-                              ? 'bg-blue-100 text-blue-700 font-medium'
-                              : 'bg-gray-100 text-gray-400 line-through'
+                            ? 'bg-blue-100 text-blue-700 font-medium'
+                            : 'bg-gray-100 text-gray-400 line-through'
                             }`}
                         >
                           {day}
@@ -735,7 +738,7 @@ const ShiftsCalendarsMaster = () => {
                         <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
                         <select
                           value={formData.status}
-                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value as CalendarStatus })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="Active">Active</option>
@@ -775,8 +778,8 @@ const ShiftsCalendarsMaster = () => {
                         <label
                           key={day}
                           className={`flex flex-col items-center px-3 py-3 border-2 rounded-lg cursor-pointer transition-colors ${formData.workingDays.includes(day)
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-300 hover:border-gray-400'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-300 hover:border-gray-400'
                             }`}
                         >
                           <input
@@ -975,7 +978,7 @@ const ShiftsCalendarsMaster = () => {
                         <div className="space-y-1">
                           <div>Working Days: {formData.workingDays.length} days/week</div>
                           <div>Total Shifts: {formData.shifts.length}</div>
-                          <div>Working Hours: {calculateWorkingHours(formData.shifts, [])} hrs/day</div>
+                          <div>Working Hours: {calculateWorkingHours(formData.shifts)} hrs/day</div>
                           <div>Holidays: {formData.holidays.length}</div>
                         </div>
                       </div>

@@ -101,7 +101,7 @@ const BomModal: React.FC<BomModalProps> = ({
       description="Specify Bill of Material Line"
       footer={true}
       size="md"
-      initialFocusRef={initialFocusRef}
+      // initialFocusRef={initialFocusRef}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* FG Code */}

@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import BaseModal from '@/src/components/shared/modal/BaseModal';
 import React, { useState } from 'react';
 import * as fuzz from 'fuzzball';

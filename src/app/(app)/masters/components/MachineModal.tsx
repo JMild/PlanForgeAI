@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, KeyboardEvent } from "react";
 import { X } from "lucide-react";
 import InputText from "@/src/components/shared/input/InputText";

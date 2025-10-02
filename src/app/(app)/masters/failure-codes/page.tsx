@@ -1,18 +1,46 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent, FC } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, AlertTriangle,
   CheckCircle, X, Save, Wrench, Zap, Clock, Settings,
   TrendingUp, BarChart3, Filter, Copy, FileText,
-  Package, Tool,
-  Table,
-  LayoutGrid
+  Package, Table, LayoutGrid
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
+import { ModalMode } from '@/src/types';
 
-// Sample failure codes data
-const INITIAL_FAILURE_CODES = [
+// --- TYPE DEFINITIONS ---
+
+const CATEGORIES = ['Breakdown', 'Material', 'Setup', 'Quality', 'Utility', 'Scheduled', 'Maintenance', 'Technical', 'Process', 'Other'] as const;
+const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
+const DEPARTMENTS = ['Production', 'Maintenance', 'Quality', 'Supply Chain', 'IT', 'Facilities', 'Safety'] as const;
+
+type FailureCategory = typeof CATEGORIES[number];
+type FailureSeverity = typeof SEVERITIES[number];
+type Department = typeof DEPARTMENTS[number];
+
+type FailureCode = {
+  code: string;
+  name: string;
+  category: FailureCategory;
+  severity: FailureSeverity;
+  description: string;
+  defaultAction: string;
+  avgResolutionTime: number; // in minutes
+  requiresApproval: boolean;
+  affectsOEE: boolean;
+  status: 'Active' | 'Inactive';
+  occurrences: number;
+  totalDowntime: number; // in minutes
+  lastOccurrence: string | null; // YYYY-MM-DD, null for new codes
+  responsibleDept: Department;
+  associatedMachines: string[];
+};
+
+// --- SAMPLE DATA ---
+
+const INITIAL_FAILURE_CODES: FailureCode[] = [
   {
     code: 'FC001',
     name: 'Machine Breakdown',
@@ -185,23 +213,22 @@ const INITIAL_FAILURE_CODES = [
   },
 ];
 
-const CATEGORIES = ['Breakdown', 'Material', 'Setup', 'Quality', 'Utility', 'Scheduled', 'Maintenance', 'Technical', 'Process', 'Other'];
-const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
-const DEPARTMENTS = ['Production', 'Maintenance', 'Quality', 'Supply Chain', 'IT', 'Facilities', 'Safety'];
+type FailureCodeFormData = Omit<FailureCode, 'occurrences' | 'totalDowntime' | 'lastOccurrence'>;
 
-const FailureCodesMasterData = () => {
-  const [failureCodes, setFailureCodes] = useState(INITIAL_FAILURE_CODES);
+
+const FailureCodesMasterData: FC = () => {
+  const [failureCodes, setFailureCodes] = useState<FailureCode[]>(INITIAL_FAILURE_CODES);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState(null); // 'view', 'edit', 'create'
-  const [selectedCode, setSelectedCode] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [selectedCode, setSelectedCode] = useState<FailureCode | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FailureCodeFormData>({
     code: '',
     name: '',
     category: 'Breakdown',
@@ -216,7 +243,7 @@ const FailureCodesMasterData = () => {
     associatedMachines: [],
   });
 
-  const filteredCodes = failureCodes.filter(code => {
+  const filteredCodes = failureCodes.filter((code) => {
     const matchesSearch = code.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       code.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       code.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -232,14 +259,14 @@ const FailureCodesMasterData = () => {
     activeCodes: failureCodes.filter(c => c.status === 'Active').length,
     totalOccurrences: failureCodes.reduce((sum, c) => sum + c.occurrences, 0),
     totalDowntime: failureCodes.reduce((sum, c) => sum + c.totalDowntime, 0),
-    avgResolutionTime: Math.round(
-      failureCodes.reduce((sum, c) => sum + c.avgResolutionTime, 0) / failureCodes.length
-    ),
+    avgResolutionTime: failureCodes.length > 0
+      ? Math.round(failureCodes.reduce((sum, c) => sum + c.avgResolutionTime, 0) / failureCodes.length)
+      : 0,
   };
 
-  const openModal = (mode, code = null) => {
+  const openModal = (mode: ModalMode, item: FailureCode | null = null) => {
     setModalMode(mode);
-    setSelectedCode(code);
+    setSelectedCode(item);
 
     if (mode === 'create') {
       setFormData({
@@ -256,25 +283,25 @@ const FailureCodesMasterData = () => {
         responsibleDept: 'Production',
         associatedMachines: [],
       });
-    } else if (code) {
+    } else if (item) {
       setFormData({
-        code: code.code,
-        name: code.name,
-        category: code.category,
-        severity: code.severity,
-        description: code.description,
-        defaultAction: code.defaultAction,
-        avgResolutionTime: code.avgResolutionTime,
-        requiresApproval: code.requiresApproval,
-        affectsOEE: code.affectsOEE,
-        status: code.status,
-        responsibleDept: code.responsibleDept,
-        associatedMachines: code.associatedMachines || [],
+        code: item.code,
+        name: item.name,
+        category: item.category,
+        severity: item.severity,
+        description: item.description,
+        defaultAction: item.defaultAction,
+        avgResolutionTime: item.avgResolutionTime,
+        requiresApproval: item.requiresApproval,
+        affectsOEE: item.affectsOEE,
+        status: item.status,
+        responsibleDept: item.responsibleDept,
+        associatedMachines: item.associatedMachines || [],
       });
     }
-
     setIsModalOpen(true);
   };
+
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -284,14 +311,14 @@ const FailureCodesMasterData = () => {
 
   const handleSave = () => {
     if (modalMode === 'create') {
-      const newCode = {
+      const newCode: FailureCode = {
         ...formData,
         occurrences: 0,
         totalDowntime: 0,
         lastOccurrence: null,
       };
       setFailureCodes([...failureCodes, newCode]);
-    } else if (modalMode === 'edit') {
+    } else if (modalMode === 'edit' && selectedCode) {
       setFailureCodes(failureCodes.map(c =>
         c.code === selectedCode.code
           ? { ...selectedCode, ...formData }
@@ -301,16 +328,16 @@ const FailureCodesMasterData = () => {
     closeModal();
   };
 
-  const handleDelete = (codeId) => {
-    if (confirm(`Are you sure you want to delete failure code ${codeId}?`)) {
+  const handleDelete = (codeId: string) => {
+    if (window.confirm(`Are you sure you want to delete failure code ${codeId}?`)) {
       setFailureCodes(failureCodes.filter(c => c.code !== codeId));
     }
   };
 
-  const handleDuplicate = (code) => {
-    const newCode = {
+  const handleDuplicate = (code: FailureCode) => {
+    const newCode: FailureCode = {
       ...code,
-      code: `${code.code}-COPY`,
+      code: `${code.code}-COPY-${Date.now()}`, // Ensure unique code
       name: `${code.name} (Copy)`,
       occurrences: 0,
       totalDowntime: 0,
@@ -319,7 +346,7 @@ const FailureCodesMasterData = () => {
     setFailureCodes([...failureCodes, newCode]);
   };
 
-  const getSeverityColor = (severity) => {
+  const getSeverityColor = (severity: FailureSeverity): string => {
     switch (severity) {
       case 'Critical': return 'bg-red-100 text-red-700 border-red-300';
       case 'High': return 'bg-orange-100 text-orange-700 border-orange-300';
@@ -329,7 +356,7 @@ const FailureCodesMasterData = () => {
     }
   };
 
-  const getCategoryIcon = (category) => {
+  const getCategoryIcon = (category: FailureCategory) => {
     switch (category) {
       case 'Breakdown': return <AlertTriangle size={18} className="text-red-600" />;
       case 'Material': return <Package size={18} className="text-blue-600" />;
@@ -339,11 +366,11 @@ const FailureCodesMasterData = () => {
       case 'Scheduled': return <Clock size={18} className="text-gray-600" />;
       case 'Maintenance': return <Wrench size={18} className="text-orange-600" />;
       case 'Technical': return <Settings size={18} className="text-indigo-600" />;
-      default: return <AlertTriangle size={18} className="text-gray-600" />;
+      default: return <FileText size={18} className="text-gray-600" />;
     }
   };
 
-  const formatMinutes = (minutes) => {
+  const formatMinutes = (minutes: number): string => {
     if (minutes < 60) return `${minutes}m`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -392,7 +419,7 @@ const FailureCodesMasterData = () => {
               </div>
               <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
                 <div className="text-xs text-purple-600 font-medium mb-1">Total Occurrences</div>
-                <div className="text-2xl font-bold text-purple-900">{stats.totalOccurrences}</div>
+                <div className="text-2xl font-bold text-purple-900">{stats.totalOccurrences.toLocaleString()}</div>
               </div>
               <div className="bg-red-50 p-3 rounded-lg border border-red-200">
                 <div className="text-xs text-red-600 font-medium mb-1">Total Downtime</div>
@@ -412,13 +439,13 @@ const FailureCodesMasterData = () => {
                   type="text"
                   placeholder="Search failure codes..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <select
                 value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterCategory(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Categories</option>
@@ -428,7 +455,7 @@ const FailureCodesMasterData = () => {
               </select>
               <select
                 value={filterSeverity}
-                onChange={(e) => setFilterSeverity(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterSeverity(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Severity</option>
@@ -438,7 +465,7 @@ const FailureCodesMasterData = () => {
               </select>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterStatus(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Status</option>
@@ -449,12 +476,14 @@ const FailureCodesMasterData = () => {
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`px-3 py-2 ${viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600'}`}
+                  title="Grid View"
                 >
                   <LayoutGrid size={18} />
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-2 border-l border-gray-300 ${viewMode === 'table' ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600'}`}
+                  title="Table View"
                 >
                   <Table size={18} />
                 </button>
@@ -468,9 +497,9 @@ const FailureCodesMasterData = () => {
         {viewMode === 'grid' ? (
           // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCodes.map(code => (
-              <div key={code.code} className="bg-white rounded-lg shadow-sm border-2 border-gray-200 hover:shadow-md transition-shadow">
-                <div className="p-5">
+            {filteredCodes.map((code) => (
+              <div key={code.code} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 flex flex-col">
+                <div className="p-5 flex-grow">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -481,83 +510,45 @@ const FailureCodesMasterData = () => {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button
-                        onClick={() => openModal('view', code)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="View"
-                      >
-                        <Eye size={14} className="text-gray-600" />
-                      </button>
-                      <button
-                        onClick={() => openModal('edit', code)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Edit"
-                      >
-                        <Edit size={14} className="text-blue-600" />
-                      </button>
-                      <button
-                        onClick={() => handleDuplicate(code)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Duplicate"
-                      >
-                        <Copy size={14} className="text-green-600" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(code.code)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} className="text-red-600" />
-                      </button>
+                      <button onClick={() => openModal('view', code)} className="p-1 hover:bg-gray-100 rounded" title="View"><Eye size={14} className="text-gray-600" /></button>
+                      <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-gray-100 rounded" title="Edit"><Edit size={14} className="text-blue-600" /></button>
+                      <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-gray-100 rounded" title="Duplicate"><Copy size={14} className="text-green-600" /></button>
+                      <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-gray-100 rounded" title="Delete"><Trash2 size={14} className="text-red-600" /></button>
                     </div>
                   </div>
 
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2 mb-3">
-                    <span className={`text-xs px-2 py-1 rounded border ${getSeverityColor(code.severity)}`}>
-                      {code.severity}
-                    </span>
-                    <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700">
-                      {code.category}
-                    </span>
-                    {code.requiresApproval && (
-                      <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700">
-                        Approval Required
-                      </span>
-                    )}
-                    {code.affectsOEE && (
-                      <span className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700">
-                        Affects OEE
-                      </span>
-                    )}
+                    <span className={`text-xs px-2 py-1 rounded-full border font-medium ${getSeverityColor(code.severity)}`}>{code.severity}</span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">{code.category}</span>
+                    {code.requiresApproval && <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">Approval Required</span>}
+                    {code.affectsOEE && <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">Affects OEE</span>}
                   </div>
 
                   {/* Description */}
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{code.description}</p>
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">{code.description}</p>
+                </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 mb-3 pb-3 border-b border-gray-200">
+                {/* Stats & Footer */}
+                <div className='p-5 pt-0'>
+                    <div className="grid grid-cols-3 gap-2 mb-3 pt-3 border-t border-gray-200">
                     <div className="text-center">
-                      <div className="text-lg font-bold text-gray-900">{code.occurrences}</div>
-                      <div className="text-xs text-gray-500">Occurrences</div>
+                        <div className="text-lg font-bold text-gray-900">{code.occurrences}</div>
+                        <div className="text-xs text-gray-500">Occurrences</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-red-600">{formatMinutes(code.totalDowntime)}</div>
-                      <div className="text-xs text-gray-500">Downtime</div>
+                        <div className="text-lg font-bold text-red-600">{formatMinutes(code.totalDowntime)}</div>
+                        <div className="text-xs text-gray-500">Downtime</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-blue-600">{formatMinutes(code.avgResolutionTime)}</div>
-                      <div className="text-xs text-gray-500">Avg Time</div>
+                        <div className="text-lg font-bold text-blue-600">{formatMinutes(code.avgResolutionTime)}</div>
+                        <div className="text-xs text-gray-500">Avg Time</div>
                     </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{code.responsibleDept}</span>
-                    {code.lastOccurrence && (
-                      <span>Last: {new Date(code.lastOccurrence).toLocaleDateString()}</span>
-                    )}
-                  </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                        <span>Dept: <strong>{code.responsibleDept}</strong></span>
+                        {code.lastOccurrence && <span>Last: <strong>{new Date(code.lastOccurrence).toLocaleDateString()}</strong></span>}
+                    </div>
                 </div>
               </div>
             ))}
@@ -583,66 +574,20 @@ const FailureCodesMasterData = () => {
                 <tbody className="divide-y divide-gray-200">
                   {filteredCodes.map(code => (
                     <tr key={code.code} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {getCategoryIcon(code.category)}
-                          <span className="text-sm font-medium text-gray-900">{code.code}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{code.name}</div>
-                        <div className="text-xs text-gray-500 line-clamp-1">{code.description}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">{code.category}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex text-xs px-2 py-1 rounded border ${getSeverityColor(code.severity)}`}>
-                          {code.severity}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm text-gray-900 font-medium">{code.occurrences}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm text-red-600 font-medium">{formatMinutes(code.totalDowntime)}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm text-blue-600 font-medium">{formatMinutes(code.avgResolutionTime)}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">{code.responsibleDept}</span>
-                      </td>
+                      <td className="px-6 py-4"><div className="flex items-center gap-2"><span className="text-sm font-medium text-gray-900">{code.code}</span></div></td>
+                      <td className="px-6 py-4"><div className="text-sm text-gray-900">{code.name}</div></td>
+                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{code.category}</span></td>
+                      <td className="px-6 py-4"><span className={`inline-flex text-xs px-2 py-1 rounded-full border font-medium ${getSeverityColor(code.severity)}`}>{code.severity}</span></td>
+                      <td className="px-6 py-4 text-right"><span className="text-sm text-gray-900 font-medium">{code.occurrences}</span></td>
+                      <td className="px-6 py-4 text-right"><span className="text-sm text-red-600 font-medium">{formatMinutes(code.totalDowntime)}</span></td>
+                      <td className="px-6 py-4 text-right"><span className="text-sm text-blue-600 font-medium">{formatMinutes(code.avgResolutionTime)}</span></td>
+                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{code.responsibleDept}</span></td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openModal('view', code)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                            title="View"
-                          >
-                            <Eye size={16} className="text-gray-600" />
-                          </button>
-                          <button
-                            onClick={() => openModal('edit', code)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                            title="Edit"
-                          >
-                            <Edit size={16} className="text-blue-600" />
-                          </button>
-                          <button
-                            onClick={() => handleDuplicate(code)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                            title="Duplicate"
-                          >
-                            <Copy size={16} className="text-green-600" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(code.code)}
-                            className="p-1 hover:bg-gray-200 rounded"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} className="text-red-600" />
-                          </button>
+                          <button onClick={() => openModal('view', code)} className="p-1 hover:bg-gray-200 rounded" title="View"><Eye size={16} className="text-gray-600" /></button>
+                          <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-gray-200 rounded" title="Edit"><Edit size={16} className="text-blue-600" /></button>
+                          <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-gray-200 rounded" title="Duplicate"><Copy size={16} className="text-green-600" /></button>
+                          <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-gray-200 rounded" title="Delete"><Trash2 size={16} className="text-red-600" /></button>
                         </div>
                       </td>
                     </tr>
@@ -673,221 +618,81 @@ const FailureCodesMasterData = () => {
                 {modalMode === 'edit' && 'Edit Failure Code'}
                 {modalMode === 'create' && 'Create New Failure Code'}
               </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full">
                 <X size={20} />
               </button>
             </div>
 
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {/* Basic Info */}
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Failure Code *</label>
-                    <input
-                      type="text"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      disabled={modalMode === 'view' || modalMode === 'edit'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Failure Name *</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    >
-                      {CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
-                    <select
-                      value={formData.severity}
-                      onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    >
-                      {SEVERITIES.map(sev => (
-                        <option key={sev} value={sev}>{sev}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Responsible Department</label>
-                    <select
-                      value={formData.responsibleDept}
-                      onChange={(e) => setFormData({ ...formData, responsibleDept: e.target.value })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    >
-                      {DEPARTMENTS.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Avg Resolution Time (minutes)</label>
-                    <input
-                      type="number"
-                      value={formData.avgResolutionTime}
-                      onChange={(e) => setFormData({ ...formData, avgResolutionTime: parseInt(e.target.value) || 0 })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                      min="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      disabled={modalMode === 'view'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Description */}
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    disabled={modalMode === 'view'}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    rows="3"
-                    placeholder="Describe the failure condition..."
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Failure Code *</label>
+                  <input type="text" value={formData.code} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, code: e.target.value })} disabled={modalMode === 'view' || modalMode === 'edit'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
                 </div>
-
-                {/* Default Action */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Default Action / Resolution Steps</label>
-                  <textarea
-                    value={formData.defaultAction}
-                    onChange={(e) => setFormData({ ...formData, defaultAction: e.target.value })}
-                    disabled={modalMode === 'view'}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    rows="3"
-                    placeholder="Describe the recommended action to take..."
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Failure Name *</label>
+                  <input type="text" value={formData.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
                 </div>
-
-                {/* Checkboxes */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900 text-sm">Requires Approval</div>
-                      <div className="text-xs text-gray-600">Supervisor approval needed before resolution</div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.requiresApproval}
-                        onChange={(e) => modalMode !== 'view' && setFormData({ ...formData, requiresApproval: e.target.checked })}
-                        disabled={modalMode === 'view'}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900 text-sm">Affects OEE</div>
-                      <div className="text-xs text-gray-600">Include in OEE calculations</div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.affectsOEE}
-                        onChange={(e) => modalMode !== 'view' && setFormData({ ...formData, affectsOEE: e.target.checked })}
-                        disabled={modalMode === 'view'}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"></div>
-                    </label>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select value={formData.category} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, category: e.target.value as FailureCategory })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" >
+                    {CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
+                  </select>
                 </div>
-
-                {/* Statistics (View mode only) */}
-                {modalMode === 'view' && selectedCode && (
-                  <div className="pt-6 border-t">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistics</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                        <div className="text-sm text-purple-600 font-medium mb-1">Total Occurrences</div>
-                        <div className="text-3xl font-bold text-purple-900">{selectedCode.occurrences}</div>
-                      </div>
-                      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                        <div className="text-sm text-red-600 font-medium mb-1">Total Downtime</div>
-                        <div className="text-3xl font-bold text-red-900">{formatMinutes(selectedCode.totalDowntime)}</div>
-                      </div>
-                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="text-sm text-blue-600 font-medium mb-1">Last Occurrence</div>
-                        <div className="text-lg font-bold text-blue-900">
-                          {selectedCode.lastOccurrence
-                            ? new Date(selectedCode.lastOccurrence).toLocaleDateString()
-                            : 'Never'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedCode.associatedMachines && selectedCode.associatedMachines.length > 0 && (
-                      <div className="mt-4">
-                        <div className="text-sm font-medium text-gray-700 mb-2">Associated Machines</div>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedCode.associatedMachines.map(machine => (
-                            <span key={machine} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                              {machine}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+                  <select value={formData.severity} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, severity: e.target.value as FailureSeverity })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                    {SEVERITIES.map(sev => (<option key={sev} value={sev}>{sev}</option>))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea value={formData.description} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })} disabled={modalMode === 'view'} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
+                </div>
+                 <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Default Action / SOP</label>
+                  <textarea value={formData.defaultAction} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, defaultAction: e.target.value })} disabled={modalMode === 'view'} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Avg. Resolution Time (minutes)</label>
+                  <input type="number" value={formData.avgResolutionTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, avgResolutionTime: Number(e.target.value) })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Responsible Department</label>
+                  <select value={formData.responsibleDept} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, responsibleDept: e.target.value as Department })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                    {DEPARTMENTS.map(dept => (<option key={dept} value={dept}>{dept}</option>))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Associated Machines (comma-separated)</label>
+                  <input type="text" value={formData.associatedMachines.join(', ')} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, associatedMachines: e.target.value.split(',').map(m => m.trim()).filter(Boolean) })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
+                </div>
+                <div className='flex items-center'>
+                  <label className="flex items-center space-x-3">
+                    <input type="checkbox" checked={formData.requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, requiresApproval: e.target.checked })} disabled={modalMode === 'view'} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:bg-gray-200"/>
+                    <span className="text-sm font-medium text-gray-700">Requires Approval</span>
+                  </label>
+                </div>
+                <div className='flex items-center'>
+                  <label className="flex items-center space-x-3">
+                    <input type="checkbox" checked={formData.affectsOEE} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, affectsOEE: e.target.checked })} disabled={modalMode === 'view'} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:bg-gray-200"/>
+                    <span className="text-sm font-medium text-gray-700">Affects OEE</span>
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            {modalMode !== 'view' && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              {modalMode !== 'view' && (
+                <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
                   <Save size={18} />
-                  {modalMode === 'create' ? 'Create Failure Code' : 'Save Changes'}
+                  {modalMode === 'create' ? 'Create Code' : 'Save Changes'}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

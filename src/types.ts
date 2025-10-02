@@ -6,12 +6,14 @@ export type User = {
   email?: string | null;
   full_name?: string | null;
   user_group_id: number | null;
-  image_url?: string | null;
+  profile_image_url?: string | null;
   department?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
+
+export type ModalMode = 'edit' | 'view' | 'create' | null;
 
 export type Group = {
   group_id: number;
@@ -42,6 +44,51 @@ export type Payload = {
   permissions: Permission[];
 };
 
+// types.ts
+export type Machine = {
+  code: string;
+  name: string;
+  workCenter: string;
+  status: 'Running' | 'Idle' | 'PM' | 'Down' | string;
+};
+
+export type Job = {
+  jobId: string;
+  orderNo: string;
+  product: string;
+  process: string;
+  machineCode: string;
+  startTime: string;
+  endTime: string;
+  setupMin: number;
+  runMin: number;
+  status: 'Planned' | 'In Progress' | 'Completed' | 'Late' | string;
+};
+
+export type Maintenance = {
+  id: string;
+  machineCode: string;
+  type: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+};
+
+export type Shift = {
+  name: string;
+  start: string;
+  end: string;
+  color: string;
+};
+
+export type BreakTime = {
+  start: string;
+  end: string;
+  name: string;
+};
+
+export type SelectedJob = (Job | Maintenance) & { type: 'job' | 'maintenance' };
+
 // === setting ===
 
 export interface Holiday {
@@ -49,13 +96,6 @@ export interface Holiday {
   end_date: string;      // รูปแบบ YYYY-MM-DD
   description: string;
   is_recurring: boolean;
-}
-
-export interface Shift {
-  code: string;
-  start: string;         // รูปแบบ HH:mm (24 ชั่วโมง)
-  end: string;           // รูปแบบ HH:mm (24 ชั่วโมง)
-  lines: string[];       // ชื่อสายการผลิตหรือพื้นที่
 }
 
 export interface BreakRow {

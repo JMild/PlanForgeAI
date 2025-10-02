@@ -1,9 +1,8 @@
 "use client";
 
 import NextLink from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, JSX } from "react";
 import { Settings, HelpCircle, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
-import { createPortal } from "react-dom";
 import { useThemeContext } from "@/src/context/ThemeContext";
 
 type Props = {
@@ -32,7 +31,7 @@ export default function UserMenu({ user, compact = false }: Props) {
     return inits.join("") || "U";
   }, [user]);
 
-  const avatarSrc = (user as any).image_url || (user as any).profile_image_url || "";
+  const avatarSrc = (user as any).image_url || (user as any).image_url || "";
 
   // close on outside/Esc
   useEffect(() => {
@@ -91,6 +90,10 @@ export default function UserMenu({ user, compact = false }: Props) {
       toggleTheme();
     }
   };
+
+  function createPortal(arg0: JSX.Element, body: HTMLElement): import("react").ReactNode {
+    throw new Error("Function not implemented.");
+  }
 
   return (
     <div className="relative">
@@ -297,3 +300,4 @@ function twThemeItem(active: boolean) {
       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100",
   ].join(" ");
 }
+  

@@ -1,4 +1,5 @@
 import { CancelButton, SaveButton } from "@/src/components/shared/button/ActionButtons";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Warehouse = {
