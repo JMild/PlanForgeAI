@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 type Props = {
   title?: React.ReactNode;
-  description?: string;
+  description?: string | React.ReactNode;
   actions?: React.ReactNode;
   tabs?: React.ReactNode;
   sticky?: boolean;
@@ -34,37 +34,57 @@ export default function PageHeader({
 
   return (
     <header
+      id="app-header-slot"
       className={clsx(
-        "py-2 z-40 overflow-visible",
-        "border-b border-slate-200 dark:border-slate-700",
-        "bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70",
-        "dark:bg-slate-900/90 supports-[backdrop-filter]:dark:bg-slate-900/70",
+        "relative z-40 overflow-visible text-white",
+        "bg-white/10 dark:bg-black/20 backdrop-blur-md",
+        "supports-[backdrop-filter]:bg-white/15 dark:supports-[backdrop-filter]:bg-black/15",
+        "border-b border-white/15",
         sticky && "sticky top-0",
-        hasShadow ? "shadow-sm" : "shadow-none",
+        hasShadow
+          ? // เงาโทนไซยาตอนสกรอลล์
+            "shadow-[0_18px_40px_-18px_rgba(0,200,255,0.28)]"
+          : "shadow-none",
         className
       )}
     >
-      {(title || actions) && (
-        <div>
-          <div className="min-w-0">
-            {title && typeof title === "string" ? (
-              <h1 className="text-xl md:text-2xl font-bold leading-tight">{title}</h1>
-            ) : (
-              title
-            )}
-            {description && typeof title === "string" ? (
-              <p className="text-sm text-muted-foreground mt-1 truncate">{description}</p>
-            ) : (
-              description
+      {(title || actions || description) && (
+        <div className="max-w-7xl mx-auto pl-4 pr-6 md:pl-6 md:pr-8 py-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap md:flex-nowrap">
+            <div className="min-w-0">
+              {typeof title === "string" ? (
+                <h1 className="text-xl md:text-2xl font-bold leading-tight">{title}</h1>
+              ) : (
+                title
+              )}
+
+              {description &&
+                (typeof description === "string" ? (
+                  <p className="text-sm text-white/70 mt-1 truncate">{description}</p>
+                ) : (
+                  <div className="mt-1 text-white/80">{description}</div>
+                ))}
+            </div>
+
+            {actions && (
+              // 👉 ดันไปขวาเสมอ + กันบีบ + เผื่อช่องขวา
+              <div className="flex items-center gap-3 min-w-0 ml-auto shrink-0 pr-1">
+                {actions}
+              </div>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2 min-w-0">{actions}</div>}
         </div>
       )}
 
       {tabs && (
-        <div className="max-w-6xl mx-auto px-3 md:px-6 pb-2 overflow-x-auto">
-          {tabs}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pb-2">
+          <div className="overflow-x-auto">
+            {/* แนะนำสไตล์แท็บให้เข้าโทน:
+               - inactive: text-white/85 hover:bg-cyan-500/10
+               - active: bg-cyan-600/20 text-cyan-100 border border-cyan-500/30
+            */}
+            {tabs}
+          </div>
         </div>
       )}
     </header>

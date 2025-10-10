@@ -1,11 +1,12 @@
 "use client";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   Play, Pause, CheckCircle, AlertTriangle, Clock,
-  Zap, TrendingUp, Search, Settings, FileText, AlertCircle, X
+  Zap, TrendingUp, Search, Settings, FileText, AlertCircle
 } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
 import { JobStatusEnum } from "@/src/types";
+import Modal from "@/src/components/shared/Modal";
 
 /* ---------- Types ---------- */
 // สถานะจริงของงาน (ไม่รวม "all")
@@ -232,6 +233,8 @@ const OPERATORS: Operator[] = [
 ];
 
 const ProductionExecution: React.FC = () => {
+  const operatorRef = useRef<HTMLSelectElement>(null);
+
   const [jobs, setJobs] = useState<Job[]>(INITIAL_JOBS);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -250,26 +253,6 @@ const ProductionExecution: React.FC = () => {
     downReason: "",
     downDuration: 0,
   });
-
-  const getStatusColor = (status: JobLifecycleStatus): string => {
-    switch (status) {
-      case "In Progress": return "bg-green-100 text-green-700 border-green-300";
-      case "Ready": return "bg-blue-100 text-blue-700 border-blue-300";
-      case "Completed": return "bg-gray-100 text-gray-700 border-gray-300";
-      case "Paused": return "bg-yellow-100 text-yellow-700 border-yellow-300";
-      case "Late": return "bg-red-100 text-red-700 border-red-300";
-      case "Pending": return "bg-purple-100 text-purple-700 border-purple-300";
-      case "Scheduled": return "bg-slate-100 text-slate-700 border-slate-300";
-    }
-  };
-
-  const getPriorityColor = (priority: 1 | 2 | 3): string => {
-    switch (priority) {
-      case 1: return "bg-red-100 text-red-700";
-      case 2: return "bg-yellow-100 text-yellow-700";
-      case 3: return "bg-green-100 text-green-700";
-    }
-  };
 
   const calculateProgress = (job: Job): number => {
     if (job.qty === 0) return 0;
@@ -376,11 +359,11 @@ const ProductionExecution: React.FC = () => {
     setJobs(prev => prev.map(j =>
       j.jobId === selectedJob.jobId
         ? {
-            ...j,
-            status: "In Progress",
-            actualStart: currentTime.toISOString(),
-            operator: formData.operator,
-          }
+          ...j,
+          status: "In Progress",
+          actualStart: currentTime.toISOString(),
+          operator: formData.operator,
+        }
         : j
     ));
     closeModal();
@@ -391,11 +374,11 @@ const ProductionExecution: React.FC = () => {
     setJobs(prev => prev.map(j =>
       j.jobId === selectedJob.jobId
         ? {
-            ...j,
-            status: "Completed",
-            actualEnd: currentTime.toISOString(),
-            qtyCompleted: j.qty,
-          }
+          ...j,
+          status: "Completed",
+          actualEnd: currentTime.toISOString(),
+          qtyCompleted: j.qty,
+        }
         : j
     ));
     closeModal();
@@ -434,127 +417,132 @@ const ProductionExecution: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="text-white">
       {/* Header */}
       <PageHeader
         title={
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Production Execution</h1>
-                <p className="text-sm text-gray-500 mt-1">Today&#39;s dispatch queue &amp; job tracking</p>
-                <p className="text-xs text-gray-400 mt-1">Current Time: {currentTime.toLocaleTimeString()}</p>
-              </div>
-              <div className="flex gap-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Zap size={18} />
-                  Replan
-                </button>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                  <FileText size={18} />
-                  Shift Report
-                </button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Production Execution</h1>
+              <p className="text-sm text-white/60 mt-1">Today&apos;s dispatch queue &amp; job tracking</p>
+              <p className="text-xs text-white/50 mt-1">
+                Current Time: {currentTime.toLocaleTimeString()}
+              </p>
             </div>
-
+          </div>
+        }
+        actions={
+          <div className="flex gap-3">
+            <button className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 flex items-center gap-2">
+              <Zap size={18} />
+              Replan
+            </button>
+            <button className="px-4 py-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 flex items-center gap-2">
+              <FileText size={18} />
+              Shift Report
+            </button>
+          </div>
+        }
+        tabs={
+          <>
             {/* Statistics Cards */}
             <div className="grid grid-cols-6 gap-4">
-              <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+              <div className="rounded-lg p-3 border border-emerald-300/20 bg-emerald-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-green-600 font-medium">In Progress</span>
-                  <Play size={16} className="text-green-600" />
+                  <span className="text-xs text-emerald-300 font-medium">In Progress</span>
+                  <Play size={16} className="text-emerald-300" />
                 </div>
-                <div className="text-2xl font-bold text-green-900">{stats.inProgress}</div>
+                <div className="text-2xl font-bold text-emerald-200">{stats.inProgress}</div>
               </div>
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="rounded-lg p-3 border border-sky-300/20 bg-sky-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-blue-600 font-medium">Ready</span>
-                  <CheckCircle size={16} className="text-blue-600" />
+                  <span className="text-xs text-sky-300 font-medium">Ready</span>
+                  <CheckCircle size={16} className="text-sky-300" />
                 </div>
-                <div className="text-2xl font-bold text-blue-900">{stats.ready}</div>
+                <div className="text-2xl font-bold text-sky-200">{stats.ready}</div>
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <div className="rounded-lg p-3 border border-white/10 bg-white/5">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-600 font-medium">Completed</span>
-                  <CheckCircle size={16} className="text-gray-600" />
+                  <span className="text-xs text-white/70 font-medium">Completed</span>
+                  <CheckCircle size={16} className="text-white/70" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">{stats.completed}</div>
+                <div className="text-2xl font-bold">{stats.completed}</div>
               </div>
-              <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+              <div className="rounded-lg p-3 border border-rose-300/20 bg-rose-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-red-600 font-medium">Late</span>
-                  <AlertTriangle size={16} className="text-red-600" />
+                  <span className="text-xs text-rose-300 font-medium">Late</span>
+                  <AlertTriangle size={16} className="text-rose-300" />
                 </div>
-                <div className="text-2xl font-bold text-red-900">{stats.late}</div>
+                <div className="text-2xl font-bold text-rose-200">{stats.late}</div>
               </div>
-              <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+              <div className="rounded-lg p-3 border border-violet-300/20 bg-violet-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-purple-600 font-medium">Completion</span>
-                  <TrendingUp size={16} className="text-purple-600" />
+                  <span className="text-xs text-violet-300 font-medium">Completion</span>
+                  <TrendingUp size={16} className="text-violet-300" />
                 </div>
-                <div className="text-2xl font-bold text-purple-900">{stats.completionRate}%</div>
+                <div className="text-2xl font-bold text-violet-200">{stats.completionRate}%</div>
               </div>
-              <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-200">
+              <div className="rounded-lg p-3 border border-cyan-300/20 bg-cyan-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-indigo-600 font-medium">On-Time</span>
-                  <Clock size={16} className="text-indigo-600" />
+                  <span className="text-xs text-cyan-300 font-medium">On-Time</span>
+                  <Clock size={16} className="text-cyan-300" />
                 </div>
-                <div className="text-2xl font-bold text-indigo-900">{stats.onTimeRate}%</div>
+                <div className="text-2xl font-bold text-cyan-200">{stats.onTimeRate}%</div>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="flex gap-4 mt-4">
+            <div className="flex gap-4 mt-4 mb-1 mx-0.5">
               <div className="flex-1 relative">
-                <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
                 <input
                   type="text"
                   placeholder="Search jobs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="glass-input w-full !pl-10 pr-4"
                 />
               </div>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as JobStatusEnum)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="glass-input"
               >
-                <option value={JobStatusEnum.All}>All Status</option>
-                <option value={JobStatusEnum.InProgress}>In Progress</option>
-                <option value={JobStatusEnum.Ready}>Ready</option>
-                <option value={JobStatusEnum.Scheduled}>Scheduled</option>
-                <option value={JobStatusEnum.Pending}>Pending</option>
-                <option value={JobStatusEnum.Paused}>Paused</option>
-                <option value={JobStatusEnum.Completed}>Completed</option>
-                <option value={JobStatusEnum.Late}>Late</option>
+                <option className="select option" value={JobStatusEnum.All}>All Status</option>
+                <option className="select option" value={JobStatusEnum.InProgress}>In Progress</option>
+                <option className="select option" value={JobStatusEnum.Ready}>Ready</option>
+                <option className="select option" value={JobStatusEnum.Scheduled}>Scheduled</option>
+                <option className="select option" value={JobStatusEnum.Pending}>Pending</option>
+                <option className="select option" value={JobStatusEnum.Paused}>Paused</option>
+                <option className="select option" value={JobStatusEnum.Completed}>Completed</option>
+                <option className="select option" value={JobStatusEnum.Late}>Late</option>
               </select>
               <select
                 value={filterShift}
                 onChange={(e) => setFilterShift(e.target.value as 'all' | 'Day Shift' | 'Night Shift')}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="glass-input"
               >
-                <option value="all">All Shifts</option>
-                <option value="Day Shift">Day Shift</option>
-                <option value="Night Shift">Night Shift</option>
+                <option className="select option" value="all">All Shifts</option>
+                <option className="select option" value="Day Shift">Day Shift</option>
+                <option className="select option" value="Night Shift">Night Shift</option>
               </select>
             </div>
-          </div>
+          </>
         }
       />
 
       {/* Job Queue */}
-      <div className="p-6">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="space-y-6">
-          {Object.entries(groupedJobs).map(([status, statusJobs]) => (
+          {Object.entries(groupedJobs).map(([status, statusJobs]) =>
             statusJobs.length > 0 && (
               <div key={status}>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   {status}
-                  <span className="text-sm font-normal text-gray-500">({statusJobs.length})</span>
+                  <span className="text-sm font-normal text-white/60">({statusJobs.length})</span>
                 </h2>
                 <div className="grid grid-cols-1 gap-4">
-                  {statusJobs.map(job => {
+                  {statusJobs.map((job) => {
                     const progress = calculateProgress(job);
                     const timeVariance = calculateTimeVariance(job);
                     const timeRemaining = getTimeRemaining(job);
@@ -563,72 +551,100 @@ const ProductionExecution: React.FC = () => {
                     return (
                       <div
                         key={job.jobId}
-                        className={`bg-white rounded-lg shadow-sm border-2 ${late ? 'border-red-300' : 'border-gray-200'} hover:shadow-md transition-shadow`}
+                        className={`rounded-lg border ${late ? 'border-rose-400/30' : 'border-white/10'
+                          } bg-white/5 hover:bg-white/7.5 hover:shadow-md transition-shadow`}
                       >
                         <div className="p-4">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <span className="text-lg font-semibold text-gray-900">{job.jobId}</span>
-                                <span className={`text-xs px-2 py-1 rounded border ${getStatusColor(job.status)}`}>
+                                <span className="text-lg font-semibold">{job.jobId}</span>
+
+                                {/* Status pill (โทน glass) */}
+                                <span
+                                  className={`text-xs px-2 py-1 rounded border ${job.status === 'In Progress'
+                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-300/20'
+                                    : job.status === 'Ready'
+                                      ? 'bg-sky-500/15 text-sky-300 border-sky-300/20'
+                                      : job.status === 'Completed'
+                                        ? 'bg-white/10 text-white/80 border-white/10'
+                                        : job.status === 'Paused'
+                                          ? 'bg-amber-500/15 text-amber-300 border-amber-300/20'
+                                          : job.status === 'Late'
+                                            ? 'bg-rose-500/15 text-rose-300 border-rose-300/20'
+                                            : 'bg-slate-500/15 text-slate-300 border-slate-300/20'
+                                    }`}
+                                >
                                   {job.status}
                                 </span>
-                                <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(job.priority)}`}>
+
+                                {/* Priority pill */}
+                                <span
+                                  className={`text-xs px-2 py-1 rounded border ${job.priority === 1
+                                    ? 'bg-rose-500/15 text-rose-300 border-rose-300/20'
+                                    : job.priority === 2
+                                      ? 'bg-amber-500/15 text-amber-300 border-amber-300/20'
+                                      : 'bg-emerald-500/15 text-emerald-300 border-emerald-300/20'
+                                    }`}
+                                >
                                   P{job.priority}
                                 </span>
+
                                 {late && (
-                                  <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 flex items-center gap-1">
+                                  <span className="text-xs px-2 py-1 rounded bg-rose-500/15 text-rose-300 border border-rose-300/20 flex items-center gap-1">
                                     <AlertCircle size={12} />
                                     Late
                                   </span>
                                 )}
                               </div>
 
+                              {/* Meta grid */}
                               <div className="grid grid-cols-4 gap-4 text-sm">
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Order / Item</div>
-                                  <div className="font-medium text-gray-900">{job.orderNo}-{job.itemNo}</div>
+                                  <div className="text-white/60 text-xs mb-1">Order / Item</div>
+                                  <div className="font-medium">{job.orderNo}-{job.itemNo}</div>
                                 </div>
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Product / Process</div>
-                                  <div className="font-medium text-gray-900">{job.product}</div>
-                                  <div className="text-xs text-blue-600">Step {job.seq}: {job.process}</div>
+                                  <div className="text-white/60 text-xs mb-1">Product / Process</div>
+                                  <div className="font-medium">{job.product}</div>
+                                  <div className="text-xs text-sky-300">Step {job.seq}: {job.process}</div>
                                 </div>
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Machine</div>
-                                  <div className="font-medium text-gray-900">{job.machineCode}</div>
-                                  <div className="text-xs text-gray-600">{job.machineName}</div>
+                                  <div className="text-white/60 text-xs mb-1">Machine</div>
+                                  <div className="font-medium">{job.machineCode}</div>
+                                  <div className="text-xs text-white/60">{job.machineName}</div>
                                 </div>
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Operator</div>
-                                  <div className="font-medium text-gray-900">
-                                    {job.operator || <span className="text-gray-400">Not assigned</span>}
+                                  <div className="text-white/60 text-xs mb-1">Operator</div>
+                                  <div className="font-medium">
+                                    {job.operator || <span className="text-white/40">Not assigned</span>}
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-4 gap-4 text-sm mt-3 pt-3 border-t border-gray-100">
+                              {/* Times & qty */}
+                              <div className="grid grid-cols-4 gap-4 text-sm mt-3 pt-3 border-t border-white/10">
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Quantity</div>
-                                  <div className="font-medium text-gray-900">{job.qtyCompleted} / {job.qty}</div>
-                                  <div className="text-xs text-gray-600">{progress}% complete</div>
+                                  <div className="text-white/60 text-xs mb-1">Quantity</div>
+                                  <div className="font-medium">{job.qtyCompleted} / {job.qty}</div>
+                                  <div className="text-xs text-white/60">{progress}% complete</div>
                                 </div>
                                 <div>
-                                  <div className="text-gray-500 text-xs mb-1">Planned Time</div>
-                                  <div className="text-xs text-gray-700">
-                                    {new Date(job.plannedStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                                  <div className="text-white/60 text-xs mb-1">Planned Time</div>
+                                  <div className="text-xs text-white/80">
+                                    {new Date(job.plannedStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
                                     {new Date(job.plannedEnd).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
-                                  <div className="text-xs text-gray-600">{job.setupMin + job.runMin} min total</div>
+                                  <div className="text-xs text-white/60">{job.setupMin + job.runMin} min total</div>
                                 </div>
                                 {job.actualStart && (
                                   <div>
-                                    <div className="text-gray-500 text-xs mb-1">Actual Start</div>
-                                    <div className="text-xs text-gray-700">
+                                    <div className="text-white/60 text-xs mb-1">Actual Start</div>
+                                    <div className="text-xs text-white/80">
                                       {new Date(job.actualStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
                                     {timeVariance !== null && (
-                                      <div className={`text-xs ${timeVariance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      <div className={`text-xs ${timeVariance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
                                         {timeVariance > 0 ? '+' : ''}{timeVariance} min vs plan
                                       </div>
                                     )}
@@ -636,12 +652,12 @@ const ProductionExecution: React.FC = () => {
                                 )}
                                 {timeRemaining !== null && job.status === 'In Progress' && (
                                   <div>
-                                    <div className="text-gray-500 text-xs mb-1">Time Remaining</div>
-                                    <div className={`font-medium ${timeRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                    <div className="text-white/60 text-xs mb-1">Time Remaining</div>
+                                    <div className={`font-medium ${timeRemaining < 0 ? 'text-rose-300' : ''}`}>
                                       {Math.abs(timeRemaining)} min
                                     </div>
                                     {timeRemaining < 0 && (
-                                      <div className="text-xs text-red-600">Overdue</div>
+                                      <div className="text-xs text-rose-300">Overdue</div>
                                     )}
                                   </div>
                                 )}
@@ -650,13 +666,13 @@ const ProductionExecution: React.FC = () => {
                               {/* Progress Bar */}
                               {job.status === 'In Progress' && (
                                 <div className="mt-3">
-                                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                  <div className="flex justify-between text-xs text-white/60 mb-1">
                                     <span>Progress</span>
                                     <span>{progress}%</span>
                                   </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div className="w-full bg-white/10 rounded-full h-2">
                                     <div
-                                      className={`h-2 rounded-full ${late ? 'bg-red-500' : 'bg-green-500'}`}
+                                      className={`h-2 rounded-full ${late ? 'bg-rose-500' : 'bg-emerald-500'}`}
                                       style={{ width: `${progress}%` }}
                                     />
                                   </div>
@@ -669,7 +685,7 @@ const ProductionExecution: React.FC = () => {
                               {job.status === 'Ready' && (
                                 <button
                                   onClick={() => openModal(job, 'start')}
-                                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 whitespace-nowrap"
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 whitespace-nowrap"
                                 >
                                   <Play size={16} />
                                   Start
@@ -680,21 +696,21 @@ const ProductionExecution: React.FC = () => {
                                 <>
                                   <button
                                     onClick={() => openModal(job, 'complete')}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 whitespace-nowrap"
+                                    className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 flex items-center gap-2 whitespace-nowrap"
                                   >
                                     <CheckCircle size={16} />
                                     Complete
                                   </button>
                                   <button
                                     onClick={() => openModal(job, 'pause')}
-                                    className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2 whitespace-nowrap"
+                                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2 whitespace-nowrap"
                                   >
                                     <Pause size={16} />
                                     Pause
                                   </button>
                                   <button
                                     onClick={() => openModal(job, 'report')}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 whitespace-nowrap"
+                                    className="px-4 py-2 bg-white/10 text-white border border-white/20 rounded-lg hover:bg-white/20 flex items-center gap-2 whitespace-nowrap"
                                   >
                                     <Settings size={16} />
                                     Update
@@ -705,7 +721,7 @@ const ProductionExecution: React.FC = () => {
                               {job.status === 'Paused' && (
                                 <button
                                   onClick={() => handleResumeJob(job)}
-                                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 whitespace-nowrap"
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 whitespace-nowrap"
                                 >
                                   <Play size={16} />
                                   Resume
@@ -720,194 +736,264 @@ const ProductionExecution: React.FC = () => {
                 </div>
               </div>
             )
-          ))}
+          )}
         </div>
       </div>
 
       {/* Action Modal */}
-      {isModalOpen && selectedJob && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {modalMode === 'start' && 'Start Job'}
-                {modalMode === 'complete' && 'Complete Job'}
-                {modalMode === 'pause' && 'Pause Job'}
-                {modalMode === 'report' && 'Update Progress'}
-              </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
-                <X size={20} />
-              </button>
+      <Modal
+        open={isModalOpen && !!selectedJob}
+        onClose={closeModal}
+        size="sm"
+        title={
+          <span className="text-xl font-semibold">
+            {modalMode === "start" && "Start Job"}
+            {modalMode === "complete" && "Complete Job"}
+            {modalMode === "pause" && "Pause Job"}
+            {modalMode === "report" && "Update Progress"}
+          </span>
+        }
+        // initialFocusRef={modalMode === "start" ? operatorRef : undefined}
+        footer={
+          <>
+            <button
+              onClick={closeModal}
+              className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (modalMode === "start") handleStartJob();
+                else if (modalMode === "complete") handleCompleteJob();
+                else if (modalMode === "pause") handlePauseJob();
+                else if (modalMode === "report") handleUpdateProgress();
+              }}
+              className={`px-4 py-2 rounded-lg text-white ${modalMode === "start"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : modalMode === "complete"
+                    ? "bg-sky-600 hover:bg-sky-700"
+                    : modalMode === "pause"
+                      ? "bg-amber-600 hover:bg-amber-700"
+                      : "bg-sky-600 hover:bg-sky-700"
+                }`}
+            >
+              {modalMode === "start" && "Start Job"}
+              {modalMode === "complete" && "Complete Job"}
+              {modalMode === "pause" && "Pause Job"}
+              {modalMode === "report" && "Update Progress"}
+            </button>
+          </>
+        }
+      >
+        {!selectedJob ? null : (
+          <div className="p-0">
+            {/* Job summary */}
+            <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded">
+              <div className="text-sm text-white/70">
+                Job: <span className="font-semibold text-white">{selectedJob.jobId}</span>
+              </div>
+              <div className="text-sm text-white/70">
+                Order:{" "}
+                <span className="font-semibold text-white">
+                  {selectedJob.orderNo}-{selectedJob.itemNo}
+                </span>
+              </div>
+              <div className="text-sm text-white/70">
+                Product: <span className="font-semibold text-white">{selectedJob.product}</span>
+              </div>
+              <div className="text-sm text-white/70">
+                Process: <span className="font-semibold text-white">{selectedJob.process}</span>
+              </div>
+              <div className="text-sm text-white/70">
+                Machine: <span className="font-semibold text-white">{selectedJob.machineCode}</span>
+              </div>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6">
-              <div className="mb-4 p-3 bg-gray-50 rounded">
-                <div className="text-sm text-gray-600">Job: <span className="font-semibold text-gray-900">{selectedJob.jobId}</span></div>
-                <div className="text-sm text-gray-600">Order: <span className="font-semibold text-gray-900">{selectedJob.orderNo}-{selectedJob.itemNo}</span></div>
-                <div className="text-sm text-gray-600">Product: <span className="font-semibold text-gray-900">{selectedJob.product}</span></div>
-                <div className="text-sm text-gray-600">Process: <span className="font-semibold text-gray-900">{selectedJob.process}</span></div>
-                <div className="text-sm text-gray-600">Machine: <span className="font-semibold text-gray-900">{selectedJob.machineCode}</span></div>
-              </div>
-
-              {modalMode === 'start' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Select Operator *</label>
-                    <select
-                      value={formData.operator}
-                      onChange={(e) => setFormData({ ...formData, operator: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Choose operator...</option>
-                      {OPERATORS.map(op => (
-                        <option key={op.id} value={op.name}>{op.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-                    <div className="font-medium text-blue-900 mb-1">Job will start now</div>
-                    <div className="text-blue-700">Planned duration: {selectedJob.setupMin + selectedJob.runMin} minutes</div>
+            {/* START */}
+            {modalMode === "start" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Select Operator *
+                  </label>
+                  <select
+                    ref={operatorRef}
+                    value={formData.operator}
+                    onChange={(e) => setFormData({ ...formData, operator: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                    required
+                  >
+                    <option className="select option" value="">
+                      Choose operator...
+                    </option>
+                    {OPERATORS.map((op) => (
+                      <option className="select option" key={op.id} value={op.name}>
+                        {op.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="p-3 bg-sky-500/10 border border-sky-300/20 rounded text-sm">
+                  <div className="font-medium text-sky-200 mb-1">Job will start now</div>
+                  <div className="text-sky-200/80">
+                    Planned duration: {selectedJob.setupMin + selectedJob.runMin} minutes
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {modalMode === 'complete' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Confirm Completion</label>
-                    <div className="p-3 bg-green-50 border border-green-200 rounded">
-                      <div className="text-sm text-green-900 mb-2">
-                        <div>Quantity: <span className="font-semibold">{selectedJob.qty} units</span></div>
-                        <div>Operator: <span className="font-semibold">{selectedJob.operator}</span></div>
+            {/* COMPLETE */}
+            {modalMode === "complete" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Confirm Completion
+                  </label>
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-300/20 rounded">
+                    <div className="text-sm text-emerald-200 mb-2">
+                      <div>
+                        Quantity:{" "}
+                        <span className="font-semibold text-emerald-100">
+                          {selectedJob.qty} units
+                        </span>
+                      </div>
+                      <div>
+                        Operator:{" "}
+                        <span className="font-semibold text-emerald-100">
+                          {selectedJob.operator}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes (optional)</label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      // rows="3"
-                      placeholder="Any notes about this job..."
-                    />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full glass-input"
+                    placeholder="Any notes about this job..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* PAUSE */}
+            {modalMode === "pause" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Reason for Pause *
+                  </label>
+                  <select
+                    value={formData.downReason}
+                    onChange={(e) => setFormData({ ...formData, downReason: e.target.value })}
+                    className="w-full glass-input"
+                    required
+                  >
+                    <option className="select option" value="">
+                      Select reason...
+                    </option>
+                    <option className="select option" value="Material Shortage">
+                      Material Shortage
+                    </option>
+                    <option className="select option" value="Machine Issue">
+                      Machine Issue
+                    </option>
+                    <option className="select option" value="Quality Issue">
+                      Quality Issue
+                    </option>
+                    <option className="select option" value="Break Time">
+                      Break Time
+                    </option>
+                    <option className="select option" value="Tooling Change">
+                      Tooling Change
+                    </option>
+                    <option className="select option" value="Other">
+                      Other
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">Notes</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full glass-input"
+                    placeholder="Additional details..."
+                  />
+                </div>
+                <div className="p-3 bg-amber-500/10 border border-amber-300/20 rounded text-sm text-amber-200">
+                  <AlertTriangle size={16} className="inline mr-2" />
+                  Job will be paused. Remember to resume when ready.
+                </div>
+              </div>
+            )}
+
+            {/* REPORT */}
+            {modalMode === "report" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Quantity Completed
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.qtyCompleted}
+                    onChange={(e) =>
+                      setFormData({ ...formData, qtyCompleted: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full glass-input"
+                    min="0"
+                    max={selectedJob.qty}
+                  />
+                  <div className="text-xs text-white/60 mt-1">
+                    Total required: {selectedJob.qty} units
                   </div>
                 </div>
-              )}
-
-              {modalMode === 'pause' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Reason for Pause *</label>
-                    <select
-                      value={formData.downReason}
-                      onChange={(e) => setFormData({ ...formData, downReason: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select reason...</option>
-                      <option value="Material Shortage">Material Shortage</option>
-                      <option value="Machine Issue">Machine Issue</option>
-                      <option value="Quality Issue">Quality Issue</option>
-                      <option value="Break Time">Break Time</option>
-                      <option value="Tooling Change">Tooling Change</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes</label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      // rows="3"
-                      placeholder="Additional details..."
+                <div>
+                  <div className="text-sm font-medium text-white/80 mb-2">Progress</div>
+                  <div className="w-full bg-white/10 rounded-full h-3">
+                    <div
+                      className="bg-sky-500 h-3 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          selectedJob.qty
+                            ? (formData.qtyCompleted / selectedJob.qty) * 100
+                            : 0,
+                          100
+                        )
+                          }%`,
+                      }}
                     />
                   </div>
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                    <AlertTriangle size={16} className="inline mr-2" />
-                    Job will be paused. Remember to resume when ready.
+                  <div className="text-xs text-white/60 text-right mt-1">
+                    {Math.round(
+                      selectedJob.qty
+                        ? (formData.qtyCompleted / selectedJob.qty) * 100
+                        : 0
+                    )}
+                    %
                   </div>
                 </div>
-              )}
-
-              {modalMode === 'report' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">
-                      Quantity Completed
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.qtyCompleted}
-                      onChange={(e) => setFormData({ ...formData, qtyCompleted: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                      max={selectedJob.qty}
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      Total required: {selectedJob.qty} units
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 mb-2">Progress</div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-blue-600 h-3 rounded-full transition-all"
-                        style={{ width: `${Math.min((formData.qtyCompleted / selectedJob.qty) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-600 text-right mt-1">
-                      {Math.round((formData.qtyCompleted / selectedJob.qty) * 100)}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes</label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      // rows="3"
-                      placeholder="Any issues or observations..."
-                    />
-                  </div>
+                <div>
+                  <label className="text-sm font-medium text-white/80 block mb-2">Notes</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full glass-input"
+                    placeholder="Any issues or observations..."
+                  />
                 </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (modalMode === 'start') handleStartJob();
-                  else if (modalMode === 'complete') handleCompleteJob();
-                  else if (modalMode === 'pause') handlePauseJob();
-                  else if (modalMode === 'report') handleUpdateProgress();
-                }}
-                className={`px-4 py-2 rounded-lg text-white ${modalMode === 'start' ? 'bg-green-600 hover:bg-green-700' :
-                  modalMode === 'complete' ? 'bg-blue-600 hover:bg-blue-700' :
-                    modalMode === 'pause' ? 'bg-yellow-600 hover:bg-yellow-700' :
-                      'bg-blue-600 hover:bg-blue-700'
-                  }`}
-              >
-                {modalMode === 'start' && 'Start Job'}
-                {modalMode === 'complete' && 'Complete Job'}
-                {modalMode === 'pause' && 'Pause Job'}
-                {modalMode === 'report' && 'Update Progress'}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
+
     </div>
   );
 };

@@ -2,7 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hover cards and small animations from the HTML */
+@layer base {
+  select option {
+    @apply bg-cyan-900 text-white;
+  }
+  select option:hover,
+  select option:focus {
+    @apply bg-cyan-800 text-white;
+  }
+}
+
+
+/* === Animations & Effects === */
 .kpi-card {
   transition: all 0.3s ease;
 }
@@ -28,7 +39,7 @@
   }
 }
 
-/* Circular progress style */
+/* Circular progress */
 .progress-ring {
   transform: rotate(-90deg);
 }
@@ -37,43 +48,208 @@
   transform-origin: 50% 50%;
 }
 
-.btn{
-  cursor:pointer;user-select:none;
-  padding:8px 12px;border-radius:10px;border:1px solid var(--line);
-  background:linear-gradient(180deg,#fff,#f4f6f8);
-  color:#0f172a;font-weight:600;
+/* === Buttons === */
+.btn {
+  @apply px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 
+         font-medium cursor-pointer select-none transition-colors;
 }
-.btn:hover{background:#f3f4f6}
-.btn.ok{border-color:#059669;background:linear-gradient(180deg,#10b981,#059669);color:#fff}
-.btn.warn{border-color:#dc2626;background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff}
-.btn.ghost{background:#fff;border-color:var(--line);color:#334155}
 
-.iconbtn{
-  @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition shadow-sm;
+/* Variants */
+.btn-outline {
+  @apply bg-white/10 text-white border border-white/20;
 }
-.iconbtn:hover{background:#f8fafc}
-.iconbtn.ok{background:#10b981;border-color:#059669;color:#fff}
-.iconbtn.warn{background:#ef4444;border-color:#dc2626;color:#fff}
+.btn-outline:hover {
+  @apply bg-white/20;
+}
+.btn-outline:active {
+  @apply bg-white/25;
+}
 
+.btn-primary {
+  @apply bg-gradient-to-r from-cyan-500 to-teal-500 text-white 
+         hover:from-cyan-400 hover:to-teal-500;
+}
 
-/* Minimal scroll styling */
+.btn-danger {
+  @apply bg-rose-600 text-white hover:bg-rose-700;
+}
+
+.btn-ghost {
+  @apply bg-transparent border border-white/20 text-white 
+         hover:bg-white/10;
+}
+
+/* Icon-only button */
+.iconbtn {
+  @apply inline-flex h-9 w-9 items-center justify-center rounded-lg 
+         border border-slate-200 bg-white text-slate-700 shadow-sm
+         transition active:scale-[0.98];
+}
+.iconbtn:hover {
+  @apply bg-slate-50;
+}
+.iconbtn.ok {
+  @apply bg-emerald-500 border-emerald-600 text-white;
+}
+.iconbtn.warn {
+  @apply bg-rose-500 border-rose-600 text-white;
+}
+
+/* === Glass Styles === */
+.glass-card {
+  @apply rounded-lg border border-white/10 bg-white/5;
+}
+
+.glass-card-default-padding {
+  @apply p-4;
+}
+
+.glass-input {
+  @apply px-4 py-2 rounded-lg bg-white/5 text-white
+         border border-white/20 placeholder-white/40 
+         focus:ring-2 focus:ring-sky-500/50 focus:border-transparent;
+}
+
+.glass-modal {
+  @apply bg-white/10 backdrop-blur-lg border border-white/15 
+         rounded-lg shadow-xl;
+}
+
+.tag {
+  @apply text-xs px-2 py-0.5 rounded inline-block mt-1 border gap-1;
+}
+.chip {
+  @apply text-xs font-medium px-2 py-1 rounded-full border gap-1;
+}
+.status-success   { @apply bg-emerald-500/15 text-emerald-300 border-emerald-400/20; }
+.status-warning   { @apply bg-amber-500/15 text-amber-300 border-amber-400/20; }
+.status-inactive  { @apply bg-slate-500/20 text-slate-200 border-white/20; }
+.status-error     { @apply bg-red-500/20 text-red-200 border-red-400/10; }
+.status-info      { @apply bg-sky-500/15 text-sky-300 border-sky-400/20; }
+.status-purple    { @apply bg-purple-500/15 text-purple-300 border-purple-400/20; }
+.status-indigo    { @apply bg-indigo-500/15 text-indigo-300 border-indigo-400/20; }
+.status-yellow    { @apply bg-yellow-500/15 text-yellow-300 border-yellow-400/20; }
+
+/* === Scroll Styling for modals === */
 .modal-scrollable {
-  max-height: 70vh; /* กำหนดความสูง */
-  overflow-y: auto; /* เปิด scroll แนวตั้ง */
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: rgba(100,100,100,0.5) transparent; /* Firefox */
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,100,100,0.5) transparent;
 }
-
-/* Chrome, Edge, Safari */
 .modal-scrollable::-webkit-scrollbar {
   width: 6px;
 }
-
 .modal-scrollable::-webkit-scrollbar-thumb {
   background-color: rgba(100, 100, 100, 0.5);
   border-radius: 3px;
 }
-
 .modal-scrollable::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* === Theme Variables === */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Scrollbar สำหรับ Chrome, Edge, Safari */
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1); /* สีพื้นหลังจาง ๆ */
+  border-radius: 8px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3); /* สี thumb จาง ๆ */
+  border-radius: 8px;
+  border: 2px solid transparent; /* ทำให้ดูนุ่มนวล */
+  background-clip: padding-box;
+  transition: background-color 0.3s ease;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5); /* สีเข้มขึ้นเล็กน้อยเวลา hover */
+}
+
+/* Firefox */
+body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1); /* เปลี่ยนเป็นสีขาว */
+  opacity: 0.8;
 }

@@ -1,45 +1,38 @@
-"use client";
+"use client"
 
+import { createPortal } from "react-dom";
+import { useState, useRef, useLayoutEffect, useEffect, useCallback, useMemo } from "react";
 import NextLink from "next/link";
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Settings, HelpCircle, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
-import { useThemeContext } from "@/src/context/ThemeContext";
-import { createPortal } from "react-dom";
+import { Settings, HelpCircle, LogOut, 
+  // Moon, Sun, 
+  ChevronDown } from "lucide-react";
+// import { useThemeContext } from "@/src/context/ThemeContext";
 import { useRouter } from "next/navigation";
+import GlassCard from "../shared/card/GlassCard";
 
-type User = {
-  full_name?: string | null;
-  email?: string | null;
-  image_url?: string | null;
-};
-
-type Props = {
-  user: User;
-  compact?: boolean;
-};
+type User = { full_name?: string | undefined; email?: string | undefined; image_url?: string | undefined; };
+type Props = { user: User; compact?: boolean };
 
 export default function UserMenu({ user, compact = false }: Props) {
   const router = useRouter();
+  // const { theme, setTheme } = useThemeContext();
 
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
-
-  // THEME
-  const { theme, setTheme, toggleTheme } = useThemeContext();
-  const themeIcon = theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
-  const themeLabel = theme === "dark" ? "Dark" : "Light";
-
-  // Portal positioning
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
   const MENU_WIDTH = 256;
 
   const initials = useMemo(() => {
     const name = (user.full_name || "").trim();
-    const parts = name.split(/\s+/).filter(Boolean);
-    const inits = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "");
-    return inits.join("") || "U";
+    return (
+      name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase() ?? "")
+        .join("") || "U"
+    );
   }, [user.full_name]);
 
   const avatarSrc = user.image_url || "";
@@ -54,10 +47,7 @@ export default function UserMenu({ user, compact = false }: Props) {
     }
     function onKey(e: KeyboardEvent) {
       if (!open) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      }
+      if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("mousedown", onDocMouseDown);
     document.addEventListener("keydown", onKey);
@@ -73,7 +63,9 @@ export default function UserMenu({ user, compact = false }: Props) {
     const mh = menuRef.current.offsetHeight || 0;
     const gap = 8;
     const left = Math.round(br.right - MENU_WIDTH);
+    // NOTE: ต้องการให้ลอย "เหนือปุ่ม" เหมือนเดิม
     const top = Math.round(br.top - mh - gap);
+    // ถ้าอยากให้ Dropdown ลงข้างล่างแทน ให้ใช้: const top = Math.round(br.bottom + gap);
     setCoords({ left: Math.max(8, left), top: Math.max(8, top) });
   }, []);
 
@@ -91,265 +83,135 @@ export default function UserMenu({ user, compact = false }: Props) {
     };
   }, [open, computePosition]);
 
-  // items ref (optional)
-  const itemRefs = useRef<Array<HTMLAnchorElement | HTMLButtonElement | null>>([]);
-  const bindItemRef = (i: number) => (el: HTMLAnchorElement | HTMLButtonElement | null) => {
-    itemRefs.current[i] = el;
-  };
-
-  // Keyboard support for the span toggle
-  const onQuickToggleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleTheme();
-    }
-  };
-
   const handleLogout = () => {
-    try {
-      localStorage.removeItem("pf_session");      // ถ้าใช้ key นี้ตอน login
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      sessionStorage.clear();
-      // ถ้ามี context/auth store ควร reset ตรงนี้ด้วย (เช่น zustand: useAuthStore.getState().reset())
-    } catch { }
+    localStorage.clear();
+    sessionStorage.clear();
     setOpen(false);
-    router.push("/auth/login"); 
+    router.push("/auth/login");
   };
 
   return (
     <div className="relative">
-      {/* MAIN TRIGGER (button) */}
       <button
         ref={btnRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => {
-          setOpen((v) => !v);
-          requestAnimationFrame(() => btnRef.current?.blur());
-        }}
-        className={[
-          "group inline-flex items-center transition-all duration-150",
-          compact
-            ? "h-9 w-auto rounded-full border border-slate-200 bg-white/90 shadow-sm px-1.5 gap-1.5 dark:border-slate-700 dark:bg-slate-800"
-            : "gap-2 rounded-full border border-slate-200 bg-white/90 pl-1.5 pr-2.5 py-2 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700",
-        ].join(" ")}
+        onClick={() => setOpen((v) => !v)}
+        className="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-2 py-1 pr-2
+                   backdrop-blur text-white shadow-sm hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-300/30 transition"
       >
         {/* Avatar */}
-        <div
-          className={[
-            compact ? "h-7 w-7" : "h-8 w-8",
-            "grid place-items-center rounded-full bg-indigo-50 text-indigo-700 font-semibold overflow-hidden shrink-0 dark:bg-indigo-900/40 dark:text-indigo-300",
-          ].join(" ")}
-        >
+        <div className="h-8 w-8 rounded-full grid place-items-center overflow-hidden
+                        bg-cyan-400/10 border border-cyan-300/30 text-cyan-300">
           {avatarSrc ? (
-            <Image
-              src={avatarSrc}
-              alt={user.full_name || "User"}
-              width={compact ? 28 : 32}
-              height={compact ? 28 : 32}
-              className="object-cover"
-              referrerPolicy="no-referrer"
-            />
+            <Image src={avatarSrc} alt="" width={32} height={32} className="object-cover" />
           ) : (
             <span className="text-xs">{initials}</span>
           )}
         </div>
 
-        {/* Name */}
-        {!compact && (
-          <span className="max-w-[160px] truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-            {user.full_name || ""}
-          </span>
-        )}
-
-        {/* ✅ Quick Theme Toggle */}
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label={`Toggle theme (now: ${themeLabel})`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleTheme();
-          }}
-          onKeyDown={onQuickToggleKeyDown}
-          className="ml-1 inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
-        >
-          {themeIcon}
-        </span>
-
-        {/* Caret */}
+        {!compact && <span className="truncate text-sm font-medium text-white/90">{user.full_name}</span>}
         {!compact && (
           <ChevronDown
             size={16}
-            className={[
-              "ml-0.5 text-slate-400 transition-transform duration-150 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300",
-              open ? "rotate-180" : "rotate-0",
-            ].join(" ")}
+            className={`transition-transform duration-200 text-white/80 ${open ? "rotate-180" : "rotate-0"}`}
           />
         )}
       </button>
 
-      {/* MENU (Portal) */}
+      {/* Portal Menu */}
       {open &&
         typeof window !== "undefined" &&
         createPortal(
           <div
             ref={menuRef}
-            role="menu"
-            aria-label="User menu"
             style={{
               position: "fixed",
               left: coords?.left ?? -9999,
               top: coords?.top ?? -9999,
               visibility: coords ? "visible" : "hidden",
               width: MENU_WIDTH,
+              zIndex: 9999,
             }}
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ring-1 ring-black/5 dark:bg-slate-800 dark:border-slate-700 z-[9999]"
           >
-            {/* Header */}
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-3">
+            <GlassCard
+              className="p-3 border border-cyan-300/25 bg-white/10 backdrop-blur-md text-white"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-2">
                 {avatarSrc ? (
-                  <div className="relative h-9 w-9 rounded-full overflow-hidden">
-                    <Image
-                      src={avatarSrc}
-                      alt=""
-                      fill
-                      referrerPolicy="no-referrer"
-                      className="object-cover"
-                    />
+                  <div className="h-9 w-9 relative rounded-full overflow-hidden ring-1 ring-cyan-300/30">
+                    <Image src={avatarSrc} alt="" fill className="object-cover" />
                   </div>
                 ) : (
-                  <span className="h-9 w-9 grid place-items-center rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold dark:bg-indigo-900/40 dark:text-indigo-300">
+                  <span className="h-9 w-9 grid place-items-center rounded-full
+                                   bg-cyan-400/10 text-cyan-200 font-semibold border border-cyan-300/30">
                     {initials}
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate dark:text-slate-100">
-                    {user.full_name || ""}
-                  </p>
-                  {user.email && (
-                    <p className="text-xs text-slate-500 truncate dark:text-slate-400">{user.email}</p>
-                  )}
+                  <p className="truncate font-medium text-white/95">{user.full_name}</p>
+                  {user.email && <p className="truncate text-xs text-cyan-100/70">{user.email}</p>}
                 </div>
               </div>
-            </div>
 
-            <div className="border-t border-slate-200 dark:border-slate-700" />
+              <div className="border-t border-white/20 my-3" />
 
-            {/* Appearance */}
-            <div className="py-1">
-              <div className="px-4 pb-2 pt-2 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
-                Appearance
-              </div>
-              <button
-                role="menuitem"
+              {/* Theme buttons */}
+              {/* <button
                 onClick={() => {
                   setTheme("light");
                   setOpen(false);
                 }}
-                className={twThemeItem(theme === "light")}
+                className={`flex items-center gap-2 px-2 py-1 rounded transition
+                           ${theme === "light" ? " text-cyan-300" : "hover:bg-cyan-500/10 text-white/90"}`}
               >
                 <Sun className="h-4 w-4" />
-                <span>Light</span>
+                Light
               </button>
               <button
-                role="menuitem"
                 onClick={() => {
                   setTheme("dark");
                   setOpen(false);
                 }}
-                className={twThemeItem(theme === "dark")}
+                className={`flex items-center gap-2 px-2 py-1 rounded transition
+                           ${theme === "dark" ? " text-cyan-300" : "hover:bg-cyan-500/10 text-white/90"}`}
               >
                 <Moon className="h-4 w-4" />
-                <span>Dark</span>
+                Dark
               </button>
-            </div>
 
-            <div className="border-t border-slate-200 dark:border-slate-700" />
+              <div className="border-t border-white/20 my-2" /> */}
 
-            {/* Links */}
-            <div className="py-1">
-              <MenuLink
-                i={0}
-                bindRef={bindItemRef}
+              {/* Links */}
+              <NextLink
                 href="/settings"
-                icon={<Settings className="h-4 w-4" />}
-                label="Settings"
+                className="flex items-center gap-2 px-2 py-1 rounded hover:bg-cyan-500/10 text-white/90"
                 onClick={() => setOpen(false)}
-              />
-              <MenuLink
-                i={1}
-                bindRef={bindItemRef}
+              >
+                <Settings className="h-4 w-4" /> Settings
+              </NextLink>
+              <NextLink
                 href="/help"
-                icon={<HelpCircle className="h-4 w-4" />}
-                label="Help"
+                className="flex items-center gap-2 px-2 py-1 rounded hover:bg-cyan-500/10 text-white/90"
                 onClick={() => setOpen(false)}
-              />
-            </div>
+              >
+                <HelpCircle className="h-4 w-4" /> Help
+              </NextLink>
 
-            <div className="border-t border-slate-200 dark:border-slate-700" />
+              <div className="border-t border-white/20 my-2" />
 
-            {/* Logout */}
-            <div className="py-1">
-              <form action="/auth/logout" method="post">
-                <button
-                  ref={bindItemRef(2)}
-                  type="submit"
-                  role="menuitem"
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 focus:outline-none focus:bg-rose-50 dark:hover:bg-rose-950/30 dark:text-rose-400 dark:focus:bg-rose-950/30"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Log out
-                </button>
-              </form>
-            </div>
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2 px-2 py-1 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 rounded"
+              >
+                <LogOut className="h-4 w-4" /> Log out
+              </button>
+            </GlassCard>
           </div>,
           document.body
         )}
     </div>
   );
-}
-
-/** เมนูลิงก์ย่อย */
-function MenuLink({
-  i,
-  bindRef,
-  href,
-  icon,
-  label,
-  onClick,
-}: {
-  i: number;
-  bindRef: (i: number) => (el: HTMLAnchorElement | null) => void;
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-}) {
-  return (
-    <NextLink
-      ref={bindRef(i)}
-      href={href}
-      role="menuitem"
-      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60 dark:focus:bg-slate-700/60"
-      onClick={onClick}
-    >
-      <span className="text-slate-400 dark:text-slate-300">{icon}</span>
-      <span className="truncate">{label}</span>
-    </NextLink>
-  );
-}
-
-// helper class สำหรับปุ่มธีม
-function twThemeItem(active: boolean) {
-  return [
-    "flex w-full items-center gap-2 px-4 py-2 text-sm focus:outline-none",
-    active
-      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200"
-      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100",
-  ].join(" ");
 }

@@ -106,7 +106,7 @@ const BomModal: React.FC<BomModalProps> = ({
               FG *
             </label>
             <select
-              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:select option px-3 py-2 text-sm"
               value={fgCode}
               onChange={(e) => setFgCode(e.target.value)}
             >
@@ -149,7 +149,7 @@ const BomModal: React.FC<BomModalProps> = ({
               Unit
             </label>
             <select
-              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:select option px-3 py-2 text-sm"
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
             >
@@ -191,7 +191,7 @@ const BomModal: React.FC<BomModalProps> = ({
         </label>
         <textarea
           rows={3}
-          className="resize-none block w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+          className="resize-none block w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:select option px-3 py-2 text-sm"
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
           placeholder="โน้ตเพิ่มเติม (optional)"

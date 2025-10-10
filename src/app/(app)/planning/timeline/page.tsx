@@ -13,7 +13,7 @@ type Machine = {
   status: 'Running' | 'Idle' | 'PM' | 'Down';
 };
 
-type MachineStatus = 'Running' | 'Idle' | 'PM' | 'Down';
+// type MachineStatus = 'Running' | 'Idle' | 'PM' | 'Down';
 
 // 2. เพิ่ม type สำหรับ job
 type ScheduledJob = {
@@ -256,25 +256,34 @@ const MachineTimeline = () => {
     });
   };
 
-  const getStatusColor = (status: string): string => {
-    const colors: Record<string, string> = {
-      'Completed': 'bg-green-500',
-      'In Progress': 'bg-blue-500',
-      'Planned': 'bg-gray-400',
-      'Late': 'bg-red-500',
-    };
-    return colors[status] || 'bg-gray-400';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return "bg-emerald-500";
+      case "In Progress":
+        return "bg-sky-500";
+      case "Planned":
+        return "bg-slate-500";
+      case "Late":
+        return "bg-rose-500";
+      default:
+        return "bg-zinc-600";
+    }
   };
 
-  const getMachineStatusBadge = (status: MachineStatus) => {
-    const styles: Record<MachineStatus, string> = {
-      Running: 'bg-green-100 text-green-700',
-      Idle: 'bg-gray-100 text-gray-700',
-      PM: 'bg-yellow-100 text-yellow-700',
-      Down: 'bg-red-100 text-red-700',
-    };
-
-    return styles[status];
+  const getMachineStatusBadge = (status: string) => {
+    switch (status) {
+      case "Running":
+        return "status-success";
+      case "Idle":
+        return "status-warning";
+      case "Down":
+        return "status-error";
+      case "Setup":
+        return "status-info";
+      default:
+        return "status-inactive";
+    }
   };
 
   // Generate hour markers
@@ -291,146 +300,154 @@ const MachineTimeline = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="text-white">
       {/* Header */}
-      <PageHeader title={
-        <>
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Machine Timeline</h1>
-                <p className="text-sm text-gray-500 mt-1">Production schedule and machine availability</p>
-              </div>
-              <div className="flex gap-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Download size={18} />
-                  Export Schedule
-                </button>
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Settings size={18} />
-                  Settings
-                </button>
-              </div>
+      <PageHeader
+        title={
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Machine Timeline</h1>
+              <p className="text-sm text-white/70 mt-1">
+                Production schedule and machine availability
+              </p>
             </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {/* Date Navigation */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => changeDate(-1)}
-                    className="p-2 border border-gray-300 rounded hover:bg-gray-50"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <div className="px-4 py-2 border border-gray-300 rounded-lg bg-white min-w-[180px] text-center">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {selectedDate.toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => changeDate(1)}
-                    className="p-2 border border-gray-300 rounded hover:bg-gray-50"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                  <button
-                    onClick={() => setSelectedDate(new Date())}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                  >
-                    Today
-                  </button>
-                </div>
-
-                {/* Work Center Filter */}
-                <select
-                  value={filterWorkCenter}
-                  onChange={(e) => setFilterWorkCenter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </div>
+        }
+        actions={
+          <div className="flex gap-3">
+            <button className="px-4 py-2 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white flex items-center gap-2">
+              <Download size={18} />
+              Export Schedule
+            </button>
+            <button className="px-4 py-2 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white flex items-center gap-2">
+              <Settings size={18} />
+              Settings
+            </button>
+          </div>
+        }
+        tabs={
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 mt-0.5">
+              {/* Date Navigation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => changeDate(-1)}
+                  className="p-2 rounded border border-white/20 hover:bg-white/10"
                 >
-                  <option value="all">All Work Centers</option>
-                  {workCenters.map(wc => (
-                    <option key={wc} value={wc}>{wc}</option>
-                  ))}
-                </select>
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="px-4 py-2 border border-white/20 rounded-lg bg-white/10 min-w-[180px] text-center">
+                  <div className="text-sm font-semibold">
+                    {selectedDate.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => changeDate(1)}
+                  className="p-2 rounded border border-white/20 hover:bg-white/10"
+                >
+                  <ChevronRight size={18} />
+                </button>
+                <button
+                  onClick={() => setSelectedDate(new Date())}
+                  className="px-3 py-2 text-sm rounded border border-white/20 hover:bg-white/10"
+                >
+                  Today
+                </button>
               </div>
 
-              {/* View Options */}
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={showPM}
-                    onChange={(e) => setShowPM(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Wrench size={16} />
-                  Show Maintenance
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={showBreaks}
-                    onChange={(e) => setShowBreaks(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Clock size={16} />
-                  Show Breaks
-                </label>
-              </div>
+              {/* Work Center Filter */}
+              <select
+                value={filterWorkCenter}
+                onChange={(e) => setFilterWorkCenter(e.target.value)}
+                className="glass-input"
+              >
+                <option value="all" className="select option">
+                  All Work Centers
+                </option>
+                {workCenters.map((wc) => (
+                  <option key={wc} value={wc} className="select option">
+                    {wc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* View Options */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={showPM}
+                  onChange={(e) => setShowPM(e.target.checked)}
+                  className="rounded accent-cyan-500"
+                />
+                <Wrench size={16} />
+                Show Maintenance
+              </label>
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={showBreaks}
+                  onChange={(e) => setShowBreaks(e.target.checked)}
+                  className="rounded accent-cyan-500"
+                />
+                <Clock size={16} />
+                Show Breaks
+              </label>
             </div>
           </div>
-          {/* Legend */}
-          <div className="px-6 py-3 bg-white border-t">
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <span>Completed</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                <span>In Progress</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-400 rounded"></div>
-                <span>Planned</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                <span>Late</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-500 rounded border-2 border-yellow-600"></div>
-                <span>Maintenance</span>
-              </div>
-            </div>
-          </div>
-        </>
-      } />
-
-
+        }
+      />
 
       {/* Timeline Grid */}
       <div className="p-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {/* Time Header */}
-          <div className="flex border-b border-gray-200 bg-gray-50">
-            <div className="w-48 flex-shrink-0 px-4 py-3 border-r border-gray-200">
-              <span className="text-sm font-semibold text-gray-700">Machine</span>
+        {/* Controls */}
+
+
+        {/* Legend */}
+        <div className="px-6 py-3 bg-white/5 border-y border-white/10 mt-4">
+          <div className="flex items-center gap-6 text-sm text-white/80">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-emerald-500 rounded" />
+              <span>Completed</span>
             </div>
-            <div className="flex-1 relative" style={{ minWidth: '800px' }}>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-sky-500 rounded" />
+              <span>In Progress</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-slate-400 rounded" />
+              <span>Planned</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-rose-500 rounded" />
+              <span>Late</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-amber-400 rounded border-2 border-amber-300" />
+              <span>Maintenance</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden">
+          {/* Time Header */}
+          <div className="flex border-b border-white/10 bg-white/5">
+            <div className="w-48 flex-shrink-0 px-4 py-3 border-r border-white/10">
+              <span className="text-sm font-semibold text-white/80">Machine</span>
+            </div>
+            <div className="flex-1 relative" style={{ minWidth: "800px" }}>
               {/* Hour markers */}
               <div className="flex h-full">
-                {hourMarkers.map(marker => (
+                {hourMarkers.map((marker) => (
                   <div
                     key={marker.hour}
-                    className="flex-1 px-2 py-3 border-r border-gray-200 text-xs text-gray-500 text-center"
+                    className="flex-1 px-2 py-3 border-r border-white/10 text-xs text-white/70 text-center"
                   >
                     {marker.label}
                   </div>
@@ -440,114 +457,135 @@ const MachineTimeline = () => {
           </div>
 
           {/* Machine Rows */}
-          <div className="divide-y divide-gray-200">
-            {filteredMachines.map(machine => {
+          <div className="divide-y divide-white/10">
+            {filteredMachines.map((machine) => {
               const machineJobs = SCHEDULED_JOBS.filter(
-                job => job.machineCode === machine.code && isJobOnDate(job.startTime, selectedDate)
+                (job) =>
+                  job.machineCode === machine.code &&
+                  isJobOnDate(job.startTime, selectedDate)
               );
               const machinePM = MAINTENANCE_SCHEDULE.filter(
-                pm => pm.machineCode === machine.code && isJobOnDate(pm.startTime, selectedDate)
+                (pm) =>
+                  pm.machineCode === machine.code &&
+                  isJobOnDate(pm.startTime, selectedDate)
               );
 
               return (
-                <div key={machine.code} className="flex hover:bg-gray-50">
+                <div key={machine.code} className="flex hover:bg-white/5">
                   {/* Machine Info */}
-                  <div className="w-48 flex-shrink-0 px-4 py-4 border-r border-gray-200">
-                    <div className="text-sm font-semibold text-gray-900">{machine.name}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{machine.code}</div>
+                  <div className="w-48 flex-shrink-0 px-4 py-4 border-r border-white/10">
+                    <div className="text-sm font-semibold">{machine.name}</div>
+                    <div className="text-xs text-white/60 mt-0.5">
+                      {machine.code}
+                    </div>
                     <div className="mt-2">
-                      <span className={`text-xs px-2 py-0.5 rounded ${getMachineStatusBadge(machine.status)}`}>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded border ${getMachineStatusBadge(
+                          machine.status
+                        )}`}
+                      >
                         {machine.status}
                       </span>
                     </div>
                   </div>
 
                   {/* Timeline */}
-                  <div className="flex-1 relative" style={{ minHeight: '80px', minWidth: '800px' }}>
+                  <div
+                    className="flex-1 relative"
+                    style={{ minHeight: "80px", minWidth: "800px" }}
+                  >
                     {/* Hour grid lines */}
                     <div className="absolute inset-0 flex">
-                      {hourMarkers.map(marker => (
+                      {hourMarkers.map((marker) => (
                         <div
                           key={marker.hour}
-                          className="flex-1 border-r border-gray-100"
-                        ></div>
+                          className="flex-1 border-r border-white/5"
+                        />
                       ))}
                     </div>
 
                     {/* Shift backgrounds */}
                     <div className="absolute inset-0">
                       <div
-                        className="absolute bg-blue-50 h-full opacity-30"
-                        style={{ left: '33.33%', width: '37.5%' }}
-                      ></div>
+                        className="absolute bg-cyan-500/10 h-full"
+                        style={{ left: "33.33%", width: "37.5%" }}
+                      />
                     </div>
 
                     {/* Break times */}
-                    {showBreaks && BREAK_TIMES.map((breakTime, idx) => {
-                      const hour = parseInt(breakTime.start.split(':')[0]);
-                      const minute = parseInt(breakTime.start.split(':')[1]);
-                      const position = ((hour * 60 + minute) / (24 * 60)) * 100;
+                    {showBreaks &&
+                      BREAK_TIMES.map((breakTime, idx) => {
+                        const hour = parseInt(breakTime.start.split(":")[0]);
+                        const minute = parseInt(breakTime.start.split(":")[1]);
+                        const position =
+                          ((hour * 60 + minute) / (24 * 60)) * 100;
 
-                      const endHour = parseInt(breakTime.end.split(':')[0]);
-                      const endMinute = parseInt(breakTime.end.split(':')[1]);
-                      const endPosition = ((endHour * 60 + endMinute) / (24 * 60)) * 100;
-                      const width = endPosition - position;
+                        const endHour = parseInt(breakTime.end.split(":")[0]);
+                        const endMinute = parseInt(breakTime.end.split(":")[1]);
+                        const endPosition =
+                          ((endHour * 60 + endMinute) / (24 * 60)) * 100;
+                        const width = endPosition - position;
 
-                      return (
-                        <div
-                          key={idx}
-                          className="absolute h-full bg-gray-200 opacity-20"
-                          style={{
-                            left: `${position}%`,
-                            width: `${width}%`,
-                          }}
-                          title={breakTime.name}
-                        ></div>
-                      );
-                    })}
+                        return (
+                          <div
+                            key={idx}
+                            className="absolute h-full bg-white/10"
+                            style={{
+                              left: `${position}%`,
+                              width: `${width}%`,
+                            }}
+                            title={breakTime.name}
+                          />
+                        );
+                      })}
 
                     {/* Maintenance blocks */}
-                    {showPM && machinePM.map(pm => (
-                      <div
-                        key={pm.id}
-                        className="absolute bg-yellow-500 rounded border-2 border-yellow-600 cursor-pointer group"
-                        style={{
-                          left: `${getTimePosition(pm.startTime)}%`,
-                          width: `${getJobWidth(pm.startTime, pm.endTime)}%`,
-                          top: '8px',
-                          height: 'calc(100% - 16px)',
-                        }}
-                        onClick={() => setSelectedJob({ ...pm, type: 'maintenance' })}
-                      >
-                        <div className="px-2 py-1 h-full flex flex-col justify-center">
-                          <div className="text-xs font-semibold text-yellow-900 flex items-center gap-1">
-                            <Wrench size={12} />
-                            {pm.type}
+                    {showPM &&
+                      machinePM.map((pm) => (
+                        <div
+                          key={pm.id}
+                          className="absolute bg-amber-400/90 text-slate-900 rounded border border-amber-300/70 cursor-pointer group"
+                          style={{
+                            left: `${getTimePosition(pm.startTime)}%`,
+                            width: `${getJobWidth(pm.startTime, pm.endTime)}%`,
+                            top: "8px",
+                            height: "calc(100% - 16px)",
+                          }}
+                          onClick={() =>
+                            setSelectedJob({ ...pm, type: "maintenance" })
+                          }
+                        >
+                          <div className="px-2 py-1 h-full flex flex-col justify-center">
+                            <div className="text-xs font-semibold flex items-center gap-1">
+                              <Wrench size={12} />
+                              {pm.type}
+                            </div>
+                            <div className="text-xs mt-0.5">
+                              {formatTime(pm.startTime)} - {formatTime(pm.endTime)}
+                            </div>
                           </div>
-                          <div className="text-xs text-yellow-800 mt-0.5">
-                            {formatTime(pm.startTime)} - {formatTime(pm.endTime)}
+                          {/* Tooltip */}
+                          <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 p-2 bg-slate-900 border border-white/10 text-white text-xs rounded shadow-lg whitespace-nowrap z-10">
+                            <div className="font-semibold">{pm.type}</div>
+                            <div>{pm.notes}</div>
                           </div>
                         </div>
-                        {/* Tooltip */}
-                        <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 p-2 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-10">
-                          <div className="font-semibold">{pm.type}</div>
-                          <div>{pm.notes}</div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
 
                     {/* Job blocks */}
-                    {machineJobs.map(job => (
+                    {machineJobs.map((job) => (
                       <div
                         key={job.jobId}
-                        className={`absolute ${getStatusColor(job.status)} rounded shadow-sm cursor-pointer hover:shadow-md transition-shadow group`}
+                        className={`absolute ${getStatusColor(
+                          job.status
+                        )} rounded shadow-sm cursor-pointer hover:shadow-md transition-shadow group`}
                         style={{
                           left: `${getTimePosition(job.startTime)}%`,
                           width: `${getJobWidth(job.startTime, job.endTime)}%`,
-                          top: '8px',
-                          height: 'calc(100% - 16px)',
+                          top: "8px",
+                          height: "calc(100% - 16px)",
                         }}
-                        onClick={() => setSelectedJob({ ...job, type: 'job' })}
+                        onClick={() => setSelectedJob({ ...job, type: "job" })}
                       >
                         <div className="px-2 py-1 h-full flex flex-col justify-center text-white">
                           <div className="text-xs font-semibold truncate">
@@ -561,27 +599,37 @@ const MachineTimeline = () => {
                           </div>
                         </div>
                         {/* Tooltip */}
-                        <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 p-3 bg-gray-900 text-white text-xs rounded shadow-lg whitespace-nowrap z-10">
-                          <div className="font-semibold mb-1">{job.orderNo} - {job.product}</div>
+                        <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 p-3 bg-slate-900 border border-white/10 text-white text-xs rounded shadow-lg whitespace-nowrap z-10">
+                          <div className="font-semibold mb-1">
+                            {job.orderNo} - {job.product}
+                          </div>
                           <div>Process: {job.process}</div>
-                          <div>Setup: {job.setupMin} min | Run: {job.runMin} min</div>
-                          <div>Time: {formatTime(job.startTime)} - {formatTime(job.endTime)}</div>
-                          <div className="mt-1 pt-1 border-t border-gray-700">Status: {job.status}</div>
+                          <div>
+                            Setup: {job.setupMin} min | Run: {job.runMin} min
+                          </div>
+                          <div>
+                            Time: {formatTime(job.startTime)} -{" "}
+                            {formatTime(job.endTime)}
+                          </div>
+                          <div className="mt-1 pt-1 border-t border-white/10">
+                            Status: {job.status}
+                          </div>
                         </div>
                       </div>
                     ))}
 
                     {/* Current time indicator */}
-                    {selectedDate.toDateString() === new Date().toDateString() && (
-                      <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-                        style={{
-                          left: `${getTimePosition(new Date().toISOString())}%`,
-                        }}
-                      >
-                        <div className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                      </div>
-                    )}
+                    {selectedDate.toDateString() ===
+                      new Date().toDateString() && (
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10"
+                          style={{
+                            left: `${getTimePosition(new Date().toISOString())}%`,
+                          }}
+                        >
+                          <div className="absolute -top-1 -left-1 w-2 h-2 bg-rose-500 rounded-full" />
+                        </div>
+                      )}
                   </div>
                 </div>
               );
@@ -591,89 +639,97 @@ const MachineTimeline = () => {
 
         {/* Empty State */}
         {filteredMachines.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <Layers size={48} className="mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No machines found</h3>
-            <p className="text-gray-500">Try adjusting your filters</p>
+          <div className="text-center py-12 bg-white/5 rounded-lg border border-white/10">
+            <Layers size={48} className="mx-auto text-white/50 mb-4" />
+            <h3 className="text-lg font-medium mb-2">No machines found</h3>
+            <p className="text-white/70">Try adjusting your filters</p>
           </div>
         )}
       </div>
 
       {/* Job Detail Panel */}
       {selectedJob && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {selectedJob.type === 'maintenance' ? 'Maintenance Details' : 'Job Details'}
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 text-white rounded-lg shadow-xl max-w-md w-full border border-white/10">
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                {selectedJob.type === "maintenance"
+                  ? "Maintenance Details"
+                  : "Job Details"}
               </h3>
               <button
                 onClick={() => setSelectedJob(null)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-white/10 rounded"
               >
                 ×
               </button>
             </div>
             <div className="p-6 space-y-4">
-              {selectedJob.type === 'maintenance' ? (
+              {selectedJob.type === "maintenance" ? (
                 <>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Type</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.type}</p>
+                    <label className="text-sm font-medium text-white/70">Type</label>
+                    <p className="mt-1">{selectedJob.type}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Machine</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.machineCode}</p>
+                    <label className="text-sm font-medium text-white/70">Machine</label>
+                    <p className="mt-1">{selectedJob.machineCode}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Schedule</label>
-                    <p className="mt-1 text-gray-900">
-                      {formatTime(selectedJob.startTime)} - {formatTime(selectedJob.endTime)}
+                    <label className="text-sm font-medium text-white/70">Schedule</label>
+                    <p className="mt-1">
+                      {formatTime(selectedJob.startTime)} -{" "}
+                      {formatTime(selectedJob.endTime)}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Notes</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.notes}</p>
+                    <label className="text-sm font-medium text-white/70">Notes</label>
+                    <p className="mt-1">{selectedJob.notes}</p>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Order Number</label>
-                    <p className="mt-1 text-gray-900 font-semibold">{selectedJob.orderNo}</p>
+                    <label className="text-sm font-medium text-white/70">Order Number</label>
+                    <p className="mt-1 font-semibold">{selectedJob.orderNo}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Product</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.product}</p>
+                    <label className="text-sm font-medium text-white/70">Product</label>
+                    <p className="mt-1">{selectedJob.product}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Process</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.process}</p>
+                    <label className="text-sm font-medium text-white/70">Process</label>
+                    <p className="mt-1">{selectedJob.process}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Machine</label>
-                    <p className="mt-1 text-gray-900">{selectedJob.machineCode}</p>
+                    <label className="text-sm font-medium text-white/70">Machine</label>
+                    <p className="mt-1">{selectedJob.machineCode}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Setup Time</label>
-                      <p className="mt-1 text-gray-900">{selectedJob.setupMin} min</p>
+                      <label className="text-sm font-medium text-white/70">Setup Time</label>
+                      <p className="mt-1">{selectedJob.setupMin} min</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Run Time</label>
-                      <p className="mt-1 text-gray-900">{selectedJob.runMin} min</p>
+                      <label className="text-sm font-medium text-white/70">Run Time</label>
+                      <p className="mt-1">{selectedJob.runMin} min</p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Schedule</label>
-                    <p className="mt-1 text-gray-900">
-                      {formatTime(selectedJob.startTime)} - {formatTime(selectedJob.endTime)}
+                    <label className="text-sm font-medium text-white/70">Schedule</label>
+                    <p className="mt-1">
+                      {formatTime(selectedJob.startTime)} -{" "}
+                      {formatTime(selectedJob.endTime)}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <label className="text-sm font-medium text-white/70">Status</label>
                     <p className="mt-1">
-                      <span className={`text-sm px-3 py-1 rounded ${getStatusColor(selectedJob.status).replace('bg-', 'bg-opacity-20 bg-')} font-medium`}>
+                      <span
+                        className={`text-sm px-3 py-1 rounded border ${getStatusColor(
+                          selectedJob.status
+                        ).replace("bg-", "bg-opacity-20 bg-")} font-medium`}
+                      >
                         {selectedJob.status}
                       </span>
                     </p>
@@ -681,10 +737,10 @@ const MachineTimeline = () => {
                 </>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <div className="px-6 py-4 border-t border-white/10 flex justify-end">
               <button
                 onClick={() => setSelectedJob(null)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 border border-white/20"
               >
                 Close
               </button>
@@ -693,6 +749,7 @@ const MachineTimeline = () => {
         </div>
       )}
     </div>
+
   );
 };
 

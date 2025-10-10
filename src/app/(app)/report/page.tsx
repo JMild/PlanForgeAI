@@ -175,46 +175,11 @@ const REPORT_DATA: ReportData = {
   ],
 
   lateOrders: [
-    {
-      orderNo: "ORD018",
-      customer: "XYZ Ltd",
-      dueDate: "2025-09-28",
-      completedDate: "2025-09-30",
-      daysLate: 2,
-      priority: 1,
-    },
-    {
-      orderNo: "ORD009",
-      customer: "Global Co",
-      dueDate: "2025-09-29",
-      completedDate: "2025-10-01",
-      daysLate: 2,
-      priority: 1,
-    },
-    {
-      orderNo: "ORD012",
-      customer: "Tech Inc",
-      dueDate: "2025-09-27",
-      completedDate: "2025-09-29",
-      daysLate: 2,
-      priority: 2,
-    },
-    {
-      orderNo: "ORD015",
-      customer: "ABC Corp",
-      dueDate: "2025-09-30",
-      completedDate: "2025-10-01",
-      daysLate: 1,
-      priority: 1,
-    },
-    {
-      orderNo: "ORD021",
-      customer: "Industrial Partners",
-      dueDate: "2025-09-26",
-      completedDate: "2025-09-28",
-      daysLate: 2,
-      priority: 3,
-    },
+    { orderNo: "ORD018", customer: "XYZ Ltd", dueDate: "2025-09-28", completedDate: "2025-09-30", daysLate: 2, priority: 1 },
+    { orderNo: "ORD009", customer: "Global Co", dueDate: "2025-09-29", completedDate: "2025-10-01", daysLate: 2, priority: 1 },
+    { orderNo: "ORD012", customer: "Tech Inc", dueDate: "2025-09-27", completedDate: "2025-09-29", daysLate: 2, priority: 2 },
+    { orderNo: "ORD015", customer: "ABC Corp", dueDate: "2025-09-30", completedDate: "2025-10-01", daysLate: 1, priority: 1 },
+    { orderNo: "ORD021", customer: "Industrial Partners", dueDate: "2025-09-26", completedDate: "2025-09-28", daysLate: 2, priority: 3 },
   ],
 
   leadTimeAnalysis: [
@@ -233,14 +198,7 @@ const REPORT_DATA: ReportData = {
   ],
 };
 
-const COLORS: string[] = [
-  "#3B82F6",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#EC4899",
-];
+const COLORS: string[] = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
 
 const REPORT_TYPES: ReportTypeItem[] = [
   { id: "utilization", name: "Machine Utilization", icon: Activity, category: "Performance" },
@@ -289,130 +247,137 @@ const ProductionReports: React.FC = () => {
   const SelectedIcon = selectedReportInfo?.icon;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       {/* Header */}
       <PageHeader
         title={
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Production Reports
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  Analytics and insights for production performance
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <select
-                  value={dateRange}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setDateRange(e.target.value as DateRange)
-                  }
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="today">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="quarter">This Quarter</option>
-                  <option value="year">This Year</option>
-                  <option value="custom">Custom Range</option>
-                </select>
-                <button
-                  onClick={() => handleExport("PDF")}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Download size={18} />
-                  Export PDF
-                </button>
-                <button
-                  onClick={() => handleExport("Excel")}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Download size={18} />
-                  Export Excel
-                </button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Production Reports</h1>
+              <p className="text-sm text-white/60 mt-1">
+                Analytics and insights for production performance
+              </p>
             </div>
+          </div>
+        }
+        actions={
+          <div className="flex gap-3">
+            <select
+              value={dateRange}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setDateRange(e.target.value as DateRange)
+              }
+              className="btn btn-outline"
+            >
+              <option value="today" className="select option">
+                Today
+              </option>
+              <option value="week" className="select option">
+                This Week
+              </option>
+              <option value="month" className="select option">
+                This Month
+              </option>
+              <option value="quarter" className="select option">
+                This Quarter
+              </option>
+              <option value="year" className="select option">
+                This Year
+              </option>
+              <option value="custom" className="select option">
+                Custom Range
+              </option>
+            </select>
+
+            <button onClick={() => handleExport("PDF")} className="btn btn-outline">
+              <Download size={18} />
+              Export PDF
+            </button>
+
+            <button onClick={() => handleExport("Excel")} className="btn btn-outline">
+              <Download size={18} />
+              Export Excel
+            </button>
+          </div>
+        }
+        tabs={
+          <div className="flex overflow-x-auto px-4 py-2 gap-4">
+            {["Performance", "Planning", "Efficiency", "Optimization", "Maintenance"].map(
+              (category) => {
+                const isCategorySelected = REPORT_TYPES.some(
+                  (r) => r.category === category && r.id === selectedReport
+                );
+
+                return (
+                  <div key={category} className="flex flex-col">
+                    <span
+                      className={`text-sm font-semibold ${isCategorySelected ? "text-sky-300" : "text-white/80"
+                        }`}
+                    >
+                      {category}
+                    </span>
+
+                    <div className="flex gap-2 mt-1">
+                      {REPORT_TYPES.filter((r) => r.category === category).map((report) => (
+                        <button
+                          key={report.id}
+                          onClick={() => setSelectedReport(report.id)}
+                          className={`px-3 py-1 rounded text-sm border transition-colors ${selectedReport === report.id
+                              ? "bg-sky-500/20 text-sky-300 border-sky-400/20"
+                              : "text-white/70 hover:bg-white/10 border-white/10"
+                            }`}
+                        >
+                          {report.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+            )}
           </div>
         }
       />
 
-      <div className="flex">
-        {/* Sidebar - Report List */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="flex overflow-x-auto px-4 py-2 gap-2">
-            {["Performance", "Planning", "Efficiency", "Optimization", "Maintenance"].map(
-              (category) => (
-                <div key={category} className="flex flex-col">
-                  <span className="text-sm font-semibold">{category}</span>
-                  <div className="flex gap-2 mt-1">
-                    {REPORT_TYPES.filter((r) => r.category === (category as ReportCategory)).map(
-                      (report) => (
-                        <button
-                          key={report.id}
-                          onClick={() => setSelectedReport(report.id)}
-                          className={`px-3 py-1 rounded text-sm ${
-                            selectedReport === report.id
-                              ? "bg-blue-50 text-blue-700"
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          {report.name}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 p-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            {/* Report Header */}
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {SelectedIcon && (
-                    <SelectedIcon size={24} className="text-blue-600" />
-                  )}
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                      {selectedReportInfo?.name}
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Period:{" "}
-                      {dateRange === "week"
-                        ? "This Week"
-                        : dateRange === "month"
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="rounded-lg border border-white/10 bg-white/5">
+          {/* Report Header */}
+          <div className="px-6 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {SelectedIcon && <SelectedIcon size={24} className="text-sky-300" />}
+                <div>
+                  <h2 className="text-xl font-semibold text-white">{selectedReportInfo?.name}</h2>
+                  <p className="text-sm text-white/60">
+                    Period:&nbsp;
+                    {dateRange === "week"
+                      ? "This Week"
+                      : dateRange === "month"
                         ? "This Month"
                         : dateRange === "today"
-                        ? "Today"
-                        : dateRange === "quarter"
-                        ? "This Quarter"
-                        : dateRange === "year"
-                        ? "This Year"
-                        : "Custom"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button className="p-2 hover:bg-gray-100 rounded" title="Print">
-                    <Printer size={18} className="text-gray-600" />
-                  </button>
-                  <button className="p-2 hover:bg-gray-100 rounded" title="Email">
-                    <Mail size={18} className="text-gray-600" />
-                  </button>
+                          ? "Today"
+                          : dateRange === "quarter"
+                            ? "This Quarter"
+                            : dateRange === "year"
+                              ? "This Year"
+                              : "Custom"}
+                  </p>
                 </div>
               </div>
+              <div className="flex gap-2">
+                <button className="p-2 hover:bg-white/10 rounded" title="Print">
+                  <Printer size={18} className="text-white/70" />
+                </button>
+                <button className="p-2 hover:bg-white/10 rounded" title="Email">
+                  <Mail size={18} className="text-white/70" />
+                </button>
+              </div>
             </div>
-
-            {/* Report Content */}
-            <div className="p-6">{renderReport()}</div>
           </div>
+
+          {/* Report Content */}
+          <div className="p-6">{renderReport()}</div>
         </div>
       </div>
     </div>
@@ -421,48 +386,36 @@ const ProductionReports: React.FC = () => {
 
 /* ===================== Report Components ===================== */
 
-const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({
-  data,
-}) => {
-  const avgUtilization = Math.round(
-    data.reduce((sum, m) => sum + m.utilization, 0) / data.length
-  );
+const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({ data }) => {
+  const avgUtilization = Math.round(data.reduce((sum, m) => sum + m.utilization, 0) / data.length);
   const avgOEE = Math.round(data.reduce((sum, m) => sum + m.oee, 0) / data.length);
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium mb-1">
-            Average Utilization
-          </div>
-          <div className="text-3xl font-bold text-blue-900">{avgUtilization}%</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Average Utilization</div>
+          <div className="text-3xl font-bold text-sky-300">{avgUtilization}%</div>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-sm text-green-600 font-medium mb-1">Average OEE</div>
-          <div className="text-3xl font-bold text-green-900">{avgOEE}%</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Average OEE</div>
+          <div className="text-3xl font-bold text-emerald-300">{avgOEE}%</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-600 font-medium mb-1">
-            Active Machines
-          </div>
-          <div className="text-3xl font-bold text-purple-900">
-            {data.filter((m) => m.utilization > 0).length}
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Active Machines</div>
+          <div className="text-3xl font-bold text-violet-300">{data.filter((m) => m.utilization > 0).length}</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Utilization & OEE by Machine
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Utilization & OEE by Machine</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="machine" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis stroke="#6B7280" style={{ fontSize: "12px" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis dataKey="machine" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="utilization" fill="#3B82F6" name="Utilization %" />
@@ -471,62 +424,41 @@ const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Table (แก้ให้ตรงกับโครงสร้าง utilization) */}
+      {/* Detailed Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Machine Details</h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Machine Details</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Machine
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Planned (min)
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Actual (min)
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Utilization
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  OEE
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Status
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Machine</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Planned (min)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Actual (min)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Utilization</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">OEE</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((m) => (
-                <tr key={m.machine} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {m.machine}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{m.planned}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{m.actual}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{m.utilization}%</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{m.oee}%</td>
+                <tr key={m.machine} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{m.machine}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{m.planned}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{m.actual}</td>
+                  <td className="px-4 py-3 text-sm text-right text-sky-300">{m.utilization}%</td>
+                  <td className="px-4 py-3 text-sm text-right text-emerald-300">{m.oee}%</td>
                   <td className="px-4 py-3 text-right">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        m.utilization >= 80
-                          ? "bg-green-100 text-green-700"
-                          : m.utilization >= 60
-                          ? "bg-yellow-100 text-yellow-700"
-                          : m.utilization > 0
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {m.utilization >= 80
-                        ? "Excellent"
+                      className={`chip ${m.utilization >= 80
+                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
                         : m.utilization >= 60
-                        ? "Good"
-                        : m.utilization > 0
-                        ? "Low"
-                        : "Down"}
+                          ? "status-inactive"
+                          : m.utilization > 0
+                            ? "bg-orange-500/15 text-orange-300 border-orange-400/20"
+                            : "status-error"
+                        }`}
+                    >
+                      {m.utilization >= 80 ? "Excellent" : m.utilization >= 60 ? "Good" : m.utilization > 0 ? "Low" : "Down"}
                     </span>
                   </td>
                 </tr>
@@ -542,40 +474,34 @@ const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({
 const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
   const totalChangeovers = data.reduce((sum, m) => sum + m.changeoverCount, 0);
   const totalLoss = data.reduce((sum, m) => sum + m.productionLoss, 0);
-  const avgChangeover = Math.round(
-    data.reduce((sum, m) => sum + m.avgChangeover, 0) / data.length
-  );
+  const avgChangeover = Math.round(data.reduce((sum, m) => sum + m.avgChangeover, 0) / data.length);
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="text-sm text-orange-600 font-medium mb-1">
-            Avg Changeover Time
-          </div>
-          <div className="text-3xl font-bold text-orange-900">{avgChangeover} min</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Avg Changeover Time</div>
+          <div className="text-3xl font-bold text-amber-300">{avgChangeover} min</div>
         </div>
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium mb-1">Total Changeovers</div>
-          <div className="text-3xl font-bold text-blue-900">{totalChangeovers}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Changeovers</div>
+          <div className="text-3xl font-bold text-sky-300">{totalChangeovers}</div>
         </div>
-        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="text-sm text-red-600 font-medium mb-1">Production Loss</div>
-          <div className="text-3xl font-bold text-red-900">{totalLoss} min</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Production Loss</div>
+          <div className="text-3xl font-bold text-rose-300">{totalLoss} min</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Changeover Analysis by Machine
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Changeover Analysis by Machine</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="machine" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis stroke="#6B7280" style={{ fontSize: "12px" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis dataKey="machine" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="avgChangeover" fill="#F59E0B" name="Avg Changeover (min)" />
@@ -586,60 +512,35 @@ const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
 
       {/* Detailed Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Machine Changeover Details
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Machine Changeover Details</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Machine
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Avg Time
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Count
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Total Loss
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Impact
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Machine</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Time</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Count</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Total Loss</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Impact</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((machine) => (
-                <tr key={machine.machine} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {machine.machine}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {machine.avgChangeover} min
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {machine.changeoverCount}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
-                    {machine.productionLoss} min
-                  </td>
+                <tr key={machine.machine} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{machine.machine}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{machine.avgChangeover} min</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{machine.changeoverCount}</td>
+                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">{machine.productionLoss} min</td>
                   <td className="px-4 py-3 text-right">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        machine.productionLoss > 400
-                          ? "bg-red-100 text-red-700"
-                          : machine.productionLoss > 300
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {machine.productionLoss > 400
-                        ? "High"
+                      className={`chip ${machine.productionLoss > 400
+                        ? "status-error"
                         : machine.productionLoss > 300
-                        ? "Medium"
-                        : "Low"}
+                          ? "status-inactive"
+                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+                        }`}
+                    >
+                      {machine.productionLoss > 400 ? "High" : machine.productionLoss > 300 ? "Medium" : "Low"}
                     </span>
                   </td>
                 </tr>
@@ -660,82 +561,53 @@ const LateOrdersReport: React.FC<{ data: LateOrderRow[] }> = ({ data }) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="text-sm text-red-600 font-medium mb-1">Late Orders</div>
-          <div className="text-3xl font-bold text-red-900">{data.length}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Late Orders</div>
+          <div className="text-3xl font-bold text-rose-300">{data.length}</div>
         </div>
-        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="text-sm text-orange-600 font-medium mb-1">
-            Avg Days Late
-          </div>
-          <div className="text-3xl font-bold text-orange-900">{avgDaysLate}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Avg Days Late</div>
+          <div className="text-3xl font-bold text-amber-300">{avgDaysLate}</div>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-          <div className="text-sm text-yellow-600 font-medium mb-1">
-            Priority 1 Late
-          </div>
-          <div className="text-3xl font-bold text-yellow-900">
-            {data.filter((o) => o.priority === 1).length}
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Priority 1 Late</div>
+          <div className="text-3xl font-bold text-yellow-200">{data.filter((o) => o.priority === 1).length}</div>
         </div>
       </div>
 
       {/* Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Late Order Details
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Late Order Details</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Order
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Customer
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Due Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Completed
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Days Late
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                  Priority
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Order</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Customer</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Due Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Completed</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Days Late</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-white/60 uppercase">Priority</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((order) => (
-                <tr key={order.orderNo} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {order.orderNo}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{order.customer}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {new Date(order.dueDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {new Date(order.completedDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right">
-                    <span className="font-medium text-red-600">
-                      {order.daysLate} day{order.daysLate !== 1 ? "s" : ""}
-                    </span>
+                <tr key={order.orderNo} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{order.orderNo}</td>
+                  <td className="px-4 py-3 text-sm text-white/80">{order.customer}</td>
+                  <td className="px-4 py-3 text-sm text-white/70">{new Date(order.dueDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm text-white/70">{new Date(order.completedDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">
+                    {order.daysLate} day{order.daysLate !== 1 ? "s" : ""}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        order.priority === 1
-                          ? "bg-red-100 text-red-700"
-                          : order.priority === 2
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
+                      className={`chip ${order.priority === 1
+                        ? "status-error"
+                        : order.priority === 2
+                          ? "status-inactive"
+                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+                        }`}
                     >
                       P{order.priority}
                     </span>
@@ -751,9 +623,7 @@ const LateOrdersReport: React.FC<{ data: LateOrderRow[] }> = ({ data }) => {
 };
 
 const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
-  const avgLeadTime = Math.round(
-    data.reduce((sum, p) => sum + p.avgLeadTime, 0) / data.length
-  );
+  const avgLeadTime = Math.round(data.reduce((sum, p) => sum + p.avgLeadTime, 0) / data.length);
   const onTarget = data.filter((p) => p.avgLeadTime <= p.targetLeadTime).length;
   const onTargetPercentage = Math.round((onTarget / data.length) * 100);
 
@@ -761,36 +631,28 @@ const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium mb-1">Avg Lead Time</div>
-          <div className="text-3xl font-bold text-blue-900">{avgLeadTime} min</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Avg Lead Time</div>
+          <div className="text-3xl font-bold text-sky-300">{avgLeadTime} min</div>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-sm text-green-600 font-medium mb-1">On-Target Rate</div>
-          <div className="text-3xl font-bold text-green-900">
-            {onTargetPercentage}%
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">On-Target Rate</div>
+          <div className="text-3xl font-bold text-emerald-300">{onTargetPercentage}%</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-600 font-medium mb-1">
-            Total Orders
-          </div>
-          <div className="text-3xl font-bold text-purple-900">
-            {data.reduce((sum, p) => sum + p.orders, 0)}
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Orders</div>
+          <div className="text-3xl font-bold text-violet-300">{data.reduce((sum, p) => sum + p.orders, 0)}</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Lead Time vs Target by Product
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Lead Time vs Target by Product</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="product" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis stroke="#6B7280" style={{ fontSize: "12px" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis dataKey="product" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="targetLeadTime" fill="#94A3B8" name="Target Lead Time (min)" />
@@ -801,75 +663,44 @@ const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
 
       {/* Detailed Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Product Lead Time Analysis
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Product Lead Time Analysis</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Product
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Avg Lead Time
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Target
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Variance
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Orders
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Status
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Product</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Lead Time</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Target</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Variance</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Orders</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((product) => {
                 const variance = product.avgLeadTime - product.targetLeadTime;
                 return (
-                  <tr key={product.product} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {product.product}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
-                      {product.avgLeadTime} min
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">
-                      {product.targetLeadTime} min
-                    </td>
+                  <tr key={product.product} className="hover:bg-white/5">
+                    <td className="px-4 py-3 text-sm font-medium text-white">{product.product}</td>
+                    <td className="px-4 py-3 text-sm text-right text-white/80">{product.avgLeadTime} min</td>
+                    <td className="px-4 py-3 text-sm text-right text-white/70">{product.targetLeadTime} min</td>
                     <td className="px-4 py-3 text-sm text-right">
-                      <span
-                        className={`font-medium ${
-                          variance > 0 ? "text-red-600" : "text-green-600"
-                        }`}
-                      >
+                      <span className={`font-medium ${variance > 0 ? "text-rose-300" : "text-emerald-300"}`}>
                         {variance > 0 ? "+" : ""}
                         {variance} min
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
-                      {product.orders}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-right text-white/80">{product.orders}</td>
                     <td className="px-4 py-3 text-right">
                       <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          variance <= 0
-                            ? "bg-green-100 text-green-700"
-                            : variance <= 20
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {variance <= 0
-                          ? "On Target"
+                        className={`chip ${variance <= 0
+                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
                           : variance <= 20
-                          ? "Slightly Over"
-                          : "Over Target"}
+                            ? "status-inactive"
+                            : "status-error"
+                          }`}
+                      >
+                        {variance <= 0 ? "On Target" : variance <= 20 ? "Slightly Over" : "Over Target"}
                       </span>
                     </td>
                   </tr>
@@ -891,46 +722,29 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="text-sm text-red-600 font-medium mb-1">Total Downtime</div>
-          <div className="text-3xl font-bold text-red-900">{totalDowntime} min</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Downtime</div>
+          <div className="text-3xl font-bold text-rose-300">{totalDowntime} min</div>
         </div>
-        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="text-sm text-orange-600 font-medium mb-1">Total Incidents</div>
-          <div className="text-3xl font-bold text-orange-900">{totalIncidents}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Incidents</div>
+          <div className="text-3xl font-bold text-amber-300">{totalIncidents}</div>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-          <div className="text-sm text-yellow-600 font-medium mb-1">
-            Avg per Incident
-          </div>
-          <div className="text-3xl font-bold text-yellow-900">
-            {Math.round(totalDowntime / totalIncidents)} min
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Avg per Incident</div>
+          <div className="text-3xl font-bold text-sky-300">{Math.round(totalDowntime / totalIncidents)} min</div>
         </div>
       </div>
 
       {/* Pie & Bar */}
       <div className="grid grid-cols-2 gap-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Downtime by Reason
-          </h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Downtime by Reason</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie
-                data={data}
-                dataKey="percentage"
-                nameKey="reason"
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                label={(entry) => `${entry.percentage}%`}
-              >
-                {data.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[index % COLORS.length]}
-                  />
+              <Pie data={data} dataKey="percentage" nameKey="reason" cx="50%" cy="50%" outerRadius={80} label={(e) => `${e.percentage}%`}>
+                {data.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
@@ -939,20 +753,12 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
         </div>
 
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Duration by Reason
-          </h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Duration by Reason</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={data} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis type="number" stroke="#6B7280" style={{ fontSize: "12px" }} />
-              <YAxis
-                dataKey="reason"
-                type="category"
-                stroke="#6B7280"
-                style={{ fontSize: "11px" }}
-                width={120}
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+              <XAxis type="number" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+              <YAxis dataKey="reason" type="category" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "11px" }} width={120} />
               <Tooltip />
               <Bar dataKey="duration" fill="#EF4444" name="Duration (min)" />
             </BarChart>
@@ -962,64 +768,38 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
 
       {/* Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Downtime Breakdown
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Downtime Breakdown</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Reason
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Duration
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Incidents
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Percentage
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Priority
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Reason</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Duration</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Incidents</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Percentage</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Priority</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((reason, index) => (
-                <tr key={reason.reason} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                    />
+                <tr key={reason.reason} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white flex items-center gap-2">
+                    <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                     {reason.reason}
                   </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {reason.duration} min
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {reason.count}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                    {reason.percentage}%
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{reason.duration} min</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{reason.count}</td>
+                  <td className="px-4 py-3 text-sm text-right font-medium text-white/90">{reason.percentage}%</td>
                   <td className="px-4 py-3 text-right">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        reason.percentage >= 30
-                          ? "bg-red-100 text-red-700"
-                          : reason.percentage >= 20
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {reason.percentage >= 30
-                        ? "High"
+                      className={`chip ${reason.percentage >= 30
+                        ? "status-error"
                         : reason.percentage >= 20
-                        ? "Medium"
-                        : "Low"}
+                          ? "status-inactive"
+                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+                        }`}
+                    >
+                      {reason.percentage >= 30 ? "High" : reason.percentage >= 20 ? "Medium" : "Low"}
                     </span>
                   </td>
                 </tr>
@@ -1032,9 +812,7 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
   );
 };
 
-const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({
-  data,
-}) => {
+const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({ data }) => {
   const totalOrders = data.reduce((sum, w) => sum + w.total, 0);
   const totalOnTime = data.reduce((sum, w) => sum + w.onTime, 0);
   const overallPercentage = Math.round((totalOnTime / totalOrders) * 100);
@@ -1043,101 +821,70 @@ const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-sm text-green-600 font-medium mb-1">On-Time Rate</div>
-          <div className="text-3xl font-bold text-green-900">{overallPercentage}%</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">On-Time Rate</div>
+          <div className="text-3xl font-bold text-emerald-300">{overallPercentage}%</div>
         </div>
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium mb-1">Total Orders</div>
-          <div className="text-3xl font-bold text-blue-900">{totalOrders}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Orders</div>
+          <div className="text-3xl font-bold text-sky-300">{totalOrders}</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-600 font-medium mb-1">On-Time</div>
-          <div className="text-3xl font-bold text-purple-900">{totalOnTime}</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">On-Time</div>
+          <div className="text-3xl font-bold text-violet-300">{totalOnTime}</div>
         </div>
-        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-          <div className="text-sm text-red-600 font-medium mb-1">Late</div>
-          <div className="text-3xl font-bold text-red-900">
-            {totalOrders - totalOnTime}
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Late</div>
+          <div className="text-3xl font-bold text-rose-300">{totalOrders - totalOnTime}</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          On-Time Delivery Trend
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">On-Time Delivery Trend</h3>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="week" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis stroke="#6B7280" style={{ fontSize: "12px" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis dataKey="week" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="onTime" fill="#10B981" name="On-Time" />
             <Bar dataKey="late" fill="#EF4444" name="Late" />
-            <Line
-              type="monotone"
-              dataKey="percentage"
-              stroke="#3B82F6"
-              strokeWidth={2}
-              name="On-Time %"
-            />
+            <Line type="monotone" dataKey="percentage" stroke="#3B82F6" strokeWidth={2} name="On-Time %" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
       {/* Weekly Details */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Weekly Breakdown
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Weekly Breakdown</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Period
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Total Orders
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  On-Time
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Late
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Performance
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Period</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Total Orders</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">On-Time</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Late</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Performance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((week) => (
-                <tr key={week.week} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {week.week}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {week.total}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-green-600 font-medium">
-                    {week.onTime}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
-                    {week.late}
-                  </td>
+                <tr key={week.week} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{week.week}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{week.total}</td>
+                  <td className="px-4 py-3 text-sm text-right text-emerald-300 font-medium">{week.onTime}</td>
+                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">{week.late}</td>
                   <td className="px-4 py-3 text-right">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        week.percentage >= 90
-                          ? "bg-green-100 text-green-700"
-                          : week.percentage >= 80
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
+                      className={`chip ${week.percentage >= 90
+                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+                        : week.percentage >= 80
+                          ? "status-inactive"
+                          : "status-error"
+                        }`}
                     >
                       {week.percentage}%
                     </span>
@@ -1152,12 +899,8 @@ const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({
   );
 };
 
-const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({
-  data,
-}) => {
-  const avgVariance = Math.round(
-    data.reduce((sum, d) => sum + Math.abs(d.variance), 0) / data.length
-  );
+const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({ data }) => {
+  const avgVariance = Math.round(data.reduce((sum, d) => sum + Math.abs(d.variance), 0) / data.length);
   const adherenceRate = data.filter((d) => Math.abs(d.variance) <= 2).length;
   const adherencePercentage = Math.round((adherenceRate / data.length) * 100);
 
@@ -1165,49 +908,35 @@ const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium mb-1">Adherence Rate</div>
-          <div className="text-3xl font-bold text-blue-900">
-            {adherencePercentage}%
-          </div>
-          <div className="text-xs text-blue-600 mt-1">
-            Within ±2 jobs tolerance
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Adherence Rate</div>
+          <div className="text-3xl font-bold text-emerald-300">{adherencePercentage}%</div>
+          <div className="text-xs text-white/70 mt-1">Within ±2 jobs tolerance</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-600 font-medium mb-1">Avg Variance</div>
-          <div className="text-3xl font-bold text-purple-900">±{avgVariance}</div>
-          <div className="text-xs text-purple-600 mt-1">jobs per day</div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Avg Variance</div>
+          <div className="text-3xl font-bold text-violet-300">±{avgVariance}</div>
+          <div className="text-xs text-white/70 mt-1">jobs per day</div>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-sm text-green-600 font-medium mb-1">Total Planned</div>
-          <div className="text-3xl font-bold text-green-900">
-            {data.reduce((sum, d) => sum + d.planned, 0)}
-          </div>
+        <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+          <div className="text-sm text-white/70 font-medium mb-1">Total Planned</div>
+          <div className="text-3xl font-bold text-sky-300">{data.reduce((sum, d) => sum + d.planned, 0)}</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Planned vs Actual Jobs
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Planned vs Actual Jobs</h3>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis dataKey="date" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis stroke="#6B7280" style={{ fontSize: "12px" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis dataKey="date" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <Tooltip />
             <Legend />
             <Bar dataKey="planned" fill="#3B82F6" name="Planned Jobs" />
             <Bar dataKey="actual" fill="#10B981" name="Actual Jobs" />
-            <Line
-              type="monotone"
-              dataKey="variance"
-              stroke="#EF4444"
-              strokeWidth={2}
-              name="Variance"
-            />
+            <Line type="monotone" dataKey="variance" stroke="#EF4444" strokeWidth={2} name="Variance" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -1216,25 +945,19 @@ const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({
 };
 
 const BottleneckReport: React.FC<{ data: BottleneckRow[] }> = ({ data }) => {
-  const topBottleneck = data.reduce<BottleneckRow>(
-    (max, p) => (p.avgWaitTime > max.avgWaitTime ? p : max),
-    data[0]
-  );
+  const topBottleneck = data.reduce<BottleneckRow>((max, p) => (p.avgWaitTime > max.avgWaitTime ? p : max), data[0]);
 
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+      <div className="p-4 rounded-lg border border-rose-400/20 bg-rose-500/10">
         <div className="flex items-start gap-3">
-          <AlertTriangle size={24} className="text-red-600 flex-shrink-0 mt-1" />
+          <AlertTriangle size={24} className="text-rose-300 flex-shrink-0 mt-1" />
           <div>
-            <div className="font-semibold text-red-900 mb-1">
-              Primary Bottleneck Identified
-            </div>
-            <div className="text-sm text-red-800">
-              <strong>{topBottleneck.process}</strong> has the highest average wait
-              time of <strong>{topBottleneck.avgWaitTime} minutes</strong> with{" "}
-              {topBottleneck.utilization}% utilization
+            <div className="font-semibold text-rose-200 mb-1">Primary Bottleneck Identified</div>
+            <div className="text-sm text-rose-100">
+              <strong>{topBottleneck.process}</strong> has the highest average wait time of{" "}
+              <strong>{topBottleneck.avgWaitTime} minutes</strong> with {topBottleneck.utilization}% utilization
             </div>
           </div>
         </div>
@@ -1242,82 +965,49 @@ const BottleneckReport: React.FC<{ data: BottleneckRow[] }> = ({ data }) => {
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Average Wait Time by Process
-        </h3>
+        <h3 className="text-lg font-semibold text-white mb-4">Average Wait Time by Process</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis type="number" stroke="#6B7280" style={{ fontSize: "12px" }} />
-            <YAxis
-              dataKey="process"
-              type="category"
-              stroke="#6B7280"
-              style={{ fontSize: "12px" }}
-              width={100}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
+            <XAxis type="number" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <YAxis dataKey="process" type="category" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} width={100} />
             <Tooltip />
             <Bar dataKey="avgWaitTime" fill="#EF4444" name="Avg Wait Time (min)" />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Table (ให้สอดคล้องกับ bottleneck data) */}
+      {/* Detailed Table */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Process Analysis
-        </h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-white mb-4">Process Analysis</h3>
+        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Process
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Avg Wait Time
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Throughput
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Utilization
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Priority
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Process</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Wait Time</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Throughput</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Utilization</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Priority</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-white/10">
               {data.map((p) => (
-                <tr key={p.process} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {p.process}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {p.avgWaitTime} min
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {p.throughput}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {p.utilization}%
-                  </td>
+                <tr key={p.process} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{p.process}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.avgWaitTime} min</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.throughput}</td>
+                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.utilization}%</td>
                   <td className="px-4 py-3 text-right">
                     <span
-                      className={`text-xs px-2 py-1 rounded ${
-                        p.avgWaitTime >= 60
-                          ? "bg-red-100 text-red-700"
-                          : p.avgWaitTime >= 30
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {p.avgWaitTime >= 60
-                        ? "High"
+                      className={`chip ${p.avgWaitTime >= 60
+                        ? "status-error"
                         : p.avgWaitTime >= 30
-                        ? "Medium"
-                        : "Low"}
+                          ? "status-inactive"
+                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+                        }`}
+                    >
+                      {p.avgWaitTime >= 60 ? "High" : p.avgWaitTime >= 30 ? "Medium" : "Low"}
                     </span>
                   </td>
                 </tr>

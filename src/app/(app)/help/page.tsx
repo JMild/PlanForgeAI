@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { ComponentType, FC, SVGProps, useState } from 'react';
 import { Search, BookOpen, Video, MessageCircle, HelpCircle, FileText, Zap, Users, Settings, Package, Calendar, BarChart3, ChevronRight, Download, ExternalLink, Play, Check, ArrowRight, Clock, Cpu } from 'lucide-react';
 
 // Types
@@ -28,9 +28,103 @@ type FAQ = {
   category: string;
 };
 
+type TabId = 'guide' | 'videos' | 'faq' | 'support';
+
+type IconType = FC<SVGProps<SVGSVGElement>>;
+
+type QuickStartItem = {
+  title: string;
+  desc: string;
+  icon: IconType;
+  tone: string;
+};
+
+const quickStartData: QuickStartItem[] = [
+  { title: "Quick Start", desc: "Get up and running in 5 minutes", icon: Zap, tone: "text-cyan-300 border-cyan-400/30" },
+  { title: "Video Tutorials", desc: "Learn with step-by-step videos", icon: Video, tone: "text-emerald-300 border-emerald-400/30" },
+  { title: "Contact Support", desc: "Get help from our team", icon: MessageCircle, tone: "text-violet-300 border-violet-400/30" },
+  { title: "Downloads", desc: "Templates and resources", icon: Download, tone: "text-amber-300 border-amber-400/30" },
+];
+
+type Card = {
+  title: string;
+  desc: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  tone: string;
+  link: string;
+  linkText: string;
+};
+
+const cards: Card[] = [
+  { title: "Email Support", desc: "Get help via email within 24 hours", icon: MessageCircle, tone: "text-cyan-300 border-cyan-400/30", link: "mailto:support@arise.ai", linkText: "support@arise.ai" },
+  { title: "Community Forum", desc: "Connect with other users", icon: Users, tone: "text-emerald-300 border-emerald-400/30", link: "#", linkText: "Visit Forum" },
+  { title: "API Documentation", desc: "Technical docs for developers", icon: FileText, tone: "text-violet-300 border-violet-400/30", link: "https://docs.arise.com", linkText: "docs.arise.com" },
+  { title: "Resources", desc: "Templates and guides", icon: Download, tone: "text-amber-300 border-amber-400/30", link: "#", linkText: "Download All" },
+];
+
+type Resource = {
+  title: string;
+  description: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  items: string[];
+};
+
+const resources: Resource[] = [
+  {
+    title: 'CSV Import Templates',
+    description: 'Pre-formatted templates for all master data',
+    icon: FileText,
+    items: ['Products', 'BOMs', 'Routings', 'Machines', 'Personnel'],
+  },
+  {
+    title: 'User Guides (PDF)',
+    description: 'Comprehensive documentation for all features',
+    icon: BookOpen,
+    items: ['Planning Guide', 'Master Data Guide', 'Admin Guide', 'API Reference'],
+  },
+  {
+    title: 'Best Practices',
+    description: 'Industry-proven optimization strategies',
+    icon: Check,
+    items: ['Setup Checklist', 'Optimization Tips', 'Common Pitfalls', 'Case Studies'],
+  },
+];
+
+{/* ===== helpers: ใส่ไว้บนสุดของไฟล์ (เหนือ JSX) ===== */ }
+const resourceTone = (title: string) => {
+  // map คงที่ แทนการใช้ bg-${color}
+  switch (title) {
+    case "CSV Import Templates":
+      return {
+        box: "bg-cyan-500/15 border-cyan-400/30",
+        icon: "text-cyan-300",
+        btn: "bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-500",
+      };
+    case "User Guides (PDF)":
+      return {
+        box: "bg-emerald-500/15 border-emerald-400/30",
+        icon: "text-emerald-300",
+        btn: "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-500",
+      };
+    case "Best Practices":
+      return {
+        box: "bg-violet-500/15 border-violet-400/30",
+        icon: "text-violet-300",
+        btn: "bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-500",
+      };
+    default:
+      return {
+        box: "bg-slate-500/15 border-slate-400/30",
+        icon: "text-slate-300",
+        btn: "bg-white/10 hover:bg-white/20",
+      };
+  }
+};
+
+
 const Help = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'guide' | 'videos' | 'faq' | 'support'>('guide');
+  const [activeTab, setActiveTab] = useState<TabId>('guide');
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -221,12 +315,26 @@ const Help = () => {
   const categories = [
     { id: 'all', name: 'All Topics', icon: BookOpen },
     { id: 'Getting Started', name: 'Getting Started', icon: Zap },
-    { id: 'Planning', name: 'Planning', icon: Calendar },
+
+    // Production-related
+    { id: 'Production', name: 'Production', icon: Calendar },
+
+    // Master Data
     { id: 'Master Data', name: 'Master Data', icon: Package },
+
+    // Tools & Maintenance
     { id: 'Tools & Maintenance', name: 'Tools & Maintenance', icon: Settings },
+
+    // Inventory (optional)
     { id: 'Inventory', name: 'Inventory', icon: Package },
+
+    // Reports
     { id: 'Reports', name: 'Reports', icon: BarChart3 },
+
+    // Integrations / Config
     { id: 'Integrations', name: 'Integrations', icon: Settings },
+
+    // Administration
     { id: 'Administration', name: 'Administration', icon: Users },
   ];
 
@@ -252,28 +360,64 @@ const Help = () => {
     return matchesSearch && matchesCategory;
   });
 
+  const tabs: {
+    id: TabId;
+    name: string;
+    icon: ComponentType<SVGProps<SVGSVGElement>>;
+    count: number;
+  }[] = [
+      { id: 'guide', name: 'User Guide', icon: BookOpen, count: filteredArticles.length },
+      { id: 'videos', name: 'Video Tutorials', icon: Video, count: filteredVideos.length },
+      { id: 'faq', name: 'FAQ', icon: HelpCircle, count: filteredFAQs.length },
+      { id: 'support', name: 'Support', icon: MessageCircle, count: 0 },
+    ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-12">
+    <div>
+      {/* ===== Hero / Header ===== */}
+      <div className="relative isolate text-white">
+        <style>{`
+    @keyframes floatSlow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-18px)} }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+  `}</style>
+
+        {/* deep ocean base */}
+        <div className="absolute inset-0 -z-30 bg-gradient-to-br from-[#03151c] via-[#0b2733] to-[#010b11]" />
+        {/* teal/azure radial glows */}
+        <div className="absolute inset-0 -z-20 pointer-events-none
+                  bg-[radial-gradient(1200px_600px_at_75%_35%,rgba(0,229,255,.18),transparent_60%),radial-gradient(900px_500px_at_15%_65%,rgba(20,184,166,.18),transparent_60%)]" />
+        {/* HUD grid */}
+        <div
+          className="absolute inset-0 -z-10 opacity-[0.12] mix-blend-screen pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(0,243,255,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(0,243,255,.22) 1px, transparent 1px)",
+            backgroundSize: "46px 46px",
+          }}
+        />
+
+        <div className="relative max-w-7xl mx-auto px-4 py-12">
           <div className="text-center">
             <div className="flex items-center justify-center mb-4">
-              <HelpCircle className="w-16 h-16" />
+              <HelpCircle className="w-16 h-16 text-white/90" />
             </div>
-            <h1 className="text-4xl font-bold mb-4">Help & Documentation</h1>
-            <p className="text-xl text-blue-100 mb-8">Everything you need to master AI Production Planning</p>
-            
-            {/* Search Bar */}
+            <h1 className="text-4xl font-extrabold tracking-tight mb-3">Help & Documentation</h1>
+            <p className="text-lg text-white/80 mb-8">Everything you need to master AI Production Planning</p>
+
+            {/* Search */}
             <div className="max-w-2xl mx-auto">
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-6 h-6" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60 w-6 h-6" />
                 <input
                   type="text"
                   placeholder="Search documentation, tutorials, and FAQs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-14 pr-4 py-4 text-lg text-gray-900 rounded-lg focus:ring-4 focus:ring-blue-300 focus:outline-none"
+                  className="w-full pl-14 pr-4 py-4 text-lg rounded-xl
+                       bg-white/10 text-white placeholder-white/60
+                       border border-white/20 hover:bg-white/15
+                       focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30
+                       transition-colors"
                 />
               </div>
             </div>
@@ -281,59 +425,50 @@ const Help = () => {
         </div>
       </div>
 
-      {/* Quick Links */}
+
+      {/* ===== Quick Links (glass) ===== */}
       <div className="max-w-7xl mx-auto px-4 -mt-8">
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <Zap className="w-6 h-6 text-blue-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Quick Start</h3>
-            <p className="text-sm text-gray-600">Get up and running in 5 minutes</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Video className="w-6 h-6 text-green-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Video Tutorials</h3>
-            <p className="text-sm text-gray-600">Learn with step-by-step videos</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <MessageCircle className="w-6 h-6 text-purple-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Contact Support</h3>
-            <p className="text-sm text-gray-600">Get help from our team</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer">
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-              <Download className="w-6 h-6 text-orange-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Downloads</h3>
-            <p className="text-sm text-gray-600">Templates and resources</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {quickStartData.map((q, i) => {
+            const Icon = q.icon;
+            return (
+              <div
+                key={i}
+                className="rounded-xl p-6 transition-all cursor-pointer
+                         bg-white/10 backdrop-blur-md border border-white/15
+                         hover:bg-white/15 hover:border-white/25 shadow-[0_10px_30px_-15px_rgba(2,6,23,0.25)]"
+              >
+                <div className={`w-12 h-12 rounded-lg grid place-items-center mb-4 bg-white/10 border ${q.tone}`}>
+                  <Icon className={`w-6 h-6 ${q.tone.split(" ")[0]}`} />
+                </div>
+                <h3 className="font-semibold text-white mb-1">{q.title}</h3>
+                <p className="text-sm text-white/70">{q.desc}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* ===== Main Content ===== */}
+      <div className="max-w-7xl mx-auto px-4 py-8 text-white">
         <div className="flex gap-6">
           {/* Sidebar */}
-          <div className="w-64 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Categories</h3>
+          <div className="w-72 flex-shrink-0">
+            <div className="rounded-xl p-4 bg-white/10 border border-white/15 backdrop-blur-md">
+              <h3 className="font-semibold text-white mb-3">Categories</h3>
               <nav className="space-y-1">
                 {categories.map((category) => {
                   const Icon = category.icon;
+                  const active = selectedCategory === category.id;
                   return (
                     <button
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        selectedCategory === category.id
-                          ? 'bg-blue-50 text-blue-700 font-medium'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                    ${active
+                          ? "bg-cyan-500/15 text-cyan-100 border border-cyan-400/30"
+                          : "text-white/80 hover:bg-white/10 border border-transparent"
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                       {category.name}
@@ -343,43 +478,41 @@ const Help = () => {
               </nav>
             </div>
 
-            {/* Support Box */}
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200 p-4 mt-4">
-              <h3 className="font-semibold text-gray-900 mb-2">Need Help?</h3>
-              <p className="text-sm text-gray-600 mb-3">Our support team is ready to assist you</p>
-              <button className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-2">
-                <MessageCircle className="w-4 h-4" />
-                Contact Support
+            {/* Support box */}
+            <div className="rounded-xl p-4 mt-4 bg-gradient-to-br from-cyan-500/15 to-indigo-500/15 border border-cyan-400/30 backdrop-blur">
+              <h3 className="font-semibold text-white mb-2">Need Help?</h3>
+              <p className="text-sm text-white/80 mb-3">Our support team is ready to assist you</p>
+              <button className="w-full px-3 py-2 rounded-lg text-sm font-medium
+                             bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-500">
+                <span className="inline-flex items-center gap-2 justify-center">
+                  <MessageCircle className="w-4 h-4" />
+                  Contact Support
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Content Area */}
+          {/* Content area */}
           <div className="flex-1">
-            {/* Tabs */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-              <div className="flex border-b border-gray-200">
-                {[
-                  { id: 'guide', name: 'User Guide', icon: BookOpen, count: filteredArticles.length },
-                  { id: 'videos', name: 'Video Tutorials', icon: Video, count: filteredVideos.length },
-                  { id: 'faq', name: 'FAQ', icon: HelpCircle, count: filteredFAQs.length },
-                  { id: 'support', name: 'Support', icon: MessageCircle, count: 0 },
-                ].map((tab) => {
+            {/* Tabs container */}
+            <div className="rounded-xl bg-white/10 border border-white/15 backdrop-blur-md mb-6">
+              {/* Tabs */}
+              <div className="flex border-b border-white/10">
+                {tabs.map((tab) => {
                   const Icon = tab.icon;
+                  const active = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id as 'guide' | 'videos' | 'faq' | 'support')}
-                      className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium border-b-2 transition-colors ${
-                        activeTab === tab.id
-                          ? 'border-blue-600 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium
+          border-b-2 transition-colors
+          ${active ? "border-cyan-400 text-cyan-200" : "border-transparent text-white/70 hover:text-white"}`}
                     >
                       <Icon className="w-5 h-5" />
                       {tab.name}
                       {tab.count > 0 && (
-                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-white/10 text-white/80">
                           {tab.count}
                         </span>
                       )}
@@ -388,73 +521,74 @@ const Help = () => {
                 })}
               </div>
 
+              {/* Tab body */}
               <div className="p-6">
-                {/* User Guide Tab */}
+                {/* User Guide */}
                 {activeTab === 'guide' && (
                   <div className="space-y-4">
                     {filteredArticles.length > 0 ? (
                       filteredArticles.map((article) => (
                         <div
                           key={article.id}
-                          className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow cursor-pointer"
+                          className="rounded-xl p-5 border border-white/15 bg-white/5 hover:bg-white/10 transition shadow-sm"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <FileText className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-semibold text-gray-900">{article.title}</h3>
+                                <FileText className="w-5 h-5 text-cyan-300" />
+                                <h3 className="text-lg font-semibold">{article.title}</h3>
                               </div>
-                              <p className="text-gray-600 mb-3">{article.summary}</p>
-                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <p className="text-white/80 mb-3">{article.summary}</p>
+                              <div className="flex items-center gap-4 text-sm text-white/70">
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-4 h-4" />
                                   {article.readTime} min read
                                 </span>
-                                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                                <span className="px-2 py-1 rounded text-xs font-medium border border-cyan-400/30 bg-cyan-500/10 text-cyan-100">
                                   {article.category}
                                 </span>
                                 <div className="flex gap-1">
-                                  {article.tags.map((tag, idx) => (
-                                    <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                                  {article.tags.map((tag: string, idx: number) => (
+                                    <span key={idx} className="px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white/70">
                                       {tag}
                                     </span>
                                   ))}
                                 </div>
                               </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 ml-4 flex-shrink-0" />
+                            <ChevronRight className="w-5 h-5 text-white/50 ml-4 flex-shrink-0" />
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-12 text-gray-500">
-                        <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <div className="text-center py-12 text-white/70">
+                        <FileText className="w-12 h-12 mx-auto mb-3 text-white/40" />
                         <p>No articles found matching your search</p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Video Tutorials Tab */}
+                {/* Videos */}
                 {activeTab === 'videos' && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredVideos.length > 0 ? (
                       filteredVideos.map((video) => (
                         <div
                           key={video.id}
-                          className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                          className="rounded-xl overflow-hidden border border-white/15 bg-white/5 hover:bg-white/10 transition"
                         >
-                          <div className="bg-gradient-to-br from-blue-100 to-purple-100 h-40 flex items-center justify-center text-6xl">
+                          <div className="h-40 grid place-items-center text-6xl bg-gradient-to-br from-cyan-500/10 to-indigo-500/10">
                             {video.thumbnail}
                           </div>
                           <div className="p-4">
                             <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-semibold text-gray-900 flex-1">{video.title}</h3>
-                              <Play className="w-5 h-5 text-blue-600 flex-shrink-0 ml-2" />
+                              <h3 className="font-semibold flex-1">{video.title}</h3>
+                              <Play className="w-5 h-5 text-cyan-300 flex-shrink-0 ml-2" />
                             </div>
-                            <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center justify-between text-sm text-white/70">
                               <span>{video.duration}</span>
-                              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                              <span className="px-2 py-1 rounded text-xs font-medium border border-violet-400/30 bg-violet-500/10 text-violet-100">
                                 {video.category}
                               </span>
                             </div>
@@ -462,167 +596,127 @@ const Help = () => {
                         </div>
                       ))
                     ) : (
-                      <div className="col-span-2 text-center py-12 text-gray-500">
-                        <Video className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <div className="col-span-2 text-center py-12 text-white/70">
+                        <Video className="w-12 h-12 mx-auto mb-3 text-white/40" />
                         <p>No videos found matching your search</p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* FAQ Tab */}
+                {/* FAQ */}
                 {activeTab === 'faq' && (
                   <div className="space-y-3">
                     {filteredFAQs.length > 0 ? (
                       filteredFAQs.map((faq) => (
-                        <div
-                          key={faq.id}
-                          className="border border-gray-200 rounded-lg overflow-hidden"
-                        >
+                        <div key={faq.id} className="rounded-xl overflow-hidden border border-white/15 bg-white/5">
                           <button
                             onClick={() => setExpandedFAQ(expandedFAQ === faq.id ? null : faq.id)}
-                            className="w-full flex items-start justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+                            className="w-full flex items-start justify-between p-4 hover:bg-white/10 transition text-left"
                           >
                             <div className="flex items-start gap-3 flex-1">
-                              <HelpCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                              <HelpCircle className="w-5 h-5 text-cyan-300 flex-shrink-0 mt-0.5" />
                               <div className="flex-1">
-                                <h3 className="font-semibold text-gray-900">{faq.question}</h3>
-                                <span className="text-xs text-gray-500 mt-1 inline-block">
-                                  {faq.category}
-                                </span>
+                                <h3 className="font-semibold">{faq.question}</h3>
+                                <span className="text-xs text-white/60 mt-1 inline-block">{faq.category}</span>
                               </div>
                             </div>
                             <ChevronRight
-                              className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-2 transition-transform ${
-                                expandedFAQ === faq.id ? 'rotate-90' : ''
-                              }`}
+                              className={`w-5 h-5 text-white/50 flex-shrink-0 ml-2 transition-transform ${expandedFAQ === faq.id ? "rotate-90" : ""}`}
                             />
                           </button>
                           {expandedFAQ === faq.id && (
-                            <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-200">
-                              <p className="text-gray-700 leading-relaxed">{faq.answer}</p>
+                            <div className="px-4 pb-4 pt-2 bg-white/5 border-t border-white/10">
+                              <p className="text-white/80 leading-relaxed">{faq.answer}</p>
                             </div>
                           )}
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-12 text-gray-500">
-                        <HelpCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <div className="text-center py-12 text-white/70">
+                        <HelpCircle className="w-12 h-12 mx-auto mb-3 text-white/40" />
                         <p>No FAQs found matching your search</p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Support Tab */}
+                {/* Support */}
                 {activeTab === 'support' && (
                   <div className="space-y-6">
                     <div className="text-center py-8">
-                      <MessageCircle className="w-16 h-16 mx-auto mb-4 text-blue-600" />
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">Get in Touch</h2>
-                      <p className="text-gray-600 mb-6">Our support team is here to help you succeed</p>
+                      <MessageCircle className="w-16 h-16 mx-auto mb-4 text-cyan-300" />
+                      <h2 className="text-2xl font-bold mb-2">Get in Touch</h2>
+                      <p className="text-white/80 mb-6">Our support team is here to help you succeed</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="border border-gray-200 rounded-lg p-6">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                          <MessageCircle className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Email Support</h3>
-                        <p className="text-sm text-gray-600 mb-4">Get help via email within 24 hours</p>
-                        <a
-                          href="mailto:support@claude.ai"
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                        >
-                          support@claude.ai
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-
-                      <div className="border border-gray-200 rounded-lg p-6">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                          <Users className="w-6 h-6 text-green-600" />
-                        </div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Community Forum</h3>
-                        <p className="text-sm text-gray-600 mb-4">Connect with other users</p>
-                        <a
-                          href="#"
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                        >
-                          Visit Forum
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-
-                      <div className="border border-gray-200 rounded-lg p-6">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                          <FileText className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <h3 className="font-semibold text-gray-900 mb-2">API Documentation</h3>
-                        <p className="text-sm text-gray-600 mb-4">Technical docs for developers</p>
-                        <a
-                          href="https://docs.claude.com"
-                          className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                        >
-                          docs.claude.com
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-
-                      <div className="border border-gray-200 rounded-lg p-6">
-                        <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                          <Download className="w-6 h-6 text-orange-600" />
-                        </div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Resources</h3>
-                        <p className="text-sm text-gray-600 mb-4">Templates and guides</p>
-                        <button className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
-                          Download All
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {cards.map((c, i) => {
+                        const Icon = c.icon;
+                        return (
+                          <div key={i} className="rounded-xl p-6 border border-white/15 bg-white/5">
+                            <div className={`w-12 h-12 rounded-lg grid place-items-center mb-4 bg-white/10 border ${c.tone}`}>
+                              <Icon className={`w-6 h-6 ${c.tone.split(" ")[0]}`} />
+                            </div>
+                            <h3 className="font-semibold mb-2">{c.title}</h3>
+                            <p className="text-sm text-white/80 mb-4">{c.desc}</p>
+                            <a href={c.link} className="text-cyan-200 hover:text-cyan-100 text-sm font-medium inline-flex items-center gap-1">
+                              {c.linkText}
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    {/* Contact Form */}
-                    <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                      <h3 className="font-semibold text-gray-900 mb-4">Send us a message</h3>
+
+                    {/* Contact form */}
+                    <div className="rounded-xl p-6 border border-white/15 bg-white/5">
+                      <h3 className="font-semibold mb-4">Send us a message</h3>
                       <form className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                            <label className="block text-sm text-white/80 mb-1">Name</label>
                             <input
                               type="text"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 rounded-lg bg-white/10 text-white
+                                     border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
                               placeholder="Your name"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <label className="block text-sm text-white/80 mb-1">Email</label>
                             <input
                               type="email"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 rounded-lg bg-white/10 text-white
+                                     border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
                               placeholder="your.email@company.com"
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                          <label className="block text-sm text-white/80 mb-1">Subject</label>
                           <input
                             type="text"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 rounded-lg bg-white/10 text-white
+                                   border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
                             placeholder="How can we help?"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                          <label className="block text-sm text-white/80 mb-1">Message</label>
                           <textarea
                             rows={5}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 rounded-lg bg-white/10 text-white
+                                   border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
                             placeholder="Describe your issue or question..."
                           />
                         </div>
                         <button
                           type="submit"
-                          className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+                          className="w-full px-4 py-3 rounded-lg font-medium
+                                 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-500
+                                 inline-flex items-center justify-center gap-2"
                         >
                           Send Message
                           <ArrowRight className="w-5 h-5" />
@@ -637,14 +731,26 @@ const Help = () => {
         </div>
       </div>
 
-      {/* Getting Started Section */}
-      <div className="bg-gradient-to-br from-blue-600 to-purple-600 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">Quick Start Guide</h2>
-            <p className="text-blue-100">Get your production planning system up and running in 5 simple steps</p>
-          </div>
+      {/* ===== Getting Started ===== */}
+      <div className="relative isolate text-white py-12">
+        {/* deep ocean base */}
+        <div className="absolute inset-0 -z-30 bg-gradient-to-br from-[#03151c] via-[#0b2733] to-[#010b11]" />
+        {/* teal/azure radial glows */}
+        <div className="absolute inset-0 -z-20 pointer-events-none
+                  bg-[radial-gradient(1000px_520px_at_65%_35%,rgba(0,229,255,.16),transparent_60%),radial-gradient(780px_460px_at_25%_70%,rgba(20,184,166,.16),transparent_60%)]" />
+        {/* HUD grid */}
+        <div
+          className="absolute inset-0 -z-10 opacity-[0.10] mix-blend-screen pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(0,243,255,.20) 1px, transparent 1px), linear-gradient(90deg, rgba(0,243,255,.20) 1px, transparent 1px)",
+            backgroundSize: "46px 46px",
+          }}
+        />
 
+        <div className="relative max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-3">Quick Start Guide</h2>
+          <p className="text-lg text-white/80 mb-8">Get your production planning system up and running in 5 simple steps</p>
           <div className="grid grid-cols-5 gap-4">
             {[
               { step: 1, title: 'Setup Master Data', description: 'Configure products, machines, work centers', icon: Package },
@@ -676,50 +782,29 @@ const Help = () => {
         </div>
       </div>
 
-      {/* Resources Section */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Downloadable Resources</h2>
-        <div className="grid grid-cols-3 gap-6">
-          {[
-            {
-              title: 'CSV Import Templates',
-              description: 'Pre-formatted templates for all master data',
-              icon: FileText,
-              color: 'blue',
-              items: ['Products', 'BOMs', 'Routings', 'Machines', 'Personnel']
-            },
-            {
-              title: 'User Guides (PDF)',
-              description: 'Comprehensive documentation for all features',
-              icon: BookOpen,
-              color: 'green',
-              items: ['Planning Guide', 'Master Data Guide', 'Admin Guide', 'API Reference']
-            },
-            {
-              title: 'Best Practices',
-              description: 'Industry-proven optimization strategies',
-              icon: Check,
-              color: 'purple',
-              items: ['Setup Checklist', 'Optimization Tips', 'Common Pitfalls', 'Case Studies']
-            },
-          ].map((resource) => {
-            const Icon = resource.icon;
+      {/* ===== Resources (no dynamic class) ===== */}
+      <div className="max-w-7xl mx-auto px-4 py-12 text-white">
+        <h2 className="text-2xl font-bold mb-6">Downloadable Resources</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {resources.map((r) => {
+            const Icon = r.icon;
+            const tone = resourceTone(r.title);
             return (
-              <div key={resource.title} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-                <div className={`w-12 h-12 bg-${resource.color}-100 rounded-lg flex items-center justify-center mb-4`}>
-                  <Icon className={`w-6 h-6 text-${resource.color}-600`} />
+              <div key={r.title} className="rounded-xl p-6 border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                <div className={`w-12 h-12 rounded-lg grid place-items-center mb-4 bg-white/10 border ${tone.box}`}>
+                  <Icon className={`w-6 h-6 ${tone.icon}`} />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{resource.title}</h3>
-                <p className="text-sm text-gray-600 mb-4">{resource.description}</p>
+                <h3 className="text-lg font-semibold mb-2">{r.title}</h3>
+                <p className="text-sm text-white/80 mb-4">{r.description}</p>
                 <ul className="space-y-2 mb-4">
-                  {resource.items.map((item, idx) => (
-                    <li key={idx} className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-4 h-4 text-green-500" />
+                  {r.items.map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2 text-sm text-white/80">
+                      <Check className="w-4 h-4 text-emerald-300" />
                       {item}
                     </li>
                   ))}
                 </ul>
-                <button className={`w-full px-4 py-2 bg-${resource.color}-600 text-white rounded-lg hover:bg-${resource.color}-700 flex items-center justify-center gap-2`}>
+                <button className={`w-full px-4 py-2 rounded-lg text-white inline-flex items-center justify-center gap-2 ${tone.btn}`}>
                   <Download className="w-4 h-4" />
                   Download All
                 </button>
@@ -729,11 +814,11 @@ const Help = () => {
         </div>
       </div>
 
-      {/* Popular Topics */}
-      <div className="bg-gray-100 py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Popular Topics</h2>
-          <div className="grid grid-cols-2 gap-4">
+      {/* ===== Popular Topics ===== */}
+      <div className="bg-white/5 backdrop-blur py-12">
+        <div className="max-w-7xl mx-auto px-4 text-white">
+          <h2 className="text-2xl font-bold mb-6">Popular Topics</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { title: 'How to optimize for on-time delivery', views: '1.2K', category: 'Planning' },
               { title: 'Setting up skill-based job assignments', views: '890', category: 'Personnel' },
@@ -744,34 +829,34 @@ const Help = () => {
             ].map((topic, idx) => (
               <div
                 key={idx}
-                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer flex items-center justify-between"
+                className="rounded-xl p-4 border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">
+                  <div className="w-8 h-8 rounded-full grid place-items-center font-bold text-sm border border-cyan-400/30 bg-cyan-500/10 text-cyan-200">
                     {idx + 1}
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">{topic.title}</h3>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <span className="px-2 py-0.5 bg-gray-100 rounded">{topic.category}</span>
+                    <h3 className="font-medium">{topic.title}</h3>
+                    <div className="flex items-center gap-2 text-xs text-white/70 mt-1">
+                      <span className="px-2 py-0.5 rounded border border-white/10 bg-white/5">{topic.category}</span>
                       <span>• {topic.views} views</span>
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 text-white/50" />
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Keyboard Shortcuts */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Keyboard Shortcuts</h2>
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="grid grid-cols-2 gap-6">
+      {/* ===== Keyboard Shortcuts ===== */}
+      <div className="max-w-7xl mx-auto px-4 py-12 text-white">
+        <h2 className="text-2xl font-bold mb-6">Keyboard Shortcuts</h2>
+        <div className="rounded-xl p-6 border border-white/15 bg-white/5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-4">General</h3>
+              <h3 className="font-semibold mb-4">General</h3>
               <div className="space-y-3">
                 {[
                   { keys: ['Ctrl', 'S'], action: 'Save current scenario' },
@@ -780,15 +865,15 @@ const Help = () => {
                   { keys: ['/', '?'], action: 'Open search' },
                 ].map((shortcut, idx) => (
                   <div key={idx} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">{shortcut.action}</span>
+                    <span className="text-sm text-white/80">{shortcut.action}</span>
                     <div className="flex gap-1">
                       {shortcut.keys.map((key, keyIdx) => (
                         <React.Fragment key={keyIdx}>
-                          <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
+                          <kbd className="px-2 py-1 rounded border border-white/15 bg-white/10 text-xs font-mono">
                             {key}
                           </kbd>
                           {keyIdx < shortcut.keys.length - 1 && (
-                            <span className="text-gray-400">+</span>
+                            <span className="text-white/50">+</span>
                           )}
                         </React.Fragment>
                       ))}
@@ -798,7 +883,7 @@ const Help = () => {
               </div>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-4">Planner Board</h3>
+              <h3 className="font-semibold mb-4">Planner Board</h3>
               <div className="space-y-3">
                 {[
                   { keys: ['Z'], action: 'Zoom in timeline' },
@@ -807,10 +892,10 @@ const Help = () => {
                   { keys: ['Del'], action: 'Delete selected job' },
                 ].map((shortcut, idx) => (
                   <div key={idx} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">{shortcut.action}</span>
+                    <span className="text-sm text-white/80">{shortcut.action}</span>
                     <div className="flex gap-1">
                       {shortcut.keys.map((key, keyIdx) => (
-                        <kbd key={keyIdx} className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
+                        <kbd key={keyIdx} className="px-2 py-1 rounded border border-white/15 bg-white/10 text-xs font-mono">
                           {key}
                         </kbd>
                       ))}
@@ -823,96 +908,76 @@ const Help = () => {
         </div>
       </div>
 
-      {/* System Requirements */}
-      <div className="bg-gray-100 py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">System Requirements</h2>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Browser Support</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Chrome 90+ (Recommended)
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Firefox 88+
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Safari 14+
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Edge 90+
-                </li>
-              </ul>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Recommended Specs</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  4GB RAM minimum
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  1920x1080 resolution
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Broadband internet
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  JavaScript enabled
-                </li>
-              </ul>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Security</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  SSL/TLS encryption
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  SSO/OIDC support
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Role-based access
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-green-500" />
-                  Audit logging
-                </li>
-              </ul>
-            </div>
+      {/* ===== System Requirements (glass) ===== */}
+      <div className="bg-white/5 backdrop-blur py-12">
+        <div className="max-w-7xl mx-auto px-4 text-white">
+          <h2 className="text-2xl font-bold mb-6">System Requirements</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                title: "Browser Support",
+                items: ["Chrome 90+ (Recommended)", "Firefox 88+", "Safari 14+", "Edge 90+"],
+              },
+              {
+                title: "Recommended Specs",
+                items: ["4GB RAM minimum", "1920x1080 resolution", "Broadband internet", "JavaScript enabled"],
+              },
+              {
+                title: "Security",
+                items: ["SSL/TLS encryption", "SSO/OIDC support", "Role-based access", "Audit logging"],
+              },
+            ].map((card, i) => (
+              <div key={i} className="rounded-xl p-6 border border-white/15 bg-white/5">
+                <h3 className="font-semibold mb-4">{card.title}</h3>
+                <ul className="space-y-2 text-sm text-white/80">
+                  {card.items.map((it) => (
+                    <li key={it} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      {it}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Footer CTA */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-12">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Still have questions?</h2>
-          <p className="text-xl text-blue-100 mb-8">Our support team is ready to help you succeed</p>
-          <div className="flex gap-4 justify-center">
-            <button className="px-6 py-3 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-medium inline-flex items-center gap-2">
+      {/* ===== Footer CTA ===== */}
+      <div className="relative isolate text-white py-12">
+        {/* deep ocean base */}
+        <div className="absolute inset-0 -z-30 bg-gradient-to-br from-[#03151c] via-[#0b2733] to-[#010b11]" />
+        {/* teal/azure radial glows */}
+        <div className="absolute inset-0 -z-20 pointer-events-none
+                  bg-[radial-gradient(1000px_520px_at_65%_35%,rgba(0,229,255,.16),transparent_60%),radial-gradient(780px_460px_at_25%_70%,rgba(20,184,166,.16),transparent_60%)]" />
+        {/* HUD grid */}
+        <div
+          className="absolute inset-0 -z-10 opacity-[0.10] mix-blend-screen pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(0,243,255,.20) 1px, transparent 1px), linear-gradient(90deg, rgba(0,243,255,.20) 1px, transparent 1px)",
+            backgroundSize: "46px 46px",
+          }}
+        />
+
+        <div className="relative max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-3">Still have questions?</h2>
+          <p className="text-lg text-white/80 mb-8">Our support team is ready to help you succeed</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button className="px-6 py-3 rounded-lg font-medium bg-white text-cyan-700 hover:bg-white/90 inline-flex items-center gap-2 justify-center">
               <MessageCircle className="w-5 h-5" />
               Contact Support
             </button>
-            <button className="px-6 py-3 bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium inline-flex items-center gap-2">
+            <button className="px-6 py-3 rounded-lg font-medium bg-white/10 border border-white/20 hover:bg-white/20 inline-flex items-center gap-2 justify-center">
               <Video className="w-5 h-5" />
               Schedule Demo
             </button>
           </div>
         </div>
       </div>
+
     </div>
+
   );
 };
 

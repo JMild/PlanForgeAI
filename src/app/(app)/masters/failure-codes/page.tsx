@@ -3,11 +3,12 @@
 import React, { useState, ChangeEvent, FC } from 'react';
 import {
   Plus, Search, Edit, Trash2, Eye, Download, Upload, AlertTriangle,
-  CheckCircle, X, Save, Wrench, Zap, Clock, Settings, Copy, FileText,
+  CheckCircle, Save, Wrench, Zap, Clock, Settings, Copy, FileText,
   Package, Table, LayoutGrid
 } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 import { ModalMode } from '@/src/types';
+import Modal from '@/src/components/shared/Modal';
 
 // --- TYPE DEFINITIONS ---
 
@@ -347,11 +348,11 @@ const FailureCodesMasterData: FC = () => {
 
   const getSeverityColor = (severity: FailureSeverity): string => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-700 border-red-300';
-      case 'High': return 'bg-orange-100 text-orange-700 border-orange-300';
-      case 'Medium': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'Low': return 'bg-green-100 text-green-700 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+      case 'Critical': return 'status-error';
+      case 'High': return 'status-warning';
+      case 'Medium': return 'status-yellow';
+      case 'Low': return 'status-success';
+      default: return 'status-inactive';
     }
   };
 
@@ -377,216 +378,304 @@ const FailureCodesMasterData: FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       {/* Header */}
       <PageHeader
         title={
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Failure Codes & Downtime Reasons</h1>
-                <p className="text-sm text-gray-500 mt-1">Manage failure codes for downtime tracking and analysis</p>
-              </div>
-              <div className="flex gap-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Upload size={18} />
-                  Import
-                </button>
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Download size={18} />
-                  Export
-                </button>
-                <button
-                  onClick={() => openModal('create')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  New Failure Code
-                </button>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Failure Codes & Downtime Reasons</h1>
+              <p className="text-sm text-white/60 mt-1">
+                Manage failure codes for downtime tracking and analysis
+              </p>
             </div>
-
+          </div>
+        }
+        actions={
+          <div className="flex gap-3">
+            <button className="btn btn-outline">
+              <Upload size={18} />
+              Import
+            </button>
+            <button className="btn btn-outline">
+              <Download size={18} />
+              Export
+            </button>
+            <button
+              onClick={() => openModal('create')}
+              className="btn btn-primary"
+            >
+              <Plus size={18} />
+              New Failure Code
+            </button>
+          </div>
+        }
+        tabs={
+          <>
             {/* Statistics */}
-            <div className="grid grid-cols-5 gap-4 mt-4">
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <div className="text-xs text-blue-600 font-medium mb-1">Total Codes</div>
-                <div className="text-2xl font-bold text-blue-900">{stats.totalCodes}</div>
+            <div className="grid grid-cols-5 gap-4">
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-xs text-sky-300 font-medium mb-1">Total Codes</div>
+                <div className="text-2xl font-bold text-white">{stats.totalCodes}</div>
               </div>
-              <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                <div className="text-xs text-green-600 font-medium mb-1">Active</div>
-                <div className="text-2xl font-bold text-green-900">{stats.activeCodes}</div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-xs text-emerald-300 font-medium mb-1">Active</div>
+                <div className="text-2xl font-bold text-white">{stats.activeCodes}</div>
               </div>
-              <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                <div className="text-xs text-purple-600 font-medium mb-1">Total Occurrences</div>
-                <div className="text-2xl font-bold text-purple-900">{stats.totalOccurrences.toLocaleString()}</div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-xs text-violet-300 font-medium mb-1">Total Occurrences</div>
+                <div className="text-2xl font-bold text-white">
+                  {stats.totalOccurrences.toLocaleString()}
+                </div>
               </div>
-              <div className="bg-red-50 p-3 rounded-lg border border-red-200">
-                <div className="text-xs text-red-600 font-medium mb-1">Total Downtime</div>
-                <div className="text-2xl font-bold text-red-900">{formatMinutes(stats.totalDowntime)}</div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-xs text-rose-300 font-medium mb-1">Total Downtime</div>
+                <div className="text-2xl font-bold text-white">{formatMinutes(stats.totalDowntime)}</div>
               </div>
-              <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
-                <div className="text-xs text-orange-600 font-medium mb-1">Avg Resolution</div>
-                <div className="text-2xl font-bold text-orange-900">{formatMinutes(stats.avgResolutionTime)}</div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-xs text-amber-300 font-medium mb-1">Avg Resolution</div>
+                <div className="text-2xl font-bold text-white">
+                  {formatMinutes(stats.avgResolutionTime)}
+                </div>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="flex gap-4 mt-4">
+            <div className="flex gap-4 mt-4 mb-1 mx-0.5">
               <div className="flex-1 relative">
-                <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Search
+                  size={18}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50"
+                />
                 <input
                   type="text"
                   placeholder="Search failure codes..."
                   value={searchTerm}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                 />
               </div>
               <select
                 value={filterCategory}
                 onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterCategory(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="glass-input"
               >
-                <option value="all">All Categories</option>
+                <option value="all" className="select option">All Categories</option>
                 {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat} className="select option">
+                    {cat}
+                  </option>
                 ))}
               </select>
               <select
                 value={filterSeverity}
                 onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterSeverity(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="glass-input"
               >
-                <option value="all">All Severity</option>
+                <option value="all" className="select option">All Severity</option>
                 {SEVERITIES.map(sev => (
-                  <option key={sev} value={sev}>{sev}</option>
+                  <option key={sev} value={sev} className="select option">
+                    {sev}
+                  </option>
                 ))}
               </select>
               <select
                 value={filterStatus}
                 onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="glass-input"
               >
-                <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="all" className="select option">All Status</option>
+                <option value="Active" className="select option">Active</option>
+                <option value="Inactive" className="select option">Inactive</option>
               </select>
-              <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+
+              <div className="flex border border-white/20 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`px-3 py-2 ${viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600'}`}
+                  className={`px-3 py-2 ${viewMode === 'grid'
+                    ? 'bg-sky-500/15 text-sky-300'
+                    : 'bg-white/5 text-white/70 hover:text-white'
+                    }`}
                   title="Grid View"
                 >
                   <LayoutGrid size={18} />
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`px-3 py-2 border-l border-gray-300 ${viewMode === 'table' ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600'}`}
+                  className={`px-3 py-2 border-l border-white/20 ${viewMode === 'table'
+                    ? 'bg-sky-500/15 text-sky-300'
+                    : 'bg-white/5 text-white/70 hover:text-white'
+                    }`}
                   title="Table View"
                 >
                   <Table size={18} />
                 </button>
               </div>
             </div>
-          </div>
-        } />
+          </>
+        }
+      />
 
       {/* Content */}
-      <div className="p-6">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {viewMode === 'grid' ? (
           // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCodes.map((code) => (
-              <div key={code.code} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 flex flex-col">
+              <div
+                key={code.code}
+                className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-shadow duration-200 flex flex-col"
+              >
                 <div className="p-5 flex-grow">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       {getCategoryIcon(code.category)}
                       <div>
-                        <h3 className="font-semibold text-gray-900">{code.name}</h3>
-                        <span className="text-xs text-gray-500">{code.code}</span>
+                        <h3 className="font-semibold text-white">{code.name}</h3>
+                        <span className="text-xs text-white/60">{code.code}</span>
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => openModal('view', code)} className="p-1 hover:bg-gray-100 rounded" title="View"><Eye size={14} className="text-gray-600" /></button>
-                      <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-gray-100 rounded" title="Edit"><Edit size={14} className="text-blue-600" /></button>
-                      <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-gray-100 rounded" title="Duplicate"><Copy size={14} className="text-green-600" /></button>
-                      <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-gray-100 rounded" title="Delete"><Trash2 size={14} className="text-red-600" /></button>
+                      <button onClick={() => openModal('view', code)} className="p-1 hover:bg-white/10 rounded" title="View">
+                        <Eye size={14} className="text-white/80" />
+                      </button>
+                      <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-white/10 rounded" title="Edit">
+                        <Edit size={14} className="text-sky-300" />
+                      </button>
+                      <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-white/10 rounded" title="Duplicate">
+                        <Copy size={14} className="text-emerald-300" />
+                      </button>
+                      <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-white/10 rounded" title="Delete">
+                        <Trash2 size={14} className="text-rose-300" />
+                      </button>
                     </div>
                   </div>
 
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2 mb-3">
-                    <span className={`text-xs px-2 py-1 rounded-full border font-medium ${getSeverityColor(code.severity)}`}>{code.severity}</span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">{code.category}</span>
-                    {code.requiresApproval && <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">Approval Required</span>}
-                    {code.affectsOEE && <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 font-medium">Affects OEE</span>}
+                    <span className={`chip ${getSeverityColor(code.severity)}`}>
+                      {code.severity}
+                    </span>
+                    <span className="chip bg-white/10 text-white font-medium border border-white/10">
+                      {code.category}
+                    </span>
+                    {code.requiresApproval && (
+                      <span className="chip bg-violet-500/15 text-violet-300 font-medium border border-violet-400/20">
+                        Approval Required
+                      </span>
+                    )}
+                    {code.affectsOEE && (
+                      <span className="chip bg-amber-500/15 text-amber-300 font-medium border border-amber-400/20">
+                        Affects OEE
+                      </span>
+                    )}
                   </div>
 
                   {/* Description */}
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">{code.description}</p>
+                  <p className="text-sm text-white/70 mb-3 line-clamp-2 h-10">{code.description}</p>
                 </div>
 
                 {/* Stats & Footer */}
-                <div className='p-5 pt-0'>
-                    <div className="grid grid-cols-3 gap-2 mb-3 pt-3 border-t border-gray-200">
+                <div className="p-5 pt-0">
+                  <div className="grid grid-cols-3 gap-2 mb-3 pt-3 border-t border-white/10">
                     <div className="text-center">
-                        <div className="text-lg font-bold text-gray-900">{code.occurrences}</div>
-                        <div className="text-xs text-gray-500">Occurrences</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-lg font-bold text-red-600">{formatMinutes(code.totalDowntime)}</div>
-                        <div className="text-xs text-gray-500">Downtime</div>
+                      <div className="text-lg font-bold text-white">{code.occurrences}</div>
+                      <div className="text-xs text-white/60">Occurrences</div>
                     </div>
                     <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">{formatMinutes(code.avgResolutionTime)}</div>
-                        <div className="text-xs text-gray-500">Avg Time</div>
+                      <div className="text-lg font-bold text-rose-300">{formatMinutes(code.totalDowntime)}</div>
+                      <div className="text-xs text-white/60">Downtime</div>
                     </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-sky-300">{formatMinutes(code.avgResolutionTime)}</div>
+                      <div className="text-xs text-white/60">Avg Time</div>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                        <span>Dept: <strong>{code.responsibleDept}</strong></span>
-                        {code.lastOccurrence && <span>Last: <strong>{new Date(code.lastOccurrence).toLocaleDateString()}</strong></span>}
-                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-white/60 mt-2">
+                    <span>
+                      Dept: <strong className="text-white">{code.responsibleDept}</strong>
+                    </span>
+                    {code.lastOccurrence && (
+                      <span>
+                        Last:{' '}
+                        <strong className="text-white">
+                          {new Date(code.lastOccurrence).toLocaleDateString()}
+                        </strong>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
           // Table View
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="rounded-lg border border-white/10 bg-white/5">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-white/5 border-b border-white/10">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Occurrences</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Downtime</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Resolution</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    {[
+                      'Code', 'Name', 'Category', 'Severity', 'Occurrences', 'Total Downtime', 'Avg Resolution', 'Department', 'Actions'
+                    ].map((h, i) => (
+                      <th
+                        key={i}
+                        className={`px-6 py-3 text-xs font-medium uppercase text-white/60 ${i >= 4 && i <= 6 ? 'text-right' : 'text-left'
+                          }`}
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-white/10">
                   {filteredCodes.map(code => (
-                    <tr key={code.code} className="hover:bg-gray-50">
-                      <td className="px-6 py-4"><div className="flex items-center gap-2"><span className="text-sm font-medium text-gray-900">{code.code}</span></div></td>
-                      <td className="px-6 py-4"><div className="text-sm text-gray-900">{code.name}</div></td>
-                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{code.category}</span></td>
-                      <td className="px-6 py-4"><span className={`inline-flex text-xs px-2 py-1 rounded-full border font-medium ${getSeverityColor(code.severity)}`}>{code.severity}</span></td>
-                      <td className="px-6 py-4 text-right"><span className="text-sm text-gray-900 font-medium">{code.occurrences}</span></td>
-                      <td className="px-6 py-4 text-right"><span className="text-sm text-red-600 font-medium">{formatMinutes(code.totalDowntime)}</span></td>
-                      <td className="px-6 py-4 text-right"><span className="text-sm text-blue-600 font-medium">{formatMinutes(code.avgResolutionTime)}</span></td>
-                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{code.responsibleDept}</span></td>
+                    <tr key={code.code} className="hover:bg-white/5">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-white">{code.code}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-white">{code.name}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-white/80">{code.category}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex chip font-medium ${getSeverityColor(code.severity)}`}>
+                          {code.severity}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-sm text-white font-medium">{code.occurrences}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-sm text-rose-300 font-medium">
+                          {formatMinutes(code.totalDowntime)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-sm text-sky-300 font-medium">
+                          {formatMinutes(code.avgResolutionTime)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-white/80">{code.responsibleDept}</span>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openModal('view', code)} className="p-1 hover:bg-gray-200 rounded" title="View"><Eye size={16} className="text-gray-600" /></button>
-                          <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-gray-200 rounded" title="Edit"><Edit size={16} className="text-blue-600" /></button>
-                          <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-gray-200 rounded" title="Duplicate"><Copy size={16} className="text-green-600" /></button>
-                          <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-gray-200 rounded" title="Delete"><Trash2 size={16} className="text-red-600" /></button>
+                          <button onClick={() => openModal('view', code)} className="p-1 hover:bg-white/10 rounded" title="View">
+                            <Eye size={16} className="text-white/80" />
+                          </button>
+                          <button onClick={() => openModal('edit', code)} className="p-1 hover:bg-white/10 rounded" title="Edit">
+                            <Edit size={16} className="text-sky-300" />
+                          </button>
+                          <button onClick={() => handleDuplicate(code)} className="p-1 hover:bg-white/10 rounded" title="Duplicate">
+                            <Copy size={16} className="text-emerald-300" />
+                          </button>
+                          <button onClick={() => handleDelete(code.code)} className="p-1 hover:bg-white/10 rounded" title="Delete">
+                            <Trash2 size={16} className="text-rose-300" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -598,105 +687,223 @@ const FailureCodesMasterData: FC = () => {
         )}
 
         {filteredCodes.length === 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 text-center py-12">
-            <AlertTriangle size={48} className="mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No failure codes found</h3>
-            <p className="text-gray-500 mb-4">Try adjusting your search or filters</p>
+          <div className="rounded-lg border border-white/10 bg-white/5 text-center py-12">
+            <AlertTriangle size={48} className="mx-auto text-white/40 mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">No failure codes found</h3>
+            <p className="text-white/60 mb-4">Try adjusting your search or filters</p>
           </div>
         )}
       </div>
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {modalMode === 'view' && 'Failure Code Details'}
-                {modalMode === 'edit' && 'Edit Failure Code'}
-                {modalMode === 'create' && 'Create New Failure Code'}
-              </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded-full">
-                <X size={20} />
+      <Modal
+        open={isModalOpen}
+        onClose={closeModal}
+        size="lg" 
+        title={
+          <span className="text-xl font-semibold text-white">
+            {modalMode === "view" && "Failure Code Details"}
+            {modalMode === "edit" && "Edit Failure Code"}
+            {modalMode === "create" && "Create New Failure Code"}
+          </span>
+        }
+        footer={
+          <>
+            <button
+              onClick={closeModal}
+              className="btn btn-outline"
+            >
+              Cancel
+            </button>
+            {modalMode !== "view" && (
+              <button onClick={handleSave} className="btn btn-primary">
+                <Save size={18} />
+                {modalMode === "create" ? "Create Code" : "Save Changes"}
               </button>
-            </div>
+            )}
+          </>
+        }
+      >
+        {/* Body */}
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">Failure Code *</label>
+            <input
+              type="text"
+              value={formData.code}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData({ ...formData, code: e.target.value })
+              }
+              disabled={modalMode === "view" || modalMode === "edit"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Failure Code *</label>
-                  <input type="text" value={formData.code} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, code: e.target.value })} disabled={modalMode === 'view' || modalMode === 'edit'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Failure Name *</label>
-                  <input type="text" value={formData.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select value={formData.category} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, category: e.target.value as FailureCategory })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" >
-                    {CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
-                  <select value={formData.severity} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, severity: e.target.value as FailureSeverity })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
-                    {SEVERITIES.map(sev => (<option key={sev} value={sev}>{sev}</option>))}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea value={formData.description} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })} disabled={modalMode === 'view'} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Default Action / SOP</label>
-                  <textarea value={formData.defaultAction} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, defaultAction: e.target.value })} disabled={modalMode === 'view'} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Avg. Resolution Time (minutes)</label>
-                  <input type="number" value={formData.avgResolutionTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, avgResolutionTime: Number(e.target.value) })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Responsible Department</label>
-                  <select value={formData.responsibleDept} onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, responsibleDept: e.target.value as Department })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
-                    {DEPARTMENTS.map(dept => (<option key={dept} value={dept}>{dept}</option>))}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Associated Machines (comma-separated)</label>
-                  <input type="text" value={formData.associatedMachines.join(', ')} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, associatedMachines: e.target.value.split(',').map(m => m.trim()).filter(Boolean) })} disabled={modalMode === 'view'} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" />
-                </div>
-                <div className='flex items-center'>
-                  <label className="flex items-center space-x-3">
-                    <input type="checkbox" checked={formData.requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, requiresApproval: e.target.checked })} disabled={modalMode === 'view'} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:bg-gray-200"/>
-                    <span className="text-sm font-medium text-gray-700">Requires Approval</span>
-                  </label>
-                </div>
-                <div className='flex items-center'>
-                  <label className="flex items-center space-x-3">
-                    <input type="checkbox" checked={formData.affectsOEE} onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, affectsOEE: e.target.checked })} disabled={modalMode === 'view'} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:bg-gray-200"/>
-                    <span className="text-sm font-medium text-gray-700">Affects OEE</span>
-                  </label>
-                </div>
-              </div>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">Failure Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-              <button onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-              {modalMode !== 'view' && (
-                <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                  <Save size={18} />
-                  {modalMode === 'create' ? 'Create Code' : 'Save Changes'}
-                </button>
-              )}
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">Category</label>
+            <select
+              value={formData.category}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setFormData({ ...formData, category: e.target.value as FailureCategory })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat} className="select option">
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">Severity</label>
+            <select
+              value={formData.severity}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setFormData({ ...formData, severity: e.target.value as FailureSeverity })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+            >
+              {SEVERITIES.map((sev) => (
+                <option key={sev} value={sev} className="select option">
+                  {sev}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-white/80 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              disabled={modalMode === "view"}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-white/80 mb-1">Default Action / SOP</label>
+            <textarea
+              value={formData.defaultAction}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setFormData({ ...formData, defaultAction: e.target.value })
+              }
+              disabled={modalMode === "view"}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">
+              Avg. Resolution Time (minutes)
+            </label>
+            <input
+              type="number"
+              value={formData.avgResolutionTime}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData({ ...formData, avgResolutionTime: Number(e.target.value) })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-1">Responsible Department</label>
+            <select
+              value={formData.responsibleDept}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setFormData({ ...formData, responsibleDept: e.target.value as Department })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+            >
+              {DEPARTMENTS.map((dept) => (
+                <option key={dept} value={dept} className="select option">
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-white/80 mb-1">
+              Associated Machines (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={formData.associatedMachines.join(", ")}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setFormData({
+                  ...formData,
+                  associatedMachines: e.target.value
+                    .split(",")
+                    .map((m) => m.trim())
+                    .filter(Boolean),
+                })
+              }
+              disabled={modalMode === "view"}
+              className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+            />
+          </div>
+
+          <div className="flex items-center">
+            <label className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                checked={formData.requiresApproval}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setFormData({ ...formData, requiresApproval: e.target.checked })
+                }
+                disabled={modalMode === "view"}
+                className="h-4 w-4 rounded border-white/20 text-sky-500 focus:ring-sky-500 disabled:bg-white/10"
+              />
+              <span className="text-sm font-medium text-white/80">Requires Approval</span>
+            </label>
+          </div>
+
+          <div className="flex items-center">
+            <label className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                checked={formData.affectsOEE}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setFormData({ ...formData, affectsOEE: e.target.checked })
+                }
+                disabled={modalMode === "view"}
+                className="h-4 w-4 rounded border-white/20 text-sky-500 focus:ring-sky-500 disabled:bg-white/10"
+              />
+              <span className="text-sm font-medium text-white/80">Affects OEE</span>
+            </label>
           </div>
         </div>
-      )}
+      </Modal>
+
     </div>
   );
 };
+
+
 
 export default FailureCodesMasterData;

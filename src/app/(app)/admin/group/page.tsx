@@ -1,25 +1,56 @@
-"use client"
+"use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
-  Plus, Search, Edit, Trash2, Eye, Download, Upload, Shield,
-  Save, X, CheckCircle, XCircle, Users, Lock, Copy,
-  AlertCircle, Settings, FileText, Calendar, Package, Wrench
-} from 'lucide-react';
-import PageHeader from '@/src/components/layout/PageHeader';
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Eye,
+  Download,
+  Upload,
+  Shield,
+  Save,
+  CheckCircle,
+  XCircle,
+  Users,
+  Lock,
+  AlertCircle,
+  Calendar,
+  LayoutDashboard,
+  FileText,
+  Settings,
+  BarChart3,
+  ClipboardList,
+  Package2,
+  Warehouse,
+  Wrench,
+  Database
+} from "lucide-react";
+import PageHeader from "@/src/components/layout/PageHeader";
+import Modal from "@/src/components/shared/Modal";
+import { getPermissionAll, getRoles } from "@/src/services/users";
+import toast from "react-hot-toast";
+import { ERROR_MESSAGES } from "@/src/config/messages";
+import Loading from "@/src/components/Loading";
+import EmptyState from "@/src/components/shared/EmptyState";
+import { DataTable } from "@/src/components/shared/table/Table";
 
-// Permission categories and definitions
-type Status = 'Active' | 'Inactive';
+/* =========================
+   Types
+========================= */
+type Status = "Active" | "Inactive";
 
 type Role = {
   id: string;
   name: string;
   description: string;
-  permissions: string[];
+  permissions: string[]; // permission_name
   userCount: number;
   isSystem: boolean;
   status: Status;
-  createdDate: string;
+  createdDate: string; // YYYY-MM-DD
 };
 
 type RoleFormData = {
@@ -30,240 +61,222 @@ type RoleFormData = {
   status: Status;
 };
 
-const PERMISSION_CATEGORIES = [
-  {
-    category: 'Orders',
-    icon: FileText,
-    permissions: [
-      { id: 'view_orders', name: 'View Orders', description: 'Can view order list and details' },
-      { id: 'create_orders', name: 'Create Orders', description: 'Can create new orders' },
-      { id: 'edit_orders', name: 'Edit Orders', description: 'Can modify existing orders' },
-      { id: 'delete_orders', name: 'Delete Orders', description: 'Can delete orders' },
-      { id: 'import_orders', name: 'Import Orders', description: 'Can import orders from CSV/Excel' },
-    ]
-  },
-  {
-    category: 'Planning',
-    icon: Calendar,
-    permissions: [
-      { id: 'view_plan', name: 'View Plan', description: 'Can view production plans' },
-      { id: 'create_plan', name: 'Create Plan', description: 'Can create production plans' },
-      { id: 'edit_plan', name: 'Edit Plan', description: 'Can modify production plans' },
-      { id: 'delete_plan', name: 'Delete Plan', description: 'Can delete production plans' },
-      { id: 'approve_plan', name: 'Approve Plan', description: 'Can approve/reject production plans' },
-      { id: 'run_ai_planner', name: 'Run AI Planner', description: 'Can execute AI planning engine' },
-    ]
-  },
-  {
-    category: 'Production',
-    icon: Settings,
-    permissions: [
-      { id: 'view_production', name: 'View Production', description: 'Can view production status' },
-      { id: 'update_production', name: 'Update Production', description: 'Can update job status and progress' },
-      { id: 'start_job', name: 'Start Job', description: 'Can start production jobs' },
-      { id: 'complete_job', name: 'Complete Job', description: 'Can mark jobs as complete' },
-      { id: 'report_downtime', name: 'Report Downtime', description: 'Can report machine downtime' },
-    ]
-  },
-  {
-    category: 'Master Data',
-    icon: Package,
-    permissions: [
-      { id: 'view_masters', name: 'View Master Data', description: 'Can view all master data' },
-      { id: 'edit_products', name: 'Edit Products', description: 'Can modify product master' },
-      { id: 'edit_routing', name: 'Edit Routing', description: 'Can modify routing/process plans' },
-      { id: 'edit_machines', name: 'Edit Machines', description: 'Can modify machine master' },
-      { id: 'edit_materials', name: 'Edit Materials', description: 'Can modify material master' },
-      { id: 'edit_shifts', name: 'Edit Shifts/Calendars', description: 'Can modify shift schedules' },
-      { id: 'edit_skills', name: 'Edit Skills Matrix', description: 'Can modify skills matrix' },
-    ]
-  },
-  {
-    category: 'Maintenance',
-    icon: Wrench,
-    permissions: [
-      { id: 'view_maintenance', name: 'View Maintenance', description: 'Can view maintenance schedules' },
-      { id: 'edit_maintenance', name: 'Edit Maintenance', description: 'Can create/modify maintenance plans' },
-      { id: 'view_downtime', name: 'View Downtime', description: 'Can view downtime history' },
-    ]
-  },
-  {
-    category: 'Reports',
-    icon: FileText,
-    permissions: [
-      { id: 'view_reports', name: 'View Reports', description: 'Can view all reports' },
-      { id: 'export_reports', name: 'Export Reports', description: 'Can export reports to CSV/PDF' },
-      { id: 'create_custom_reports', name: 'Create Custom Reports', description: 'Can create custom report templates' },
-    ]
-  },
-  {
-    category: 'Administration',
-    icon: Shield,
-    permissions: [
-      { id: 'manage_users', name: 'Manage Users', description: 'Can create/edit/delete users' },
-      { id: 'manage_roles', name: 'Manage Roles', description: 'Can create/edit/delete roles' },
-      { id: 'view_audit_log', name: 'View Audit Log', description: 'Can view system audit logs' },
-      { id: 'system_settings', name: 'System Settings', description: 'Can modify system settings' },
-      { id: 'integration_config', name: 'Integration Config', description: 'Can configure EMS/ERP integrations' },
-    ]
-  },
-];
+export type FlatPermission = {
+  module_icon: string;
+  module_id: string;
+  module_name: string;
+  permission_description?: string;
+  permission_id: string;
+  permission_name: string;
+  screen_code?: string;
+  screen_id?: string;
+  screen_name?: string;
+};
 
-// Initial roles data
+// โครงสร้างข้อมูลใหม่สำหรับจัดกลุ่มตามหน้าจอ
+type ScreenCatalog = {
+  screenId: string; // screen_code หรือ fallback
+  screenName: string;
+  screenCode?: string;
+  permissions: Array<{
+    id: string;          // permission_name
+    name: string;
+    description?: string;
+  }>;
+};
+
+// แค็ตตาล็อกต่อ "โมดูล" ที่อัปเดตแล้ว
+type ModuleCatalog = {
+  moduleId: string;
+  moduleName: string;
+  iconKey?: string;
+  iconComp: LucideIcon;
+  screens: ScreenCatalog[]; // เปลี่ยนจาก permissions มาเป็น screens
+  totalPermissions: number; // เพิ่ม field เพื่อนับจำนวน permission ทั้งหมดใน module
+};
+
+
+/* =========================
+   Utilities
+========================= */
+const ICON_MAP: Record<string, LucideIcon> = {
+  Users, LayoutDashboard, Calendar, FileText, Settings, BarChart3,
+  ClipboardList, Package2, Warehouse, Wrench, Database,
+};
+
+function resolveIcon(iconKey?: string): LucideIcon {
+  if (!iconKey) return Shield;
+  const key = iconKey as keyof typeof ICON_MAP;
+  return ICON_MAP[key] || Shield;
+}
+
+// **[MODIFIED]** แปลง flat list -> แค็ตตาล็อกที่จัดกลุ่มตาม Module และ Screen
+function buildCatalogByScreen(list: FlatPermission[]): ModuleCatalog[] {
+    const byModule = new Map<string, {
+        module: Omit<ModuleCatalog, 'screens' | 'totalPermissions'>,
+        screens: Map<string, ScreenCatalog>
+    }>();
+
+    for (const row of list || []) {
+        const moduleKey = row.module_id || row.module_name || "unknown_module";
+        if (!byModule.has(moduleKey)) {
+            byModule.set(moduleKey, {
+                module: {
+                    moduleId: row.module_id || moduleKey,
+                    moduleName: row.module_name || moduleKey,
+                    iconKey: row.module_icon,
+                    iconComp: resolveIcon(row.module_icon),
+                },
+                screens: new Map<string, ScreenCatalog>(),
+            });
+        }
+
+        const moduleBucket = byModule.get(moduleKey)!;
+
+        // ใช้ screen_code เป็น key หลัก ถ้าไม่มีให้ใช้ screen_name หรือค่า default
+        const screenKey = row.screen_code || row.screen_name || "__general__";
+        const screenName = row.screen_name || (screenKey === "__general__" ? "General Permissions" : screenKey);
+        
+        if (!moduleBucket.screens.has(screenKey)) {
+            moduleBucket.screens.set(screenKey, {
+                screenId: screenKey,
+                screenName: screenName,
+                screenCode: row.screen_code,
+                permissions: [],
+            });
+        }
+        
+        const screenBucket = moduleBucket.screens.get(screenKey)!;
+        screenBucket.permissions.push({
+            id: row.permission_name,
+            name: row.permission_name,
+            description: row.permission_description,
+        });
+    }
+
+    // แปลง Map กลับเป็น Array และคำนวณ totalPermissions
+    return Array.from(byModule.values()).map(entry => {
+        const screens = Array.from(entry.screens.values());
+        const totalPermissions = screens.reduce((sum, screen) => sum + screen.permissions.length, 0);
+        return {
+            ...entry.module,
+            screens: screens,
+            totalPermissions: totalPermissions,
+        };
+    });
+}
+
+// **[MODIFIED]** group permissions (ของ role) ตามโครงสร้างใหม่เพื่อใช้ใน View
+function groupPermissionsByScreen(catalog: ModuleCatalog[], permissionIds: string[]) {
+    return catalog.map(m => ({
+        ...m,
+        screens: m.screens
+            .map(s => ({
+                ...s,
+                permissions: s.permissions.filter(p => permissionIds.includes(p.id))
+            }))
+            .filter(s => s.permissions.length > 0) // เอาเฉพาะ screen ที่มี permission ที่ถูกเลือก
+    }))
+    .filter(m => m.screens.length > 0); // เอาเฉพาะ module ที่มี screen ที่ถูกเลือก
+}
+
+function hasFullAccess(rolePerms: string[], list?: FlatPermission[]) {
+  if (rolePerms.includes("all")) return true;
+  return (list || []).some((r) => r.permission_name === "all");
+}
+
+/* =========================
+   Demo seed
+========================= */
 const INITIAL_ROLES: Role[] = [
   {
-    id: 'ROLE001',
-    name: 'Administrator',
-    description: 'Full system access with all permissions',
-    permissions: ['all'],
-    userCount: 1,
-    isSystem: true,
-    status: 'Active',
-    createdDate: '2024-01-01',
+    id: "ROLE001", name: "Administrator", description: "Full system access with all permissions",
+    permissions: ["all"], userCount: 1, isSystem: true, status: "Active", createdDate: "2024-01-01",
   },
   {
-    id: 'ROLE002',
-    name: 'Production Planner',
-    description: 'Create and manage production schedules',
-    permissions: [
-      'view_orders', 'create_orders', 'edit_orders',
-      'view_plan', 'create_plan', 'edit_plan', 'run_ai_planner',
-      'view_production', 'view_masters', 'view_reports', 'export_reports'
-    ],
-    userCount: 2,
-    isSystem: false,
-    status: 'Active',
-    createdDate: '2024-01-15',
-  },
-  {
-    id: 'ROLE003',
-    name: 'Supervisor',
-    description: 'Monitor and approve production activities',
-    permissions: [
-      'view_orders', 'view_plan', 'approve_plan',
-      'view_production', 'update_production', 'start_job', 'complete_job',
-      'view_masters', 'view_reports', 'export_reports'
-    ],
-    userCount: 3,
-    isSystem: false,
-    status: 'Active',
-    createdDate: '2024-02-01',
-  },
-  {
-    id: 'ROLE004',
-    name: 'Machine Operator',
-    description: 'Execute production tasks and update status',
-    permissions: [
-      'view_production', 'update_production', 'start_job', 'complete_job',
-      'report_downtime', 'view_orders'
-    ],
-    userCount: 5,
-    isSystem: false,
-    status: 'Active',
-    createdDate: '2024-02-15',
-  },
-  {
-    id: 'ROLE005',
-    name: 'Maintenance Engineer',
-    description: 'Manage equipment maintenance and repairs',
-    permissions: [
-      'view_machines', 'view_maintenance', 'edit_maintenance',
-      'view_downtime', 'report_downtime', 'view_production'
-    ],
-    userCount: 2,
-    isSystem: false,
-    status: 'Active',
-    createdDate: '2024-03-01',
-  },
-  {
-    id: 'ROLE006',
-    name: 'Report Viewer',
-    description: 'Read-only access to reports and dashboards',
-    permissions: [
-      'view_reports', 'view_orders', 'view_plan', 'view_production', 'view_masters'
-    ],
-    userCount: 4,
-    isSystem: false,
-    status: 'Active',
-    createdDate: '2024-03-15',
+    id: "ROLE002", name: "Production Planner", description: "Create and manage production schedules",
+    permissions: ["manage_user", "view_dashboard"], userCount: 2, isSystem: false, status: "Active", createdDate: "2024-01-15",
   },
 ];
 
-const RoleManagement = () => {
+/* =========================
+   Component
+========================= */
+const RoleManagement: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>(INITIAL_ROLES);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | Status>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
-  const [modalMode, setModalMode] = useState<'edit' | 'view' | null>(null);
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [modalMode, setModalMode] = useState<"edit" | "view" | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const [formData, setFormData] = useState<RoleFormData>({
-    id: '',
-    name: '',
-    description: '',
-    permissions: [],
-    status: 'Active',
+  const [flatPermissions, setFlatPermissions] = useState<FlatPermission[]>([]);
+  const [moduleCatalog, setModuleCatalog] = useState<ModuleCatalog[]>([]);
+  const [activeModuleId, setActiveModuleId] = useState<string>("");
+
+  const [formData, setFormData] = useState<RoleFormData>({ id: "", name: "", description: "", permissions: [], status: "Active" });
+
+  /* ===== Helpers ===== */
+  const stats = useMemo(() => ({
+    total: roles.length,
+    active: roles.filter((r) => r.status === "Active").length,
+    system: roles.filter((r) => r.isSystem).length,
+    users: roles.reduce((sum, r) => sum + r.userCount, 0),
+  }), [roles]);
+
+  const filteredRoles = roles.filter((r) => {
+    const q = searchTerm.trim().toLowerCase();
+    const matchSearch = !q || r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
+    const matchStatus = filterStatus === "all" || r.status === filterStatus;
+    return matchSearch && matchStatus;
   });
 
-  const getStatusColor = (status: string): string => {
-    const colors: Record<string, string> = {
-      Active: 'bg-green-100 text-green-700',
-      Inactive: 'bg-gray-100 text-gray-700',
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // const res = await getRoles();
+        const resPermissionAll = (await getPermissionAll()) as unknown as FlatPermission[];
+        setFlatPermissions(resPermissionAll);
+        
+        // **[MODIFIED]** ใช้ฟังก์ชันใหม่
+        const catalog = buildCatalogByScreen(resPermissionAll);
+        setModuleCatalog(catalog);
+        
+        if (catalog.length > 0) {
+            setActiveModuleId(catalog[0].moduleId);
+        }
+
+        // setRoles(res);
+      } catch (error) {
+        console.error("Fetch data failed:", error);
+        toast.error(ERROR_MESSAGES.fetchFailed);
+      } finally {
+        setLoading(false);
+      }
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
-  };
+    fetchData();
+  }, []);
 
-  // const getAllPermissionIds = () => {
-  //   return PERMISSION_CATEGORIES.flatMap(cat => cat.permissions.map(p => p.id));
-  // };
-
-  // const getPermissionName = (permId: string) => {
-  //   for (const cat of PERMISSION_CATEGORIES) {
-  //     const perm = cat.permissions.find(p => p.id === permId);
-  //     if (perm) return perm.name;
-  //   }
-  //   return permId;
-  // };
-
-  const filteredRoles = roles.filter(role => {
-    const matchesSearch = role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      role.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || role.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
-
+  /* ===== Actions ===== */
   const openCreateModal = () => {
-    setFormData({
-      id: `ROLE${String(roles.length + 1).padStart(3, '0')}`,
-      name: '',
-      description: '',
-      permissions: [],
-      status: 'Active',
-    });
+    setFormData({ id: `ROLE${String(roles.length + 1).padStart(3, "0")}`, name: "", description: "", permissions: [], status: "Active" });
     setEditingRole(null);
-    setModalMode('edit');
+    setModalMode("edit");
     setIsModalOpen(true);
-    setExpandedCategories({});
   };
 
   const openEditModal = (role: Role) => {
-    setFormData({
-      id: role.id,
-      name: role.name,
-      description: role.description,
-      permissions: [...role.permissions],
-      status: role.status,
-    });
+    setFormData({ id: role.id, name: role.name, description: role.description, permissions: [...role.permissions], status: role.status });
     setEditingRole(role);
-    setModalMode('edit');
+    setModalMode("edit");
     setIsModalOpen(true);
-    setExpandedCategories({});
   };
 
   const openViewModal = (role: Role) => {
     setEditingRole(role);
-    setModalMode('view');
+    setModalMode("view");
     setIsModalOpen(true);
   };
 
@@ -271,630 +284,342 @@ const RoleManagement = () => {
     setIsModalOpen(false);
     setEditingRole(null);
     setModalMode(null);
-    setExpandedCategories({});
   };
 
   const handleSaveRole = () => {
     if (!formData.name || !formData.description) {
-      alert('Please fill in name and description');
+      alert("Please fill in name and description");
+      return;
+    }
+    if (formData.permissions.length === 0 && !formData.permissions.includes("all")) {
+      alert("Please select at least one permission");
       return;
     }
 
-    if (formData.permissions.length === 0 && !formData.permissions.includes('all')) {
-      alert('Please select at least one permission');
-      return;
-    }
-
-    const newRole = {
-      ...formData,
+    const newRole: Role = {
+      id: formData.id, name: formData.name, description: formData.description,
+      permissions: [...formData.permissions],
       userCount: editingRole?.userCount || 0,
       isSystem: editingRole?.isSystem || false,
-      createdDate: editingRole?.createdDate || new Date().toISOString().split('T')[0],
-      status: formData.status as 'Active' | 'Inactive',
+      status: formData.status,
+      createdDate: editingRole?.createdDate || new Date().toISOString().split("T")[0],
     };
 
-    if (editingRole) {
-      setRoles(roles.map(r => r.id === editingRole.id ? newRole : r));
-    } else {
-      setRoles([...roles, newRole]);
-    }
+    if (editingRole) setRoles(roles.map((r) => (r.id === editingRole.id ? newRole : r)));
+    else setRoles([...roles, newRole]);
     closeModal();
   };
 
-  const handleDeleteRole = (id: string) => {
-    const role = roles.find(r => r.id === id);
+  const handleDeleteRole = (id: Role["id"]) => {
+    const role = roles.find((r) => r.id === id);
     if (!role) return;
-
     if (role.isSystem) {
-      alert('System roles cannot be deleted');
+      alert("System roles cannot be deleted");
       return;
     }
     if (role.userCount > 0) {
       alert(`Cannot delete role: ${role.userCount} user(s) are assigned to this role`);
       return;
     }
-    if (confirm(`Are you sure you want to delete role "${role.name}"?`)) {
-      setRoles(roles.filter(r => r.id !== id));
-    }
+    if (confirm(`Delete role "${role.name}"?`)) setRoles(roles.filter((r) => r.id !== id));
   };
 
-  const handleCopyRole = (role: Role) => {
-    const newId = `ROLE${String(roles.length + 1).padStart(3, '0')}`;
-    const copiedRole: Role = {
-      ...role,
-      id: newId,
-      name: `${role.name} (Copy)`,
-      userCount: 0,
-      isSystem: false,
-      createdDate: new Date().toISOString().split('T')[0],
-      status: role.status as 'Active' | 'Inactive',
-    };
-    setRoles([...roles, copiedRole]);
-  };
-  const togglePermission = (permId: string) => {
-    if (formData.permissions.includes('all')) {
-      // If "all" is selected, deselect it and select this specific permission
-      setFormData(prev => ({
-        ...prev,
-        permissions: [permId]
-      }));
-    } else if (permId === 'all') {
-      // Select all permissions
-      setFormData(prev => ({
-        ...prev,
-        permissions: ['all']
-      }));
-    } else {
-      // Toggle individual permission
-      setFormData(prev => ({
-        ...prev,
-        permissions: prev.permissions.includes(permId)
-          ? prev.permissions.filter(p => p !== permId)
-          : [...prev.permissions, permId]
-      }));
-    }
-  };
+  const roleColumns = [
+    {
+      key: "role", label: "Role",
+      render: (role: Role) => (
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="font-medium flex items-center gap-2">
+              {role.name}
+              {role.isSystem && (
+                <span className="text-xs px-2 py-0.5 rounded border status-info inline-flex items-center gap-1">
+                  <Lock size={12} /> System
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-white/60">{role.id}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: "description", label: "Description", render: (role: Role) => <span className="text-sm text-white/80">{role.description}</span> },
+    {
+      key: "users", label: "Users",
+      render: (role: Role) => (
+        <div className="inline-flex items-center gap-1 text-white/80">
+          <Users size={14} /> {role.userCount}
+        </div>
+      ),
+    },
+    {
+      key: "status", label: "Status",
+      render: (role: Role) => (
+        <span className={`inline-flex items-center gap-1 chip ${role.status === "Active" ? "status-success" : "status-inactive"}`}>
+          {role.status === "Active" ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-white/60" />}
+          {role.status}
+        </span>
+      ),
+    },
+    {
+      key: "actions", label: "Actions", align: "center",
+      render: (role: Role) => (
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={() => openViewModal(role)} className="p-1 hover:bg-white/10 rounded" title="View Details"><Eye size={16} className="text-white/70" /></button>
+          <button onClick={() => openEditModal(role)} className={`p-1 hover:bg-white/10 rounded ${role.isSystem ? "opacity-40 cursor-not-allowed" : ""}`} title="Edit Role" disabled={role.isSystem}>
+            <Edit size={16} className={`${role.isSystem ? "text-white/50" : "text-sky-300"}`} />
+          </button>
+          <button onClick={() => handleDeleteRole(role.id)} className={`p-1 hover:bg-white/10 rounded ${role.isSystem || role.userCount > 0 ? "opacity-40 cursor-not-allowed" : ""}`} title="Delete Role" disabled={role.isSystem || role.userCount > 0}>
+            <Trash2 size={16} className={`${role.isSystem || role.userCount > 0 ? "text-white/50" : "text-rose-300"}`} />
+          </button>
+        </div>
+      ),
+    },
+  ] as const;
 
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
-
-  const selectAllInCategory = (category: string) => {
-    const cat = PERMISSION_CATEGORIES.find(c => c.category === category);
-    if (!cat) return;
-
-    const categoryPermIds = cat.permissions.map(p => p.id);
-    const allSelected = categoryPermIds.every(id => formData.permissions.includes(id));
-
-    if (allSelected) {
-      // Deselect all in category
-      setFormData(prev => ({
-        ...prev,
-        permissions: prev.permissions.filter(p => !categoryPermIds.includes(p))
-      }));
-    } else {
-      // Select all in category
-      setFormData(prev => ({
-        ...prev,
-        permissions: [...new Set([...prev.permissions.filter(p => p !== 'all'), ...categoryPermIds])]
-      }));
-    }
-  };
-
-  const getPermissionCount = (permissions: string | string[]) => {
-    if (permissions.includes('all')) return 'All';
-    return permissions.length;
-  };
-
+  /* =========================
+     Render
+  ========================= */
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+    <div className="text-white">
       <PageHeader
         title={
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Role & Permissions Management</h1>
-                <p className="text-sm text-gray-500 mt-1">Define roles and access control permissions</p>
-              </div>
-              <div className="flex gap-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Upload size={18} />
-                  Import
-                </button>
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                  <Download size={18} />
-                  Export
-                </button>
-                <button
-                  onClick={openCreateModal}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus size={18} />
-                  New Role
-                </button>
-              </div>
+          <div>
+            <h1 className="text-2xl font-bold">Role &amp; Permissions Management</h1>
+            <p className="text-sm text-white/70 mt-1">Define roles and access control permissions</p>
+          </div>
+        }
+        actions={
+          <div className="flex gap-3">
+            <button className="btn btn-outline"><Upload size={18} /> Import</button>
+            <button className="btn btn-outline"><Download size={18} /> Export</button>
+            <button onClick={openCreateModal} className="btn btn-primary"><Plus size={18} /> New Role</button>
+          </div>
+        }
+        tabs={
+          <>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="glass-card glass-card-default-padding"><div className="flex items-center justify-between"><div><p className="text-sm text-white/70">Total Roles</p><p className="text-2xl font-bold">{roles.length}</p></div><Shield size={32} className="text-sky-300" /></div></div>
+              <div className="glass-card glass-card-default-padding"><div className="flex items-center justify-between"><div><p className="text-sm text-white/70">Active</p><p className="text-2xl font-bold text-emerald-300">{stats.active}</p></div><CheckCircle size={32} className="text-emerald-300" /></div></div>
+              <div className="glass-card glass-card-default-padding"><div className="flex items-center justify-between"><div><p className="text-sm text-white/70">System Roles</p><p className="text-2xl font-bold text-sky-300">{stats.system}</p></div><Lock size={32} className="text-sky-300" /></div></div>
+              <div className="glass-card glass-card-default-padding"><div className="flex items-center justify-between"><div><p className="text-sm text-white/70">Total Users</p><p className="text-2xl font-bold">{stats.users}</p></div><Users size={32} className="text-white/60" /></div></div>
             </div>
-
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-4  mt-4">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Total Roles</p>
-                    <p className="text-2xl font-bold text-gray-900">{roles.length}</p>
-                  </div>
-                  <Shield size={32} className="text-blue-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Active Roles</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {roles.filter(r => r.status === 'Active').length}
-                    </p>
-                  </div>
-                  <CheckCircle size={32} className="text-green-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">System Roles</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {roles.filter(r => r.isSystem).length}
-                    </p>
-                  </div>
-                  <Lock size={32} className="text-blue-600" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">Total Users</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {roles.reduce((sum, r) => sum + r.userCount, 0)}
-                    </p>
-                  </div>
-                  <Users size={32} className="text-gray-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="flex gap-4 mt-4">
+            <div className="flex gap-4 mt-4 mb-1 mx-0.5">
               <div className="flex-1 relative">
-                <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search roles..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60" />
+                <input type="text" placeholder="Search roles..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full !pl-10 pr-4" />
               </div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as "all" | Status)} className="glass-input">
+                {["all", "Active", "Inactive"].map((v) => <option key={v} value={v} className="select option">{v === "all" ? "All Status" : v}</option>)}
               </select>
             </div>
-          </div>
+          </>
         }
       />
 
-      {/* Roles List */}
-      <div className="p-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          {filteredRoles.length === 0 ? (
-            <div className="text-center py-12">
-              <Shield size={48} className="mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No roles found</h3>
-              <p className="text-gray-500 mb-4">Create your first role to get started</p>
-              <button
-                onClick={openCreateModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Create Role
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {loading ? ( <Loading text="Loading permissions..." /> ) : (
+          <DataTable
+            columns={roleColumns}
+            data={filteredRoles}
+            rowKey={(r) => r.id}
+            emptyMessage={
+              <EmptyState
+                icon={<Shield size={48} className="mx-auto text-white/40 mb-4" />}
+                title="No roles found" message="Create your first role to get started"
+                buttonLabel="Create Role" onButtonClick={openCreateModal}
+              />
+            }
+          />
+        )}
+      </div>
+
+      <Modal
+        open={isModalOpen} onClose={closeModal} size="3xl"
+        title={modalMode === "view" ? "Role Details" : editingRole ? "Edit Role" : "Create New Role"}
+        footer={
+          modalMode === "view" ? (
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">Close</button>
+              <button onClick={() => setModalMode("edit")} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed" disabled={editingRole?.isSystem}>
+                <Edit className="w-4 h-4" /> Edit Role
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {filteredRoles.map(role => (
-                <div key={role.id} className="p-6 hover:bg-gray-50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                          <Shield size={24} className="text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{role.name}</h3>
-                            {role.isSystem && (
-                              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
-                                <Lock size={12} />
-                                System
-                              </span>
-                            )}
-                            <span className={`text-xs px-2 py-1 rounded ${getStatusColor(role.status)}`}>
-                              {role.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-500 mt-1">{role.description}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6 text-sm text-gray-600 mt-3 ml-16">
-                        <div className="flex items-center gap-1">
-                          <Users size={14} />
-                          <span>{role.userCount} user{role.userCount !== 1 ? 's' : ''}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <CheckCircle size={14} />
-                          <span>{getPermissionCount(role.permissions)} permission{role.permissions.length !== 1 ? 's' : ''}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar size={14} />
-                          <span>Created {new Date(role.createdDate).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openViewModal(role)}
-                        className="p-2 hover:bg-gray-200 rounded"
-                        title="View Details"
-                      >
-                        <Eye size={18} className="text-gray-600" />
-                      </button>
-                      <button
-                        onClick={() => handleCopyRole(role)}
-                        className="p-2 hover:bg-gray-200 rounded"
-                        title="Copy Role"
-                      >
-                        <Copy size={18} className="text-gray-600" />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(role)}
-                        className="p-2 hover:bg-gray-200 rounded"
-                        title="Edit Role"
-                        disabled={role.isSystem}
-                      >
-                        <Edit size={18} className={role.isSystem ? 'text-gray-400' : 'text-blue-600'} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRole(role.id)}
-                        className="p-2 hover:bg-gray-200 rounded"
-                        title="Delete Role"
-                        disabled={role.isSystem || role.userCount > 0}
-                      >
-                        <Trash2 size={18} className={
-                          role.isSystem || role.userCount > 0 ? 'text-gray-400' : 'text-red-600'
-                        } />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">Cancel</button>
+              <button onClick={handleSaveRole} className="btn btn-primary"><Save className="w-4 h-4" /> Save Role</button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {modalMode === 'view' ? 'Role Details' : editingRole ? 'Edit Role' : 'Create New Role'}
-              </h2>
-              <button onClick={closeModal} className="p-1 hover:bg-gray-100 rounded">
-                <X size={20} />
-              </button>
+          )
+        }
+      >
+        {modalMode === "view" && editingRole ? (
+          /* ===== View Body ===== */
+          <div className="space-y-6 text-white">
+            <div className="flex items-center gap-4">
+              <div>
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  {editingRole.name}
+                  {editingRole.isSystem && <span className="text-xs px-2 py-0.5 rounded border status-info inline-flex items-center gap-1"><Lock size={12} /> System</span>}
+                </h3>
+                <p className="text-white/70">{editingRole.description}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              <div><div className="text-sm text-white/80">Role ID</div><div className="mt-1">{editingRole.id}</div></div>
+              <div><div className="text-sm text-white/80">Status</div><div className={`mt-1 inline-flex items-center gap-2 chip ${editingRole.status === "Active" ? "status-success" : "status-inactive"}`}>{editingRole.status === "Active" ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-white/60" />} {editingRole.status}</div></div>
+              <div><div className="text-sm text-white/80">Users Assigned</div><div className="mt-1">{editingRole.userCount}</div></div>
+              <div><div className="text-sm text-white/80">Created</div><div className="mt-1">{new Date(editingRole.createdDate).toLocaleDateString()}</div></div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              {modalMode === 'view' && editingRole ? (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Shield size={32} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-900">{editingRole.name}</h3>
-                      <p className="text-gray-500">{editingRole.description}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Role ID</label>
-                      <p className="mt-1 text-gray-900">{editingRole.id}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Status</label>
-                      <p className="mt-1">
-                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor(editingRole.status)}`}>
-                          {editingRole.status}
-                        </span>
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Users Assigned</label>
-                      <p className="mt-1 text-gray-900">{editingRole.userCount}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Created</label>
-                      <p className="mt-1 text-gray-900">
-                        {new Date(editingRole.createdDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-3 block">Permissions</label>
-                    {editingRole.permissions.includes('all') ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-blue-900">
-                          <CheckCircle size={20} className="text-blue-600" />
-                          <span className="font-medium">Full System Access</span>
-                        </div>
-                        <p className="text-sm text-blue-800 mt-2">
-                          This role has complete access to all system features and functions.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {PERMISSION_CATEGORIES.map(cat => {
-                          const rolePerms = cat.permissions.filter(p =>
-                            editingRole.permissions.includes(p.id)
-                          );
-
-                          if (rolePerms.length === 0) return null;
-
-                          const CategoryIcon = cat.icon;
-
-                          return (
-                            <div key={cat.category} className="border border-gray-200 rounded-lg p-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <CategoryIcon size={18} className="text-blue-600" />
-                                <h4 className="font-semibold text-gray-900">{cat.category}</h4>
-                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                  {rolePerms.length}/{cat.permissions.length}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                {rolePerms.map(perm => (
-                                  <div key={perm.id} className="flex items-center gap-2 text-sm">
-                                    <CheckCircle size={14} className="text-green-600" />
-                                    <span className="text-gray-700">{perm.name}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+            {/* **[MODIFIED]** Permissions grouped by Module and Screen */}
+            <div>
+              <div className="text-sm font-medium text-white/80 mb-3">Permissions</div>
+              {hasFullAccess(editingRole.permissions, flatPermissions) ? (
+                <div className="rounded-lg p-4 bg-sky-500/10 border border-sky-400/30">
+                  <div className="flex items-center gap-2 text-sky-200"><CheckCircle size={18} className="text-sky-300" /> <span className="font-medium">Full System Access</span></div>
+                  <p className="text-sm text-sky-100/80 mt-2">This role has complete access to all system features and functions.</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Basic Info */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium text-gray-700 block mb-2">Role Name *</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g., Production Planner"
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium text-gray-700 block mb-2">Description *</label>
-                      <textarea
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Brief description of this role..."
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData,  status: e.target.value as 'Active' | 'Inactive' })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Permissions */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Permissions *</h3>
-                      <button
-                        type="button"
-                        onClick={() => togglePermission('all')}
-                        className={`px-3 py-1 text-sm rounded ${formData.permissions.includes('all')
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {formData.permissions.includes('all') ? 'Deselect All' : 'Grant Full Access'}
-                      </button>
-                    </div>
-
-                    {formData.permissions.includes('all') ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-blue-900">
-                          <CheckCircle size={20} className="text-blue-600" />
-                          <span className="font-medium">Full System Access Granted</span>
-                        </div>
-                        <p className="text-sm text-blue-800 mt-2">
-                          This role will have complete access to all system features and functions.
-                        </p>
+                <div className="space-y-4">
+                  {groupPermissionsByScreen(moduleCatalog, editingRole.permissions).map((mod) => (
+                    <div key={mod.moduleId} className="border border-white/10 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <mod.iconComp size={18} className="text-sky-300" />
+                        <h4 className="font-semibold">{mod.moduleName}</h4>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {PERMISSION_CATEGORIES.map(cat => {
-                          const CategoryIcon = cat.icon;
-                          const isExpanded = expandedCategories[cat.category];
-                          const selectedInCategory = cat.permissions.filter(p =>
-                            formData.permissions.includes(p.id)
-                          ).length;
-                          const allSelected = selectedInCategory === cat.permissions.length;
-
-                          return (
-                            <div key={cat.category} className="border-2 border-gray-200 rounded-lg">
-                              <div
-                                className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100"
-                                onClick={() => toggleCategory(cat.category)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <CategoryIcon size={20} className="text-blue-600" />
-                                  <div>
-                                    <h4 className="font-semibold text-gray-900">{cat.category}</h4>
-                                    <p className="text-xs text-gray-500">
-                                      {selectedInCategory}/{cat.permissions.length} selected
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      selectAllInCategory(cat.category);
-                                    }}
-                                    className={`text-xs px-2 py-1 rounded ${allSelected
-                                      ? 'bg-blue-100 text-blue-700'
-                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                      }`}
-                                  >
-                                    {allSelected ? 'Deselect All' : 'Select All'}
-                                  </button>
-                                  {isExpanded ? (
-                                    <XCircle size={20} className="text-gray-400" />
-                                  ) : (
-                                    <CheckCircle size={20} className="text-gray-400" />
-                                  )}
-                                </div>
-                              </div>
-
-                              {isExpanded && (
-                                <div className="p-3 space-y-2 bg-white">
-                                  {cat.permissions.map(perm => (
-                                    <label
-                                      key={perm.id}
-                                      className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={formData.permissions.includes(perm.id)}
-                                        onChange={() => togglePermission(perm.id)}
-                                        className="mt-1"
-                                      />
-                                      <div className="flex-1">
-                                        <div className="font-medium text-sm text-gray-900">{perm.name}</div>
-                                        <div className="text-xs text-gray-500">{perm.description}</div>
-                                      </div>
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Summary */}
-                  {!formData.permissions.includes('all') && formData.permissions.length > 0 && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-green-800">
-                          <div className="font-medium mb-1">
-                            {formData.permissions.length} Permission{formData.permissions.length !== 1 ? 's' : ''} Selected
-                          </div>
-                          <div className="text-xs">
-                            Click on categories above to expand and manage individual permissions
-                          </div>
-                        </div>
+                      <div className="space-y-3 pl-2 border-l-2 border-white/10">
+                        {mod.screens.map((screen) => (
+                           <div key={screen.screenId} className="pl-4">
+                             <h5 className="font-medium text-white/90 text-sm mb-2">{screen.screenName} {screen.screenCode && <span className="text-xs text-white/50">({screen.screenCode})</span>}</h5>
+                             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                               {screen.permissions.map((perm) => (
+                                 <div key={perm.id} className="flex items-center gap-2 text-sm">
+                                   <CheckCircle size={14} className="text-emerald-300 flex-shrink-0" />
+                                   <span className="text-white/90">{perm.name}</span>
+                                 </div>
+                               ))}
+                             </div>
+                           </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-
-                  {/* Warning */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-yellow-800">
-                        <div className="font-medium mb-1">Permission Guidelines</div>
-                        <ul className="list-disc list-inside space-y-1 text-xs">
-                          <li>Grant only the permissions necessary for the role</li>
-                          <li>Review permissions regularly to ensure they&#39;re still appropriate</li>
-                          <li>Full access should only be granted to administrators</li>
-                          <li>Changes to permissions affect all users with this role</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              {modalMode === 'view' ? (
-                <button
-                  onClick={() => setModalMode('edit')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  disabled={editingRole?.isSystem}
-                >
-                  <Edit size={18} />
-                  Edit Role
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveRole}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Save size={18} />
-                  Save Role
-                </button>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          /* ===== Edit/Create Body ===== */
+          <div className="space-y-6 text-white">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2"><label className="block text-sm font-medium text-white/80 mb-1">Role Name *</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="glass-input w-full" placeholder="e.g., Production Planner" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium text-white/80 mb-1">Description *</label><textarea rows={2} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="glass-input w-full" placeholder="Brief description of this role..." /></div>
+              <div><label className="block text-sm font-medium text-white/80 mb-1">Status</label><select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as Status })} className="glass-input w-full"><option className="select option" value="Active">Active</option><option className="select option" value="Inactive">Inactive</option></select></div>
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold">Permissions *</h3>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, permissions: prev.permissions.includes("all") ? [] : ["all"] }))} className={`px-3 py-1 text-sm rounded ${formData.permissions.includes("all") ? "bg-sky-600 text-white" : "bg-white/10 text-white border border-white/20 hover:bg-white/20"}`}>
+                {formData.permissions.includes("all") ? "Deselect All" : "Grant Full Access"}
+              </button>
+            </div>
+
+            {/* **[MODIFIED]** Tabs and Panels grouped by Screen */}
+            {!formData.permissions.includes("all") && (
+              <div className="flex gap-6">
+                {/* Tab headers (Side) */}
+                <div className="flex flex-col gap-1 w-1/4">
+                  {moduleCatalog.map((mod) => {
+                    const isActive = activeModuleId === mod.moduleId;
+                    const selectedCount = mod.screens.flatMap(s => s.permissions).filter(p => formData.permissions.includes(p.id)).length;
+                    return (
+                      <button key={mod.moduleId} onClick={() => setActiveModuleId(mod.moduleId)} className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded text-left ${isActive ? "bg-sky-600/30" : "hover:bg-white/10"}`}>
+                        <div className="flex items-center gap-2">
+                          <mod.iconComp size={16} className={`${isActive ? 'text-sky-300' : 'text-white/70'}`} />
+                          <span className={`text-sm ${isActive ? 'font-semibold' : ''}`}>{mod.moduleName}</span>
+                        </div>
+                        {selectedCount > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/50 text-white">{selectedCount}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tab panel (Main) */}
+                <div className="flex-1 space-y-4">
+                  {moduleCatalog.filter(m => m.moduleId === activeModuleId).map((mod) => (
+                    <div key={`panel-${mod.moduleId}`} className="border border-white/10 rounded-lg p-4">
+                        <div className="flex items-center gap-3 mb-4">
+                          <mod.iconComp size={22} className="text-sky-300" />
+                          <div>
+                            <h4 className="font-semibold text-lg">{mod.moduleName}</h4>
+                            <p className="text-xs text-white/60">Select permissions for this module</p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                        {mod.screens.map(screen => {
+                            const allInScreen = screen.permissions.map(p => p.id);
+                            const selectedInScreen = allInScreen.filter(id => formData.permissions.includes(id));
+                            const allSelected = allInScreen.length > 0 && selectedInScreen.length === allInScreen.length;
+
+                            return (
+                                <div key={screen.screenId} className="border border-white/10 rounded-md">
+                                    <div className="flex items-center justify-between p-2.5 bg-white/5">
+                                        <h5 className="font-semibold text-sm">{screen.screenName} {screen.screenCode && <span className="text-xs text-white/50">({screen.screenCode})</span>}</h5>
+                                        <button type="button" onClick={() => {
+                                            if (allSelected) {
+                                                setFormData(prev => ({ ...prev, permissions: prev.permissions.filter(p => !allInScreen.includes(p))}));
+                                            } else {
+                                                setFormData(prev => ({ ...prev, permissions: [...new Set([...prev.permissions, ...allInScreen])]}));
+                                            }
+                                        }} className={`text-xs px-2 py-1 rounded ${allSelected ? "bg-sky-500/15 text-sky-300 border border-sky-300/20" : "bg-white/10 text-white border border-white/20 hover:bg-white/20"}`}>
+                                            {allSelected ? "Deselect All" : "Select All"}
+                                        </button>
+                                    </div>
+                                    <div className="p-3 space-y-2">
+                                    {screen.permissions.map(perm => (
+                                        <label key={perm.id} className="flex items-start gap-3 p-2 hover:bg-white/5 rounded cursor-pointer">
+                                        <input type="checkbox" checked={formData.permissions.includes(perm.id)} onChange={() => {
+                                            setFormData(prev => ({
+                                            ...prev,
+                                            permissions: prev.permissions.includes(perm.id)
+                                                ? prev.permissions.filter(p => p !== perm.id)
+                                                : [...prev.permissions, perm.id],
+                                            }));
+                                        }} className="mt-1 accent-sky-500 w-4 h-4 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-sm">{perm.name}</div>
+                                            {perm.description && <div className="text-xs text-white/60">{perm.description}</div>}
+                                        </div>
+                                        </label>
+                                    ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="bg-amber-500/10 border border-amber-300/20 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={18} className="text-amber-300 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-100">
+                  <div className="font-medium mb-1">Permission Guidelines</div>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>Grant only the permissions necessary for the role</li>
+                    <li>Review permissions regularly to ensure they’re still appropriate</li>
+                    <li>Full access should only be granted to administrators</li>
+                    <li>Changes to permissions affect all users with this role</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
