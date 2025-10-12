@@ -13,6 +13,7 @@ import {
 
 import { getDashboard } from "@/src/lib/api";
 import PageHeader from "@/src/components/layout/PageHeader";
+import { useRouter } from "next/navigation";
 
 /* ===== Types ===== */
 interface Kpis {
@@ -56,12 +57,76 @@ interface Alert {
 }
 
 /* ===== Colors (Recharts/tooltip) ===== */
+
+/* ===== Tooltip Styles ===== */
+const TOOLTIP_STYLE: React.CSSProperties = {
+  background: "rgba(2, 6, 23, 0.78)",          // deep glass
+  border: "1px solid rgba(34, 211, 238, 0.35)", // cyan border
+  color: "#fff",
+  borderRadius: 10,
+  padding: "8px 10px",
+  boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+  backdropFilter: "blur(6px)",
+};
+
+const TOOLTIP_LABEL_STYLE: React.CSSProperties = {
+  color: "rgba(255,255,255,0.9)",
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+/* ===== Order Status color map ===== */
+const ORDER_STATUS_COLORS: Record<string, string> = {
+  "Unplanned": "#22d3ee",  // cyan
+  "Planned": "#14b8a6",  // teal
+  "In Progress": "#0ea5e9", // sky
+  "Completed": "#f59e0b",  // amber
+  "Late": "#ef4444",  // rose
+};
+
+/* ใช้กับทั้ง Line/Pie */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+
+  const p0 = payload[0];
+  const isPie = !!p0?.payload?.name;
+  const name = isPie ? p0.payload.name : "utilization";
+  const value = p0.value;
+
+  const color = isPie
+    ? ORDER_STATUS_COLORS[name] || "#22d3ee"
+    : (p0.color || "#22d3ee");
+
+  const style = {
+    ...TOOLTIP_STYLE,
+    border: `1px solid ${color}66`, // ไล่โทนตาม slice (40% alpha)
+  } as React.CSSProperties;
+
+  const percent = isPie && p0.payload?.percent != null
+    ? ` (${Math.round(p0.payload.percent * 100)}%)`
+    : "";
+
+  return (
+    <div style={style}>
+      {label && !isPie && <div style={TOOLTIP_LABEL_STYLE}>{label}</div>}
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded" style={{ background: color }} />
+        <span className="text-white/90">{name}</span>
+        <span className="ml-2 font-semibold text-white">
+          {isPie ? `${value}${percent}` : `${value}%`}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const COLORS = {
-  primary: "#22d3ee", 
-  success: "#10b981", 
-  warning: "#f59e0b", 
-  danger: "#ef4444", 
-  info: "#0ea5e9", 
+  primary: "#22d3ee",
+  success: "#10b981",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  info: "#0ea5e9",
   axis: "rgba(255,255,255,0.75)",
   grid: "rgba(255,255,255,0.12)",
   dot: "rgba(34,211,238,0.9)",
@@ -69,7 +134,6 @@ const COLORS = {
   tooltipBd: "rgba(34,211,238,0.35)",
   tooltipTx: "#ffffff",
 };
-const PIE_COLORS = ["#22d3ee", "#14b8a6", "#0ea5e9", "#f59e0b", "#ef4444"];
 
 /* ===== Small UI helpers ===== */
 const trendPill = (trend: number) => {
@@ -121,8 +185,25 @@ const LoadingSkeleton = () => (
 
 /* ===== Main Component ===== */
 const ProductionDashboard = () => {
+  const router = useRouter();
   // const [timeRange, setTimeRange] = useState("week");
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  const handleClickPlanner = () => {
+    router.push('/planning');
+  };
+  const handleClickOrder = () => {
+    router.push('/orders');
+  };
+  const handleClickMaintenance = () => {
+    router.push('/maintenance');
+  };
+  const handleClickWorkCenters = () => {
+    router.push('/masters/work-centers');
+  };
+  const handleClickMachines = () => {
+    router.push('/masters/machines');
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -200,7 +281,7 @@ const ProductionDashboard = () => {
               <option className="select option" value="month">This Month</option>
             </select> */}
 
-            <button type="button" className="btn btn-primary whitespace-nowrap">
+            <button type="button" className="btn btn-primary whitespace-nowrap" onClick={handleClickPlanner}>
               <Zap size={18} />
               Go to Planner
             </button>
@@ -278,8 +359,9 @@ const ProductionDashboard = () => {
                 <XAxis dataKey="date" stroke={COLORS.axis} tick={{ fontSize: 12 }} />
                 <YAxis stroke={COLORS.axis} tick={{ fontSize: 12 }} />
                 <Tooltip
-                  contentStyle={{ background: COLORS.tooltipBg, border: `1px solid ${COLORS.tooltipBd}`, color: COLORS.tooltipTx }}
-                  labelStyle={{ color: COLORS.tooltipTx }}
+                  content={<CustomTooltip />}
+                  wrapperStyle={{ transition: 'none' }}
+                  cursor={{ stroke: "rgba(34,211,238,0.25)", strokeWidth: 1 }}
                 />
                 <Line
                   type="monotone"
@@ -296,19 +378,21 @@ const ProductionDashboard = () => {
           {/* Order Status */}
           <div className="glass-card glass-card-default-padding">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Order Status</h2>
-              <PieChart size={20} className="text-white/80" />
+              <h2 className="flex items-center text-lg font-semibold text-white space-x-2">
+                <PieChart size={20} className="text-white/80" />
+                <span>Order Status</span>
+              </h2>
             </div>
             <ResponsiveContainer width="100%" height={250}>
               <RePieChart>
                 <Pie data={orderStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value">
-                  {orderStatusData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  {orderStatusData.map((s, i) => (
+                    <Cell key={i} fill={ORDER_STATUS_COLORS[s.name]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: COLORS.tooltipBg, border: `1px solid ${COLORS.tooltipBd}`, color: COLORS.tooltipTx }}
-                  labelStyle={{ color: COLORS.tooltipTx }}
+                  content={<CustomTooltip />}
+                  wrapperStyle={{ transition: 'none' }}
                 />
               </RePieChart>
             </ResponsiveContainer>
@@ -318,7 +402,7 @@ const ProductionDashboard = () => {
                 return (
                   <div key={idx} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded" style={{ backgroundColor: PIE_COLORS[idx] }} />
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: ORDER_STATUS_COLORS[item.name] }} />
                       <span className="text-white/80">{item.name}</span>
                     </div>
                     <span className="font-semibold text-white">
@@ -328,6 +412,7 @@ const ProductionDashboard = () => {
                 );
               })}
             </div>
+
           </div>
         </div>
 
@@ -350,6 +435,13 @@ const ProductionDashboard = () => {
                   <div className="w-3 h-3 rounded-full bg-rose-500" />
                   <span className="text-white/75">Down</span>
                 </div>
+              <button
+                type="button"
+                className="btn btn-outline whitespace-nowrap !py-1"
+                onClick={handleClickMachines}
+              >
+                View All
+              </button>
               </div>
             </div>
 
@@ -389,16 +481,27 @@ const ProductionDashboard = () => {
                       <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${machine.utilization}%` }} />
                     </div>
                   </div>
-                </div>
+                </div>              
               ))}
+
             </div>
           </div>
 
           {/* Work Centers */}
-          <div className="glass-card glass-card-default-padding">
+          <div className="glass-card glass-card-default-padding">         
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Work Centers</h2>
-              <BarChart3 size={20} className="text-white/80" />
+              <h2 className="flex items-center text-lg font-semibold text-white space-x-2">
+                <BarChart3 size={20} className="text-white/80" />
+                <span>Work Centers</span>
+              </h2>
+
+              <button
+                type="button"
+                className="btn btn-outline whitespace-nowrap !py-1"
+                onClick={handleClickWorkCenters}
+              >
+                View All
+              </button>
             </div>
             <div className="space-y-4">
               {dashboardData.workCenterUtilization.map((wc) => (
@@ -428,8 +531,18 @@ const ProductionDashboard = () => {
           {/* Critical Orders */}
           <div className="glass-card glass-card-default-padding">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Critical Orders</h2>
-              <Calendar size={20} className="text-white/80" />
+              <h2 className="flex items-center text-lg font-semibold text-white space-x-2">
+                <Calendar size={20} className="text-white/80" />
+                <span>Critical Orders</span>
+              </h2>
+
+              <button
+                type="button"
+                className="btn btn-outline whitespace-nowrap !py-1"
+                onClick={handleClickOrder}
+              >
+                View All
+              </button>
             </div>
             <div className="space-y-3">
               {dashboardData.criticalOrders.map((order) => (
@@ -458,10 +571,20 @@ const ProductionDashboard = () => {
           </div>
 
           {/* Upcoming Maintenance */}
-          <div className="glass-card glass-card-default-padding">
+          <div className="glass-card glass-card-default-padding">           
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Maintenance</h2>
-              <Wrench size={20} className="text-white/80" />
+              <h2 className="flex items-center text-lg font-semibold text-white space-x-2">
+                <Wrench size={20} className="text-white/80" />
+                <span>Maintenance</span>
+              </h2>
+
+              <button
+                type="button"
+                className="btn btn-outline whitespace-nowrap !py-1"
+                onClick={handleClickMaintenance}
+              >
+                View All
+              </button>
             </div>
             <div className="space-y-3">
               {dashboardData.upcomingMaintenance.map((pm, idx) => (

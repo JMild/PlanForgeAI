@@ -12,7 +12,6 @@ import {
   XCircle,
   Wand2,
   BookOpen,
-  Save,
   Edit3,
   Trash2,
 } from "lucide-react";
@@ -224,6 +223,37 @@ function flatten(obj: unknown, prefix = ""): Record<string, unknown> {
 
 const getResourcesFor = (type: ProviderType) => RESOURCES[type] ?? {};
 
+// === New helper: build URL from $BASE and config base ===
+const buildUrl = (u: string, base: string) => {
+  if (!u) return "";
+  if (u.startsWith("$BASE")) return u.replace("$BASE", base.replace(/\/+$/, ""));
+  if (u.startsWith("/")) return base.replace(/\/+$/, "") + u;
+  return u;
+};
+
+// === New helper: auth headers from config ===
+const getAuthHeadersFromConfig = (cfg: IntegrationConfig) => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (cfg.apiKey) headers["Authorization"] = `Bearer ${String(cfg.apiKey)}`;
+  if (cfg.apiToken) headers["Authorization"] = `Bearer ${String(cfg.apiToken)}`;
+  if (cfg.username && cfg.password) {
+    const token = typeof window !== "undefined" ? btoa(`${cfg.username}:${cfg.password}`) : "";
+    headers["Authorization"] = `Basic ${token}`;
+  }
+  return headers;
+};
+
+// === New helper: sample value by "a.b.c" path ===
+const getByPath = (obj: unknown, path: string): unknown => {
+  try {
+    return String(path)
+      .split(".")
+      .reduce((acc: any, key) => (acc == null ? acc : acc[key]), obj as any);
+  } catch {
+    return undefined;
+  }
+};
+
 /* ======================== Docs Panel ======================== */
 
 function DocsPanel({
@@ -254,7 +284,6 @@ function DocsPanel({
       </div>
       <p className="text-white/80 text-sm mb-3">{provider.docs.overview}</p>
 
-      {/* Endpoint list (ไม่มีปุ่ม แค่เปลี่ยนจาก select ด้าน Mapping) */}
       <div className="text-sm mb-2 font-medium">Response (sample)</div>
       <pre className="max-h-60 overflow-auto bg-black/40 border border-white/10 rounded p-2 text-xs whitespace-pre">
         {JSON.stringify(response ?? {}, null, 2)}
@@ -279,21 +308,32 @@ export default function IntegrationsLocked() {
   const [activeId, setActiveId] = useState<string>(INITIAL[0].id);
   const active = useMemo(() => list.find(i => i.id === activeId)!, [list, activeId]);
 
-  // Locked/Edit toggle (เริ่มต้นล็อคไว้)
+  // Locked/Edit toggle
   const [editing, setEditing] = useState<boolean>(false);
 
-  // endpoint picker & preview (ไม่มีปุ่ม Test; ใช้ example เป็นหลัก)
+  // endpoint picker & preview
   const [resourceKey, setResourceKey] = useState<string>("");
   useEffect(() => {
     const keys = Object.keys(getResourcesFor(active.type));
     setResourceKey((prev) => (keys.includes(prev) ? prev : keys[0] ?? ""));
   }, [active.type]);
 
-  const [preview] = useState<unknown>(null);
+  // === Preview cache/state ===
+  const [previewMap, setPreviewMap] = useState<Record<string, unknown>>({});
+  const [preview, setPreview] = useState<unknown>(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+
+  // Load from cache when switching active/resource
+  useEffect(() => {
+    const cacheKey = `${active.id}:${resourceKey}`;
+    setPreview(previewMap[cacheKey] ?? null);
+  }, [active.id, resourceKey, previewMap]);
+
   const flat = useMemo(() => flatten(preview || {}), [preview]);
   const externalOptions = useMemo(() => Object.keys(flat).sort(), [flat]);
 
-  // mapping (อ่านอย่างเดียว เว้นแต่เข้าโหมด Edit)
+  // mapping
   const currentRes = useMemo(() => getResourcesFor(active.type)[resourceKey], [active.type, resourceKey]);
   const defaultDir: "in" | "out" | "bi" = currentRes?.defaultDir ?? "in";
   const [mapping, setMapping] = useState<MappingRow[]>([]);
@@ -302,6 +342,7 @@ export default function IntegrationsLocked() {
     setMapping(local.map(l => ({ id: l, local: l, external: "", dir: defaultDir })));
   }, [active.type, resourceKey, currentRes?.localSchema, defaultDir]);
 
+  // Save config on blur
   const saveConfigPatch = (patch: Partial<IntegrationConfig>) => {
     setList(prev =>
       prev.map(i => (i.id === active.id ? { ...i, config: { ...i.config, ...patch } } : i))
@@ -309,6 +350,40 @@ export default function IntegrationsLocked() {
   };
 
   const isSecretField = (k: string) => /key|token|password/i.test(k);
+
+  // === Fetch preview from API URL ===
+  const fetchPreview = async () => {
+    const resSpec = getResourcesFor(active.type)[resourceKey];
+    if (!resSpec) return;
+    const base = String(active.config?.apiUrl || "").trim();
+    if (!base) {
+      setFetchErr("กรุณากรอก API URL ก่อน");
+      return;
+    }
+
+    const req = resSpec.exampleRequest;
+    const url = buildUrl(req.url, base);
+    const headers = getAuthHeadersFromConfig(active.config || {});
+    setFetching(true);
+    setFetchErr(null);
+    try {
+      const r = await fetch(url, {
+        method: req.method || resSpec.method,
+        headers,
+        body: (req.method || resSpec.method) === "POST" ? JSON.stringify(req.body ?? {}) : undefined,
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+
+      const cacheKey = `${active.id}:${resourceKey}`;
+      setPreviewMap((m) => ({ ...m, [cacheKey]: data }));
+      setPreview(data);
+    } catch (e: any) {
+      setFetchErr(e?.message || "Fetch failed");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl p-6 text-white">
@@ -319,19 +394,26 @@ export default function IntegrationsLocked() {
           <p className="text-white/70">Locked view • ERP • WMS • MES • HR • CMMS</p>
         </div>
 
-        {/* เปลี่ยนปุ่ม New → Edit */}
         <button
-          onClick={() => setEditing((e) => !e)}
-          className="px-3 py-2 rounded-lg bg-white/10 border border-white/15 hover:bg-white/15 inline-flex items-center gap-2"
-          title={editing ? "Exit Edit" : "Edit"}
+          onClick={() => setEditing((prev) => !prev)}
+          className="
+            px-3 py-2 rounded-lg 
+            bg-white/10 border border-white/15 
+            hover:bg-white/20 
+            transition-colors duration-200 
+            inline-flex items-center gap-2
+            focus:outline-none focus:ring-2 focus:ring-sky-400
+          "
+          title={editing ? "Exit Edit Mode" : "Edit Item"}
+          aria-pressed={editing}
         >
           <Edit3 size={16} />
-          {editing ? "Done" : "Edit"}
+          <span>{editing ? "Done" : "Edit"}</span>
         </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left List (ไม่มีปุ่มเพิ่ม/ลบ) */}
+        {/* Left List */}
         <div className="lg:col-span-1 rounded-xl border border-white/10 bg-white/5">
           {list.map(item => {
             const T = PROVIDER_TYPES[item.type];
@@ -360,17 +442,12 @@ export default function IntegrationsLocked() {
 
         {/* Right Details */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Connection Card (ฟอร์มถูก lock จนกด Edit) */}
+          {/* Connection Card */}
           <div className="rounded-xl border border-white/10 p-4 bg-white/5">
             <div className="flex items-center justify-between mb-4">
               <div className="text-lg font-semibold">{active.name}</div>
-              <div className="text-sm">
-                <span className="text-white/60 mr-2">Mode:</span>
-                <span className="font-medium">{editing ? "Editing" : "Locked"}</span>
-              </div>
             </div>
 
-            {/* Config */}
             <div className="grid sm:grid-cols-2 gap-3">
               {PROVIDER_TYPES[active.type].fields.map((f) => {
                 const value = (active.config?.[f.key] as Primitive) ?? f.default ?? "";
@@ -397,7 +474,7 @@ export default function IntegrationsLocked() {
             )}
           </div>
 
-          {/* Mapping Card (อ่านอย่างเดียวหรือตั้งค่าได้เมื่อ Edit) */}
+          {/* Mapping Card */}
           <div className="rounded-xl border border-white/10 p-4 bg-white/5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -420,7 +497,19 @@ export default function IntegrationsLocked() {
                   <span className="text-xs text-white/50">Dir: {currentRes?.defaultDir || "in"}</span>
                 </div>
               </div>
-              {/* ไม่มีปุ่ม Auto-map/Save ตามคำสั่งให้ล็อคปุ่ม */}
+
+              {/* Fetch Preview button + error */}
+              <div className="flex items-center gap-2">
+                {fetchErr && <span className="text-xs text-rose-300">{fetchErr}</span>}
+                <button
+                  onClick={fetchPreview}
+                  className="px-2 py-1 rounded bg-white/10 border border-white/15 text-sm hover:bg-white/20 disabled:opacity-60"
+                  disabled={fetching || !resourceKey}
+                  title="ดึงตัวอย่าง response จาก API URL ที่ตั้งไว้"
+                >
+                  {fetching ? "Fetching..." : "Fetch Preview"}
+                </button>
+              </div>
             </div>
 
             <div className="overflow-auto">
@@ -477,9 +566,15 @@ export default function IntegrationsLocked() {
                         </select>
                       </td>
                       <td className="py-2 pr-3">{row.confidence?.toFixed(2) ?? "-"}</td>
-                      <td className="py-2 pr-3 text-xs text-white/50">—</td>
+                      <td className="py-2 pr-3 text-xs text-white/70">
+                        {row.external
+                          ? (() => {
+                              const v = getByPath(preview ?? {}, row.external);
+                              return v === undefined ? "—" : JSON.stringify(v);
+                            })()
+                          : "—"}
+                      </td>
                       <td className="py-2 pr-3 text-right">
-                        {/* ไม่มีปุ่มลบหลังล็อค */}
                         {editing && (
                           <button
                             onClick={() => setMapping((prev) => prev.filter((m) => m.id !== row.id))}

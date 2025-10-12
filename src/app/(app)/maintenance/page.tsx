@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Save, Upload, Download, Wrench, Calendar, Clock, AlertCircle, CheckCircle, Settings, FileText, Table, LayoutGrid, Cpu } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, Upload, Download, Wrench, Calendar, Clock, AlertCircle, CheckCircle, Settings, FileText, Table, LayoutGrid } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 import Modal from '@/src/components/shared/Modal';
 import { ERROR_MESSAGES } from '@/src/config/messages';
@@ -419,7 +419,7 @@ const Maintenance = () => {
         tabs={
           <>
             {/* Stats Bar */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="rounded-lg border border-white/10 p-4 bg-white/5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -467,7 +467,7 @@ const Maintenance = () => {
               <select
                 value={planForm.planType}
                 onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value as PlanType })}
-                className="glass-input"
+                className="glass-input w-32"
               >
                 {["Preventive", "Predictive", "Corrective", "Calibration", "Inspection"].map(v => (
                   <option key={v} value={v} className="select option">{v}</option>
@@ -476,7 +476,7 @@ const Maintenance = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="glass-input"
+                className="glass-input w-32"
               >
                 {["all", "Active", "Suspended", "Completed"].map(v => (
                   <option key={v} value={v} className="select option">
@@ -487,7 +487,7 @@ const Maintenance = () => {
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
-                className="glass-input"
+                className="glass-input w-36"
               >
                 {["all", "Critical", "High", "Medium", "Low"].map(v => (
                   <option key={v} value={v} className="select option">
@@ -518,12 +518,9 @@ const Maintenance = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading ? (
-          <Loading text="Loading maintenance plans..." />
+          <Loading />
         ) : filteredPlans.length === 0 ? (
-          <EmptyState
-            icon={<Cpu size={48} className="mx-auto text-white/50 mb-4" />}
-            title="No maintenance plans found"
-          />
+          <EmptyState/>
         ) : (
           <>
             {/* Cards View */}
@@ -640,12 +637,7 @@ const Maintenance = () => {
                 columns={maintenancePlanColumns}
                 data={filteredPlans}
                 rowKey={(p) => p.id}
-                emptyMessage={
-                  <EmptyState
-                    icon={<Cpu size={48} className="mx-auto text-white/50 mb-4" />}
-                    title="No maintenance plans found"
-                  />
-                }
+                isLoading={loading}
               />
             )}
           </>
@@ -662,7 +654,7 @@ const Maintenance = () => {
           <>
             <button
               onClick={() => setIsEditing(false)}
-              className="px-4 py-2 text-white/80 border border-white/20 rounded-lg hover:bg-white/10"
+              className="btn btn-outline"
             >
               Cancel
             </button>
@@ -948,7 +940,7 @@ const Maintenance = () => {
               </h3>
               <button
                 onClick={handleAddChecklistItem}
-                className="px-3 py-1 bg-sky-600 text-white text-sm rounded hover:bg-sky-700 flex items-center gap-1"
+                className="btn btn-primary"
               >
                 <Plus className="w-4 h-4" />
                 Add Task

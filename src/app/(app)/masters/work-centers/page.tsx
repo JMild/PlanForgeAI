@@ -8,7 +8,6 @@ import { getMachines, getWorkCenters } from '@/src/services/master';
 import { ERROR_MESSAGES } from '@/src/config/messages';
 import toast from 'react-hot-toast';
 import { DataTable } from '@/src/components/shared/table/Table';
-import { Column } from '@/src/components/shared/Table';
 import Loading from '@/src/components/Loading';
 
 // Types
@@ -71,7 +70,7 @@ export default function WorkCenterPage() {
         setLoading(true);
         const res = await getWorkCenters();
         const resMachines = await getMachines();
-        console.log('res',res)
+        console.log('res', res)
         setWorkCenters(res);
         setMachines(resMachines);
       } catch (error) {
@@ -219,14 +218,14 @@ export default function WorkCenterPage() {
     }
   };
 
-  const columns: Column<WorkCenter>[] = [
+  const columns = [
     { key: "work_center_code", label: "Code" },
     { key: "work_center_name", label: "Name" },
     { key: "department", label: "Department" },
     {
       key: "type",
       label: "Type",
-      render: (wc) => (
+      render: (wc: WorkCenter) => (
         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(wc.type)}`}>
           {wc.type}
         </span>
@@ -235,18 +234,18 @@ export default function WorkCenterPage() {
     {
       key: "capacity",
       label: "Capacity",
-      render: (wc) => `${wc.capacity} ${wc.capacityUnit}`,
+      render: (wc: WorkCenter) => `${wc.capacity} ${wc.capacityUnit}`,
     },
     { key: "machineCount", label: "Machines" },
     {
       key: "utilizationTarget",
       label: "Target %",
-      render: (wc) => `${wc.utilizationTarget}%`,
+      render: (wc: WorkCenter) => `${wc.utilizationTarget}%`,
     },
     {
       key: "status",
       label: "Status",
-      render: (wc) => (
+      render: (wc: WorkCenter) => (
         <div className="flex items-center gap-1">
           <span className={`px-2 py-1 flex gap-1 rounded-full text-xs font-medium border ${getStatusColor(wc.status)}`}>
             {getStatusIcon(wc.status)}
@@ -258,7 +257,7 @@ export default function WorkCenterPage() {
     {
       key: "actions",
       label: "Actions",
-      render: (wc) => (
+      render: (wc: WorkCenter) => (
         <div className="flex justify-end gap-2">
           <button onClick={() => handleEdit(wc)} className="text-sky-300 hover:text-sky-200">
             <Edit className="w-4 h-4" />
@@ -269,7 +268,7 @@ export default function WorkCenterPage() {
         </div>
       ),
     },
-  ];
+  ] as const;
 
   return (
     <div className="text-white">
@@ -358,13 +357,13 @@ export default function WorkCenterPage() {
                   placeholder="Search work centers..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+                  className="glass-input w-full !pl-10 pr-4"
                 />
               </div>
               <select
                 value={filterDept}
                 onChange={(e) => setFilterDept(e.target.value)}
-                className="glass-input"
+                className="glass-input w-44"
               >
                 <option value="all" className="select option">All Departments</option>
                 {departments.map(dept => (
@@ -374,7 +373,7 @@ export default function WorkCenterPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="glass-input"
+                className="glass-input w-32"
               >
                 <option value="all" className="select option">All Status</option>
                 <option value="Active" className="select option">Active</option>
@@ -403,7 +402,7 @@ export default function WorkCenterPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading ? (
-          <Loading text="Loading work centers..." />
+          <Loading />
         ) : (
           <>
             {/* Grid View */}
@@ -511,15 +510,7 @@ export default function WorkCenterPage() {
                 columns={columns}
                 data={filteredWorkCenters}
                 rowKey={(wc) => wc.work_center_code}
-              // emptyMessage={
-              //   <EmptyState
-              //     icon={<Package size={48} className="mx-auto text-white/50 mb-4" />}
-              //     title="No work centers found"
-              //     message="Create your first products to get started"
-              //     buttonLabel="Create Product"
-              //     onButtonClick={() => openModal("create")}
-              //   />
-              // }
+                isLoading={loading}
               />
               // <div className="rounded-lg border border-white/10 bg-white/5 overflow-hidden">
               //   <table className="w-full">

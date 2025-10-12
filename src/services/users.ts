@@ -18,7 +18,9 @@ export async function getPermissionAll() {
   const res = await axiosClient.get("/users/all_permission");
   return res.data;
 }
-export async function getPermissionByRoleId(roleId: string) {
-  const res = await axiosClient.get(`/users/role/${roleId}/permission_by_role_id`);
+export async function getPermissionByRoleId(role_id: string) {
+  const res = await axiosClient.get("/users/role_id", {
+    params: { role_id },
+  });
   return res.data;
 }

@@ -2,124 +2,113 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/src/components/layout/PageHeader";
-import {
-  Upload, Download, Plus, Search, Eye, Edit, Trash2, Star,
-  Building2, User, MapPin, Mail, Phone, Calendar, CreditCard, ChevronRight, ChevronDown,
-  DollarSign,
-  TrendingUp,
-  FileText,
-} from "lucide-react";
+import { Upload, Download, Plus, Search, Eye, Edit, Trash2, Building2, User, Mail, Phone, Calendar, CreditCard, DollarSign, TrendingUp, FileText, Save, Star } from "lucide-react";
 import Modal from "@/src/components/shared/Modal";
-import { ERROR_MESSAGES } from "@/src/config/messages";
-import { getCustomer } from "@/src/lib/api";
+import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 import toast from "react-hot-toast";
-import Loading from "@/src/components/Loading";
-import EmptyState from "@/src/components/shared/EmptyState";
+import { ERROR_MESSAGES } from "@/src/config/messages";
 
-/** ---------- Types & Constants ---------- */
-type CustomerStatus = "Active" | "Inactive" | "On Hold" | "Blacklisted";
-type CustomerType = "Distributor" | "OEM" | "Retail" | "Wholesaler";
-type Industry = "Automotive" | "Electronics" | "Aerospace" | "Medical" | "Food & Beverage";
-type PaymentTerm = "COD" | "Net 15" | "Net 30" | "Net 45" | "Net 60";
-type Currency = "USD" | "EUR" | "THB" | "JPY";
-type ShippingOption = "Ground" | "Air" | "Sea";
+import {
+  mockGetCustomerList,
+  mockGetCustomerByCode,
+  type CustomerListItem,
+  type CustomerDetail,
+  type CustomerStatus,
+  type CustomerType,
+  type Industry,
+  type PaymentTerm,
+  type Currency,
+  type ShippingOption,
+} from "@/src/mocks/customers";
 
+/* --------- helpers --------- */
+const formatCurrency = (v: number, c: Currency = "USD") =>
+  new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(isFinite(v) ? v : 0);
+
+const statusBadge = (s: CustomerStatus) =>
+  s === "Active" ? "status-success" :
+  s === "On Hold" ? "status-warning" :
+  s === "Blacklisted" ? "status-error" : "status-inactive";
+
+/* --------- constants for form --------- */
 const CUSTOMER_TYPES: CustomerType[] = ["Distributor", "OEM", "Retail", "Wholesaler"];
 const INDUSTRIES: Industry[] = ["Automotive", "Electronics", "Aerospace", "Medical", "Food & Beverage"];
 const PAYMENT_TERMS: PaymentTerm[] = ["COD", "Net 15", "Net 30", "Net 45", "Net 60"];
 const CURRENCIES: Currency[] = ["USD", "EUR", "THB", "JPY"];
 const SHIPPING_OPTIONS: ShippingOption[] = ["Ground", "Air", "Sea"];
 
-type Customer = {
-  notes: string;
-  code: string;
-  name: string;
-  shortName?: string;
-  type: CustomerType;
-  industry: Industry;
-  status: CustomerStatus;
-  rating: number; // 1-5
-  contact: { contactPerson: string; title: string; email: string; phone: string; mobile?: string };
-  address: { street: string; city: string; state: string; country: string; postalCode: string };
-  financial: { paymentTerms: PaymentTerm; currency: Currency; creditLimit: number; taxId: string };
-  stats: {
-    totalOrders: number; activeOrders: number; totalRevenue: number;
-    avgOrderValue: number; onTimeDelivery: number; lastOrderDate?: string;
-  };
-  preferences: { preferredShipping: ShippingOption; discountPercent: number; specialInstructions?: string };
-};
-
+/* --------- UI state types --------- */
 type ModalMode = "view" | "edit" | "create";
 type TabKey = "basic" | "contact" | "financial" | "stats" | "preferences";
 
-/** ---------- Small helpers ---------- */
-const formatCurrency = (v: number, c: Currency = "USD") =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(isFinite(v) ? v : 0);
-
-const statusBadge = (s: CustomerStatus) =>
-  s === "Active" ? "status-success" :
-    s === "On Hold" ? "status-warning" :
-      s === "Blacklisted" ? "status-error" : "status-inactive";
-
-const Stars = ({ rating }: { rating: number }) => (
-  <span className="flex">
-    {[1, 2, 3, 4, 5].map(i => (
-      <Star key={i} size={14} className={i <= rating ? "text-yellow-400 fill-yellow-400" : "text-white/30"} />
-    ))}
-  </span>
-);
-
-/** ---------- Component ---------- */
+/* ============================================
+   Component
+============================================ */
 const CustomersPage: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // ✅ ตารางใช้แค่รายการ
+  const [list, setList] = useState<CustomerListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ cache รายละเอียด แผนที่ code -> detail
+  const [detailCache, setDetailCache] = useState<Record<string, CustomerDetail | null>>({});
+
+  // filters
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<CustomerType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<CustomerStatus | "all">("all");
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // table expand
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("view");
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  // form
-  const emptyForm: Customer = {
-    code: "", name: "", shortName: "", type: "Distributor", industry: "Automotive",
-    status: "Active", rating: 3,
-    contact: { contactPerson: "", title: "", email: "", phone: "", mobile: "" },
+  // ✅ เก็บ “ลูกค้าที่เลือก” เป็น detail (ไม่ใช่ list item) เพื่อแสดงใน modal
+  const [selected, setSelected] = useState<CustomerDetail | null>(null);
+
+  // form data = detail เต็ม
+  const emptyDetail: CustomerDetail = {
+    code: "",
+    name: "",
+    shortName: "",
+    status: "Active",
+    type: "Distributor",
+    // contact: { contactPerson: "", email: "" },
+    // stats: { totalOrders: 0, activeOrders: 0 },
+
+    // ส่วนที่นอกตาราง
+    industry: "Automotive",
+    rating: 3,
+    contact: { contactPerson: "", email: "", title: "", phone: "", mobile: "" },
     address: { street: "", city: "", state: "", country: "", postalCode: "" },
     financial: { paymentTerms: "Net 30", currency: "USD", creditLimit: 0, taxId: "" },
     stats: { totalOrders: 0, activeOrders: 0, totalRevenue: 0, avgOrderValue: 0, onTimeDelivery: 0 },
     preferences: { preferredShipping: "Ground", discountPercent: 0, specialInstructions: "" },
-    notes: ""
+    notes: "",
   };
-  const [formData, setFormData] = useState<Customer>(emptyForm);
+  const [formData, setFormData] = useState<CustomerDetail>(emptyDetail);
 
+  /* ---------- load lightweight list ---------- */
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
         setLoading(true);
-        const res = (await getCustomer()) as Customer[];
-        setCustomers(res || []);
-
-      } catch (error) {
-        console.error('Fetch data failed:', error);
-        toast.error(ERROR_MESSAGES.fetchFailed);
+        const rows = await mockGetCustomerList();
+        setList(rows);
+      } catch (e) {
+        console.error(e);
+        toast.error(ERROR_MESSAGES.fetchFailed || "Failed to fetch customers.");
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
+    })();
   }, []);
 
+  /* ---------- filters run on list only ---------- */
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return customers.filter(c => {
-      const matchQ = !q ||
+    return list.filter((c) => {
+      const matchQ =
+        !q ||
         c.name.toLowerCase().includes(q) ||
         c.code.toLowerCase().includes(q) ||
         c.contact.email.toLowerCase().includes(q) ||
@@ -128,80 +117,152 @@ const CustomersPage: React.FC = () => {
       const matchStatus = filterStatus === "all" || c.status === filterStatus;
       return matchQ && matchType && matchStatus;
     });
-  }, [customers, searchTerm, filterType, filterStatus]);
+  }, [list, searchTerm, filterType, filterStatus]);
 
-  // summary
-  const totalRevenue = customers.reduce((s, c) => s + (c.stats?.totalRevenue || 0), 0);
-  const activeOrders = customers.reduce((s, c) => s + (c.stats?.activeOrders || 0), 0);
-  const avgAOV = customers.length
-    ? customers.reduce((s, c) => s + (c.stats?.avgOrderValue || 0), 0) / customers.length
-    : 0;
+  // summary จาก list (ไม่ต้องละเอียด)
+  const totalCustomers = list.length;
+  const activeCount = list.filter((c) => c.status === "Active").length;
 
-  /** CRUD modal */
-  const openModal = (mode: ModalMode, customer?: Customer) => {
+  /* ---------- lazy load detail ---------- */
+  const ensureDetail = async (code: string): Promise<CustomerDetail | null> => {
+    if (detailCache[code] !== undefined) return detailCache[code];
+    const detail = await mockGetCustomerByCode(code);
+    setDetailCache((prev) => ({ ...prev, [code]: detail }));
+    return detail;
+  };
+
+  const openModal = async (mode: ModalMode, row?: CustomerListItem | CustomerDetail) => {
     setModalMode(mode);
     setActiveTab("basic");
+
     if (mode === "create") {
-      setFormData({ ...emptyForm });
-      setSelectedCustomer(null);
-    } else if (customer) {
-      setFormData(customer);
-      setSelectedCustomer(customer);
-    }
-    setIsModalOpen(true);
-  };
-  const closeModal = () => { setIsModalOpen(false); setSelectedCustomer(null); };
-  const handleSave = () => {
-    if (!formData.code.trim() || !formData.name.trim()) {
-      alert("Customer Code and Customer Name are required.");
+      const nextCode = `CUST-${String(list.length + 1).padStart(3, "0")}`;
+      const blank = { ...emptyDetail, code: nextCode };
+      setFormData(blank);
+      setSelected(blank);
+      setIsModalOpen(true);
       return;
     }
-    if (modalMode === "create") {
-      if (customers.some(c => c.code === formData.code)) {
-        alert("Customer Code already exists."); return;
-      }
-      setCustomers(prev => [...prev, formData]);
-    } else if (modalMode === "edit" && selectedCustomer) {
-      setCustomers(prev => prev.map(c => c.code === selectedCustomer.code ? formData : c));
+
+    const code = row?.code;
+    if (!code) return;
+
+    // ถ้ายังไม่มี detail → ดึงตอนนี้ (และ cache)
+    const detail = "industry" in row ? (row as CustomerDetail) : await ensureDetail(code);
+    if (!detail) {
+      toast.error("Customer not found.");
+      return;
     }
+    setSelected(detail);
+    setFormData(detail);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelected(null);
+  };
+
+  /* ---------- save/delete (mock-only) ---------- */
+  const handleSave = () => {
+    if (!formData.code.trim() || !formData.name.trim()) {
+      toast.error("Customer Code and Name are required.");
+      return;
+    }
+
+    if (modalMode === "create") {
+      // ใส่ลง list แบบเบา ๆ
+      const newListItem: CustomerListItem = {
+        code: formData.code,
+        name: formData.name,
+        shortName: formData.shortName,
+        status: formData.status,
+        type: formData.type,
+        contact: { contactPerson: formData.contact.contactPerson || "", email: formData.contact.email || "" },
+        stats: { totalOrders: formData.stats.totalOrders || 0, activeOrders: formData.stats.activeOrders || 0 },
+      };
+      setList((prev) => [...prev, newListItem]);
+      setDetailCache((prev) => ({ ...prev, [formData.code]: formData }));
+    } else if (modalMode === "edit" && selected) {
+      // อัปเดตทั้ง detail cache และ list (ส่วนที่แสดง)
+      setDetailCache((prev) => ({ ...prev, [selected.code]: formData }));
+      setList((prev) =>
+        prev.map((it) =>
+          it.code === selected.code
+            ? {
+                ...it,
+                name: formData.name,
+                shortName: formData.shortName,
+                status: formData.status,
+                type: formData.type,
+                contact: { contactPerson: formData.contact.contactPerson || "", email: formData.contact.email || "" },
+                stats: {
+                  totalOrders: formData.stats.totalOrders || 0,
+                  activeOrders: formData.stats.activeOrders || 0,
+                },
+              }
+            : it
+        )
+      );
+    }
+
+    toast.success("Saved.");
     closeModal();
   };
+
   const handleDelete = (code: string) => {
-    if (confirm(`Delete customer ${code}?`)) setCustomers(prev => prev.filter(c => c.code !== code));
+    if (confirm(`Delete customer ${code}?`)) {
+      setList((prev) => prev.filter((c) => c.code !== code));
+      setDetailCache((prev) => {
+        const { [code]: _drop, ...rest } = prev;
+        return rest;
+      });
+      toast.success("Deleted.");
+    }
   };
 
   const exportToCSV = () => {
-    const headers = ["Code", "Name", "Type", "Industry", "Status", "Rating", "Contact", "Email", "Phone", "City", "Country", "PaymentTerms", "Currency", "CreditLimit", "TotalOrders", "ActiveOrders", "TotalRevenue", "AvgOrderValue", "OnTimeDelivery", "LastOrderDate"];
+    const headers = ["Code", "Name", "Type", "Status", "Contact", "Email", "TotalOrders", "ActiveOrders"];
     const rows = filtered.map((c) => [
-      c.code, c.name, c.type, c.industry, c.status, c.rating, c.contact.contactPerson, c.contact.email, c.contact.phone,
-      c.address.city, c.address.country, c.financial.paymentTerms, c.financial.currency, c.financial.creditLimit,
-      c.stats.totalOrders, c.stats.activeOrders, c.stats.totalRevenue, c.stats.avgOrderValue,
-      `${c.stats.onTimeDelivery}%`, c.stats.lastOrderDate || ""
+      c.code,
+      c.name,
+      c.type,
+      c.status,
+      c.contact.contactPerson,
+      c.contact.email,
+      c.stats.totalOrders,
+      c.stats.activeOrders,
     ]);
-    const csv = [headers, ...rows].map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n") + "\n";
+    const csv =
+      [headers, ...rows]
+        .map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","))
+        .join("\n") + "\n";
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob); const a = document.createElement("a");
-    a.href = url; a.download = `customers_${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `customers_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  const currencyFor = customers[0]?.financial.currency || "USD";
+  const currencyFor: Currency = (selected?.financial.currency || "USD") as Currency;
 
   return (
     <div className="text-white">
-      {/* Header */}
       <PageHeader
         title={
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Customer Master Data</h1>
-              <p className="text-sm text-white/60 mt-1">Manage customer information and relationships</p>
+              <p className="text-sm text-white/60 mt-1">Lightweight list + Lazy detail</p>
             </div>
           </div>
         }
         actions={
           <div className="flex gap-3">
-            <button onClick={() => alert("Import is not implemented in this demo.")} className="btn btn-outline">
+            <button onClick={() => toast("Import (mock)") } className="btn btn-outline">
               <Upload size={18} /> Import
             </button>
             <button onClick={exportToCSV} className="btn btn-outline">
@@ -214,36 +275,28 @@ const CustomersPage: React.FC = () => {
         }
         tabs={
           <>
-            {/* Summary */}
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="p-3 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-xs text-white/70 mb-1">Total Customers</div>
-                <div className="text-2xl font-bold text-sky-300">{customers.length}</div>
+                <div className="text-2xl font-bold text-sky-300">{totalCustomers}</div>
               </div>
               <div className="p-3 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-xs text-white/70 mb-1">Active</div>
-                <div className="text-2xl font-bold text-emerald-300">{customers.filter(c => c.status === "Active").length}</div>
+                <div className="text-2xl font-bold text-emerald-300">{activeCount}</div>
               </div>
               <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Total Revenue</div>
-                <div className="text-2xl font-bold text-violet-300">{formatCurrency(totalRevenue, currencyFor as Currency)}</div>
-              </div>
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Active Orders</div>
-                <div className="text-2xl font-bold text-amber-300">{activeOrders}</div>
-              </div>
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Avg Order Value</div>
-                <div className="text-2xl font-bold text-indigo-300">{formatCurrency(avgAOV, currencyFor as Currency)}</div>
+                <div className="text-xs text-white/70 mb-1">Currency (selected)</div>
+                <div className="text-2xl font-bold text-indigo-300">{currencyFor}</div>
               </div>
             </div>
 
-            {/* Filters */}
             <div className="flex gap-4 mt-4 mb-1 mx-0.5">
               <div className="flex-1 relative">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
                 <input
-                  type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search customers..."
                   className="glass-input w-full !pl-10 pr-4"
                 />
@@ -254,7 +307,7 @@ const CustomersPage: React.FC = () => {
                 className="glass-input"
               >
                 <option value="all" className="select option">All Types</option>
-                {CUSTOMER_TYPES.map(t => <option key={t} value={t} className="select option">{t}</option>)}
+                {CUSTOMER_TYPES.map((t) => <option key={t} value={t} className="select option">{t}</option>)}
               </select>
               <select
                 value={filterStatus}
@@ -272,187 +325,135 @@ const CustomersPage: React.FC = () => {
         }
       />
 
-      {/* TABLE LIST */}
+      {/* TABLE (ดูเฉพาะฟิลด์เบา ๆ) */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="overflow-x-auto rounded-lg border border-white/10 bg-white/5">
-          {loading ? (
-            <Loading text="Loading customers..." />
-          ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={<Building2 size={48} className="mx-auto text-white/40 mb-4" />}
-              title="No customers found"
-              message="Create your first customers to get started"
-              buttonLabel="Create Customer"
-              // onButtonClick={openCreateModal}
-            />
-          ) : (
-            <table className="w-full">
-              <thead className="bg-white/5 border-b border-white/10">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider"> </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Code</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Type / Industry</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Contact</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-white/70 uppercase tracking-wider">Orders</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-white/70 uppercase tracking-wider">Revenue</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-white/70 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {filtered.map((c) => {
-                  const isOpen = !!expanded[c.code];
-                  return (
-                    <React.Fragment key={c.code}>
-                      <tr className="hover:bg-white/5">
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => setExpanded((p) => ({ ...p, [c.code]: !p[c.code] }))}
-                            className="p-1 rounded hover:bg-white/10"
-                            aria-label={isOpen ? "Collapse" : "Expand"}
-                          >
-                            {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Building2 size={16} className="text-white/50" />
-                            <span className="text-sm font-medium">{c.code}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm">{c.name}</div>
-                          </div>
-                          {c.shortName && <div className="text-xs text-white/60">{c.shortName}</div>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-sm">{c.type}</div>
-                          <div className="text-xs text-white/60">{c.industry}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 text-sm">
-                            <User size={14} /> {c.contact.contactPerson}
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-white/70">
-                            <Mail size={12} />
-                            <a href={`mailto:${c.contact.email}`} className="text-sky-300 hover:underline">
-                              {c.contact.email}
-                            </a>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="text-sm font-medium">{c.stats.totalOrders}</div>
-                          <div className="text-xs text-emerald-300">{c.stats.activeOrders} active</div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="text-sm">
-                            {formatCurrency(c.stats.totalRevenue, c.financial.currency)}
-                          </div>
-                          <div className="text-xs text-white/60">
-                            avg {formatCurrency(c.stats.avgOrderValue, c.financial.currency)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`chip ${statusBadge(c.status)}`}>{c.status}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => openModal("view", c)} className="p-1 hover:bg-white/10 rounded" title="View">
-                              <Eye size={16} className="text-white/70" />
-                            </button>
-                            <button onClick={() => openModal("edit", c)} className="p-1 hover:bg-white/10 rounded" title="Edit">
-                              <Edit size={16} className="text-sky-300" />
-                            </button>
-                            <button onClick={() => handleDelete(c.code)} className="p-1 hover:bg-white/10 rounded" title="Delete">
-                              <Trash2 size={16} className="text-rose-300" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expanded detail row */}
-                      {isOpen && (
-                        <tr className="bg-white/5">
-                          <td colSpan={11} className="px-6 pb-5">
-                            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-                              <div className="grid grid-cols-4 gap-4 text-sm">
-                                <div>
-                                  <div className="text-white/60 text-xs mb-1">Address</div>
-                                  <div>{c.address.street}</div>
-                                  <div>{c.address.city}, {c.address.state} {c.address.postalCode}</div>
-                                  <div>{c.address.country}</div>
-                                </div>
-                                <div>
-                                  <div className="text-white/60 text-xs mb-1">Phones</div>
-                                  <div className="flex items-center gap-1"><Phone size={12} /> {c.contact.phone}</div>
-                                  {c.contact.mobile && <div className="flex items-center gap-1"><Phone size={12} /> {c.contact.mobile}</div>}
-                                </div>
-                                <div>
-                                  <div className="text-white/60 text-xs mb-1">Financial</div>
-                                  <div className="flex items-center gap-1"><CreditCard size={12} /> {c.financial.paymentTerms}</div>
-                                  <div>Credit Limit: {formatCurrency(c.financial.creditLimit, c.financial.currency)}</div>
-                                  <div>Tax ID: {c.financial.taxId}</div>
-                                </div>
-                                <div>
-                                  <div className="text-white/60 text-xs mb-1">Other</div>
-                                  <div className="flex items-center gap-1">
-                                    <Calendar size={12} /> Last order:&nbsp;
-                                    {c.stats.lastOrderDate ? new Date(c.stats.lastOrderDate).toLocaleDateString() : "N/A"}
-                                  </div>
-                                  {c.preferences.specialInstructions && (
-                                    <div className="mt-1 text-white/80">Note: {c.preferences.specialInstructions}</div>
-                                  )}
-                                </div>
-                              </div>
-                              {c.notes && (
-                                <div className="mt-3 text-xs text-white/70">
-                                  <span className="font-medium text-white/80">Notes:</span> {c.notes}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+        <ExpandableDataTable<CustomerListItem>
+          columns={[
+            {
+              key: "code",
+              label: "Code",
+              render: (c) => (
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-white/50" />
+                  <span className="text-sm font-medium">{c.code}</span>
+                </div>
+              ),
+            },
+            {
+              key: "name",
+              label: "Customer",
+              render: (c) => (
+                <div>
+                  <div className="text-sm">{c.name}</div>
+                  {c.shortName && <div className="text-xs text-white/60">{c.shortName}</div>}
+                </div>
+              ),
+            },
+            {
+              key: "contact",
+              label: "Contact",
+              render: (c) => (
+                <div>
+                  <div className="flex items-center gap-1 text-sm">
+                    <User size={14} /> {c.contact.contactPerson}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-white/70">
+                    <Mail size={12} />
+                    <a href={`mailto:${c.contact.email}`} className="text-sky-300 hover:underline">
+                      {c.contact.email}
+                    </a>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: "orders",
+              label: "Orders",
+              align: "center",
+              render: (c) => (
+                <div>
+                  <div className="text-sm font-medium">{c.stats.totalOrders}</div>
+                  <div className="text-xs text-emerald-300">{c.stats.activeOrders} active</div>
+                </div>
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              render: (c) => <span className={`chip ${statusBadge(c.status)}`}>{c.status}</span>,
+            },
+            {
+              key: "actions",
+              label: "Actions",
+              align: "right",
+              render: (c) => (
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={() => openModal("view", c)} className="p-1 hover:bg-white/10 rounded" title="View">
+                    <Eye size={16} className="text-white/70" />
+                  </button>
+                  <button onClick={() => openModal("edit", c)} className="p-1 hover:bg-white/10 rounded" title="Edit">
+                    <Edit size={16} className="text-sky-300" />
+                  </button>
+                  <button onClick={() => handleDelete(c.code)} className="p-1 hover:bg-white/10 rounded" title="Delete">
+                    <Trash2 size={16} className="text-rose-300" />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={filtered}
+          rowKey={(c) => c.code}
+          // ✅ แถวขยายก็ยังใช้ข้อมูลจาก list เท่านั้น (ไม่ดึงเพิ่ม)
+          renderExpandedRow={(c) => (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-white/60 text-xs mb-1">Contact</div>
+                  <div className="flex items-center gap-1"><User size={12} /> {c.contact.contactPerson}</div>
+                  <div className="flex items-center gap-1"><Mail size={12} /> {c.contact.email}</div>
+                </div>
+                <div>
+                  <div className="text-white/60 text-xs mb-1">Orders</div>
+                  <div>Total: {c.stats.totalOrders}</div>
+                  <div>Active: {c.stats.activeOrders}</div>
+                </div>
+                <div>
+                  <div className="text-white/60 text-xs mb-1">Type & Status</div>
+                  <div>{c.type}</div>
+                  <div><span className={`chip ${statusBadge(c.status)}`}>{c.status}</span></div>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+          isLoading={loading}
+        />
       </div>
 
-      {/* Modal */}
+      {/* MODAL (โหลด detail แบบ lazy) */}
       <Modal
         open={isModalOpen}
         onClose={closeModal}
         size="2xl"
-        title={
-          modalMode === "view"
-            ? "Customer Details"
-            : modalMode === "edit"
-              ? "Edit Customer"
-              : "Create New Customer"
-        }
+        title={modalMode === "view" ? "Customer Details" : modalMode === "edit" ? "Edit Customer" : "Create New Customer"}
         footer={
-          modalMode !== "view" ? (
-            <>
-              <button
-                onClick={closeModal}
-                className="btn btn-outline"
-              >
-                Cancel
+          modalMode === "view" ? (
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">Close</button>
+              <button onClick={() => setModalMode("edit")} className="btn btn-primary">
+                <Edit size={18} /> Edit Customer
               </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">Cancel</button>
               <button onClick={handleSave} className="btn btn-primary">
-                {modalMode === "create" ? "Create Customer" : "Save Changes"}
+                <Save size={18} /> {modalMode === "create" ? "Create Customer" : "Save Changes"}
               </button>
-            </>
-          ) : null
+            </div>
+          )
         }
       >
-        {/* Tabs */}
+        {/* tabs */}
         <div className="border-b border-white/10 flex gap-4">
           {[
             { id: "basic", label: "Basic Info", icon: Building2 },
@@ -460,27 +461,21 @@ const CustomersPage: React.FC = () => {
             { id: "financial", label: "Financial", icon: DollarSign },
             { id: "stats", label: "Statistics", icon: TrendingUp },
             { id: "preferences", label: "Preferences", icon: FileText },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const id = tab.id as TabKey;
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === id
-                  ? "border-sky-400/60 text-sky-300"
-                  : "border-transparent text-white/70 hover:text-white"
-                  }`}
-              >
-                <Icon size={16} />
-                {tab.label}
-              </button>
-            );
-          })}
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id as TabKey)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === id ? "border-sky-400/60 text-sky-300" : "border-transparent text-white/70 hover:text-white"
+              }`}
+            >
+              <Icon size={16} /> {label}
+            </button>
+          ))}
         </div>
 
+        {/* ถ้าเป็น create จะมี formData อยู่แล้ว; ถ้า view/edit ต้องมี selected (detail) */}
         <div className="pt-6">
-          {/* ===== Basic Tab ===== */}
           {activeTab === "basic" && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
@@ -522,10 +517,8 @@ const CustomersPage: React.FC = () => {
                     disabled={modalMode === "view"}
                     className="w-full glass-input"
                   >
-                    {CUSTOMER_TYPES.map((type) => (
-                      <option key={type} value={type} className="select option">
-                        {type}
-                      </option>
+                    {CUSTOMER_TYPES.map((t) => (
+                      <option key={t} value={t} className="select option">{t}</option>
                     ))}
                   </select>
                 </div>
@@ -538,9 +531,7 @@ const CustomersPage: React.FC = () => {
                     className="w-full glass-input"
                   >
                     {INDUSTRIES.map((i) => (
-                      <option key={i} value={i} className="select option">
-                        {i}
-                      </option>
+                      <option key={i} value={i} className="select option">{i}</option>
                     ))}
                   </select>
                 </div>
@@ -552,31 +543,30 @@ const CustomersPage: React.FC = () => {
                     disabled={modalMode === "view"}
                     className="w-full glass-input"
                   >
-                    <option value="Active" className="select option">Active</option>
-                    <option value="Inactive" className="select option">Inactive</option>
-                    <option value="On Hold" className="select option">On Hold</option>
-                    <option value="Blacklisted" className="select option">Blacklisted</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Blacklisted">Blacklisted</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Rating</label>
                   <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
+                    {[1,2,3,4,5].map(star => (
                       <button
                         key={star}
                         type="button"
                         onClick={() => modalMode !== "view" && setFormData({ ...formData, rating: star })}
                         className={modalMode === "view" ? "cursor-default" : "cursor-pointer"}
                       >
-                        <Star
-                          size={24}
-                          className={star <= formData.rating ? "text-yellow-400 fill-yellow-400" : "text-white/30"}
-                        />
+                        <Star size={24} className={star <= formData.rating ? "text-yellow-400 fill-yellow-400" : "text-white/30"} />
                       </button>
                     ))}
                     <span className="text-sm text-white/70 ml-2">{formData.rating}/5</span>
                   </div>
                 </div>
+
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-white/80 mb-2">Notes</label>
                   <textarea
@@ -591,62 +581,53 @@ const CustomersPage: React.FC = () => {
             </div>
           )}
 
-          {/* ===== Contact Tab ===== */}
           {activeTab === "contact" && (
             <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-4">Contact Information</h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">Contact Person</label>
-                    <input
-                      type="text"
-                      value={formData.contact.contactPerson}
-                      onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, contactPerson: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">Title</label>
-                    <input
-                      type="text"
-                      value={formData.contact.title}
-                      onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, title: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={formData.contact.email}
-                      onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, email: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.contact.phone}
-                      onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, phone: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white/80 mb-2">Mobile</label>
-                    <input
-                      type="tel"
-                      value={formData.contact.mobile || ""}
-                      onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, mobile: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Contact Person</label>
+                  <input
+                    type="text"
+                    value={formData.contact.contactPerson}
+                    onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, contactPerson: e.target.value } })}
+                    disabled={modalMode === "view"} className="w-full glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Title</label>
+                  <input
+                    type="text"
+                    value={formData.contact.title || ""}
+                    onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, title: e.target.value } })}
+                    disabled={modalMode === "view"} className="w-full glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={formData.contact.email}
+                    onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, email: e.target.value } })}
+                    disabled={modalMode === "view"} className="w-full glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    value={formData.contact.phone || ""}
+                    onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, phone: e.target.value } })}
+                    disabled={modalMode === "view"} className="w-full glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">Mobile</label>
+                  <input
+                    type="tel"
+                    value={formData.contact.mobile || ""}
+                    onChange={(e) => setFormData({ ...formData, contact: { ...formData.contact, mobile: e.target.value } })}
+                    disabled={modalMode === "view"} className="w-full glass-input"
+                  />
                 </div>
               </div>
 
@@ -654,13 +635,12 @@ const CustomersPage: React.FC = () => {
                 <h3 className="text-lg font-semibold text-white mb-4">Address</h3>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-white/80 mb-2">Street Address</label>
+                    <label className="block text-sm font-medium text-white/80 mb-2">Street</label>
                     <input
                       type="text"
                       value={formData.address.street}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, street: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
+                      disabled={modalMode === "view"} className="w-full glass-input"
                     />
                   </div>
                   <div>
@@ -669,8 +649,7 @@ const CustomersPage: React.FC = () => {
                       type="text"
                       value={formData.address.city}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
+                      disabled={modalMode === "view"} className="w-full glass-input"
                     />
                   </div>
                   <div>
@@ -679,8 +658,7 @@ const CustomersPage: React.FC = () => {
                       type="text"
                       value={formData.address.state}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, state: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
+                      disabled={modalMode === "view"} className="w-full glass-input"
                     />
                   </div>
                   <div>
@@ -689,8 +667,7 @@ const CustomersPage: React.FC = () => {
                       type="text"
                       value={formData.address.country}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, country: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
+                      disabled={modalMode === "view"} className="w-full glass-input"
                     />
                   </div>
                   <div>
@@ -699,8 +676,7 @@ const CustomersPage: React.FC = () => {
                       type="text"
                       value={formData.address.postalCode}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, postalCode: e.target.value } })}
-                      disabled={modalMode === "view"}
-                      className="w-full glass-input"
+                      disabled={modalMode === "view"} className="w-full glass-input"
                     />
                   </div>
                 </div>
@@ -708,7 +684,6 @@ const CustomersPage: React.FC = () => {
             </div>
           )}
 
-          {/* ===== Financial Tab ===== */}
           {activeTab === "financial" && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
@@ -717,14 +692,9 @@ const CustomersPage: React.FC = () => {
                   <select
                     value={formData.financial.paymentTerms}
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, paymentTerms: e.target.value as PaymentTerm } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
+                    disabled={modalMode === "view"} className="w-full glass-input"
                   >
-                    {PAYMENT_TERMS.map((term) => (
-                      <option key={term} value={term} className="select option">
-                        {term}
-                      </option>
-                    ))}
+                    {["COD","Net 15","Net 30","Net 45","Net 60"].map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -732,14 +702,9 @@ const CustomersPage: React.FC = () => {
                   <select
                     value={formData.financial.currency}
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, currency: e.target.value as Currency } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
+                    disabled={modalMode === "view"} className="w-full glass-input"
                   >
-                    {CURRENCIES.map((c) => (
-                      <option key={c} value={c} className="select option">
-                        {c}
-                      </option>
-                    ))}
+                    {["USD","EUR","THB","JPY"].map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
@@ -748,9 +713,7 @@ const CustomersPage: React.FC = () => {
                     type="number"
                     value={formData.financial.creditLimit}
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, creditLimit: Number(e.target.value) || 0 } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
-                    min={0}
+                    disabled={modalMode === "view"} className="w-full glass-input" min={0}
                   />
                 </div>
                 <div>
@@ -759,57 +722,48 @@ const CustomersPage: React.FC = () => {
                     type="text"
                     value={formData.financial.taxId}
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, taxId: e.target.value } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
+                    disabled={modalMode === "view"} className="w-full glass-input"
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* ===== Statistics Tab ===== */}
-          {activeTab === "stats" && selectedCustomer && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">Total Orders</div>
-                  <div className="text-3xl font-bold text-sky-300">{selectedCustomer.stats.totalOrders}</div>
+          {activeTab === "stats" && selected && (
+            <div className="grid grid-cols-2 gap-6">
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">Total Orders</div>
+                <div className="text-3xl font-bold text-sky-300">{selected.stats.totalOrders}</div>
+              </div>
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">Active Orders</div>
+                <div className="text-3xl font-bold text-emerald-300">{selected.stats.activeOrders}</div>
+              </div>
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">Total Revenue</div>
+                <div className="text-3xl font-bold text-violet-300">
+                  {formatCurrency(selected.stats.totalRevenue || 0, selected.financial.currency)}
                 </div>
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">Active Orders</div>
-                  <div className="text-3xl font-bold text-emerald-300">{selectedCustomer.stats.activeOrders}</div>
+              </div>
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">Avg Order Value</div>
+                <div className="text-3xl font-bold text-amber-300">
+                  {formatCurrency(selected.stats.avgOrderValue || 0, selected.financial.currency)}
                 </div>
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">Total Revenue</div>
-                  <div className="text-3xl font-bold text-violet-300">
-                    {formatCurrency(selectedCustomer.stats.totalRevenue, selectedCustomer.financial.currency)}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">Avg Order Value</div>
-                  <div className="text-3xl font-bold text-amber-300">
-                    {formatCurrency(selectedCustomer.stats.avgOrderValue, selectedCustomer.financial.currency)}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">On-Time Delivery</div>
-                  <div className="text-3xl font-bold text-indigo-300">
-                    {selectedCustomer.stats.onTimeDelivery}%
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg border border-white/10 bg-white/5">
-                  <div className="text-sm text-white/70 font-medium mb-1">Last Order Date</div>
-                  <div className="text-2xl font-bold text-white">
-                    {selectedCustomer.stats.lastOrderDate
-                      ? new Date(selectedCustomer.stats.lastOrderDate).toLocaleDateString()
-                      : "N/A"}
-                  </div>
+              </div>
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">On-Time Delivery</div>
+                <div className="text-3xl font-bold text-indigo-300">{selected.stats.onTimeDelivery || 0}%</div>
+              </div>
+              <div className="p-4 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm text-white/70 mb-1">Last Order Date</div>
+                <div className="text-2xl font-bold">
+                  {selected.stats.lastOrderDate ? new Date(selected.stats.lastOrderDate).toLocaleDateString() : "N/A"}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ===== Preferences Tab ===== */}
           {activeTab === "preferences" && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
@@ -818,14 +772,9 @@ const CustomersPage: React.FC = () => {
                   <select
                     value={formData.preferences.preferredShipping}
                     onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, preferredShipping: e.target.value as ShippingOption } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
+                    disabled={modalMode === "view"} className="w-full glass-input"
                   >
-                    {SHIPPING_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt} className="select option">
-                        {opt}
-                      </option>
-                    ))}
+                    {SHIPPING_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
@@ -834,11 +783,7 @@ const CustomersPage: React.FC = () => {
                     type="number"
                     value={formData.preferences.discountPercent}
                     onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, discountPercent: Number(e.target.value) || 0 } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
-                    min={0}
-                    max={100}
-                    step={0.1}
+                    disabled={modalMode === "view"} className="w-full glass-input" min={0} max={100} step={0.1}
                   />
                 </div>
                 <div className="col-span-2">
@@ -846,10 +791,7 @@ const CustomersPage: React.FC = () => {
                   <textarea
                     value={formData.preferences.specialInstructions || ""}
                     onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, specialInstructions: e.target.value } })}
-                    disabled={modalMode === "view"}
-                    className="w-full glass-input"
-                    rows={4}
-                    placeholder="Any special handling or delivery requirements..."
+                    disabled={modalMode === "view"} className="w-full glass-input" rows={4}
                   />
                 </div>
               </div>

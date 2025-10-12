@@ -1,4 +1,6 @@
 import React from "react";
+import EmptyState from "../EmptyState";
+import Loading from "../../Loading";
 
 type Column<T> = {
   key: keyof T | string;
@@ -11,14 +13,14 @@ type DataTableProps<T> = {
   columns: readonly Column<T>[];
   data: readonly T[];
   rowKey?: (item: T) => string | number;
-  emptyMessage?: React.ReactNode; // ✅ เพิ่ม prop สำหรับข้อความหรือ component เมื่อไม่มี data
+  isLoading?: boolean; 
 };
 
 export function DataTable<T extends Record<string, unknown>>({
   columns,
   data,
   rowKey,
-  emptyMessage,
+  isLoading = false, 
 }: DataTableProps<T>) {
   const alignClasses: Record<NonNullable<Column<T>["align"]>, string> = {
     left: "text-left",
@@ -35,8 +37,9 @@ export function DataTable<T extends Record<string, unknown>>({
               {columns.map((col) => (
                 <th
                   key={col.key.toString()}
-                  className={`px-6 py-3 text-xs font-medium text-white/70 uppercase tracking-wider ${alignClasses[col.align ?? "left"]
-                    }`}
+                  className={`px-6 py-3 text-xs font-medium text-white/70 uppercase tracking-wider ${
+                    alignClasses[col.align ?? "left"]
+                  }`}
                 >
                   {col.label}
                 </th>
@@ -44,9 +47,17 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
-            {data.length === 0 && emptyMessage ? (
+            {isLoading ? (
               <tr>
-                <td colSpan={columns.length}>{emptyMessage}</td>
+                <td colSpan={columns.length}>
+                  <Loading />
+                </td>
+              </tr>
+            ) : data.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length}>
+                  <EmptyState />
+                </td>
               </tr>
             ) : (
               data.map((row, i) => (
@@ -54,7 +65,9 @@ export function DataTable<T extends Record<string, unknown>>({
                   {columns.map((col) => (
                     <td
                       key={col.key.toString()}
-                      className={`px-6 py-4 text-sm ${alignClasses[col.align ?? "left"]}`}
+                      className={`px-6 py-4 text-sm ${
+                        alignClasses[col.align ?? "left"]
+                      }`}
                     >
                       {col.render
                         ? col.render(row)

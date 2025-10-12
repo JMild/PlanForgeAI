@@ -253,3 +253,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1); /* เปลี่ยนเป็นสีขาว */
   opacity: 0.8;
 }
+
+/* ตัด focus ring/outline ของทุก element ใน Recharts */
+.recharts-wrapper :focus,
+.recharts-wrapper :focus-visible {
+  outline: none !important;
+}
+
+/* Safari/iOS ลดแสงเวลาจิ้ม */
+.recharts-wrapper svg {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* กันบางเคสใน Firefox */
+.recharts-wrapper *::-moz-focus-inner,
+.recharts-wrapper *:-moz-focusring {
+  outline: none !important;
+  border: 0 !important;
+}

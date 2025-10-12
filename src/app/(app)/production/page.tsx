@@ -431,18 +431,18 @@ const ProductionExecution: React.FC = () => {
             </div>
           </div>
         }
-        actions={
-          <div className="flex gap-3">
-            <button className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 flex items-center gap-2">
-              <Zap size={18} />
-              Replan
-            </button>
-            <button className="px-4 py-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 flex items-center gap-2">
-              <FileText size={18} />
-              Shift Report
-            </button>
-          </div>
-        }
+        // actions={
+        //   <div className="flex gap-3">
+        //     <button className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 flex items-center gap-2">
+        //       <Zap size={18} />
+        //       Replan
+        //     </button>
+        //     <button className="px-4 py-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 flex items-center gap-2">
+        //       <FileText size={18} />
+        //       Shift Report
+        //     </button>
+        //   </div>
+        // }
         tabs={
           <>
             {/* Statistics Cards */}

@@ -11,12 +11,9 @@ import {
   Upload,
   Settings,
   Save,
-  ChevronDown,
-  ChevronRight,
   Cpu,
   AlertCircle,
   Activity,
-  Calendar,
   Wrench,
   Clock,
   Zap,
@@ -27,8 +24,7 @@ import Modal from "@/src/components/shared/Modal";
 import { getMachines, getProcesses, getWorkCenters, getDropdownMachineStatus } from "@/src/services/master";
 import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
-import EmptyState from "@/src/components/shared/EmptyState";
-import Loading from "@/src/components/Loading";
+import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 
 /* -------------------- Types -------------------- */
 type ViewMode = "view" | "edit" | null;
@@ -117,7 +113,6 @@ const MachinesMasterData = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filterWorkCenter, setFilterWorkCenter] = useState<"all" | string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | string>("all");
-  const [expandedMachines, setExpandedMachines] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(null);
@@ -151,6 +146,7 @@ const MachinesMasterData = () => {
         const resProcesses = await getProcesses();
         const resMachineStatus = await getDropdownMachineStatus();
         const resWorkCenter = await getWorkCenters();
+        console.log('resMachines', resMachines)
         setMachines(resMachines);
         setProcesses(resProcesses);
         setMachineStatus(resMachineStatus)
@@ -224,10 +220,6 @@ const MachinesMasterData = () => {
 
 
   /* -------------------- Actions -------------------- */
-  const toggleMachineExpand = (code: string) => {
-    setExpandedMachines((prev) => ({ ...prev, [code]: !prev[code] }));
-  };
-
   const openCreateModal = () => {
     setFormData({
       machineCode: `M${String(machines.length + 1).padStart(3, "0")}`,
@@ -342,6 +334,201 @@ const MachinesMasterData = () => {
       ? Math.round(machines.reduce((sum, m) => sum + m.currentOEE, 0) / machines.length)
       : 0;
 
+  // ===== Columns สำหรับตารางเครื่อง =====
+  type MachineRow = typeof filteredMachines[number];
+
+  const machineColumns = [
+    {
+      key: "machine",
+      label: "Machine",
+      render: (m: MachineRow) => (
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-600 to-sky-600 grid place-items-center text-white/90 text-xs font-bold">
+            {m.machineName?.slice(0, 2)?.toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate">{m.machineName}</div>
+            <div className="text-xs text-white/60 truncate">({m.machineCode})</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "workcenter",
+      label: "Work Center",
+      render: (m: MachineRow) => (
+        <div className="flex items-center gap-1 text-sm">
+          <Settings size={14} className="text-white/50" />
+          <span>{m.workCenterCode}</span>
+        </div>
+      ),
+    },
+    {
+      key: "oee",
+      label: "OEE",
+      render: (m: MachineRow) => (
+        <div className="flex items-center gap-1 text-sm">
+          <Zap size={14} className="text-white/50" />
+          <span className={getOEEColor(m.currentOEE, m.oeeTarget)}>
+            OEE: {m.currentOEE}% (Target: {m.oeeTarget}%)
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (m: MachineRow) => (
+        <span className={`text-xs px-2 py-1 rounded border inline-flex items-center gap-1 ${getStatusColor(m.status)}`}>
+          {getStatusIcon(m.status)}
+          {m.status}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      align: "right",
+      render: (m: MachineRow) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => openViewModal(m)}
+            className="p-2 hover:bg-white/10 rounded"
+            title="View Details"
+          >
+            <Eye size={18} className="text-white/70" />
+          </button>
+          <button
+            onClick={() => openEditModal(m)}
+            className="p-2 text-sky-300 hover:bg-white/10 rounded"
+            title="Edit Machine"
+          >
+            <Edit size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteMachine(m.machineCode)}
+            className="p-2 text-rose-300 hover:bg-white/10 rounded"
+            title="Delete Machine"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ),
+    },
+  ] as const;
+
+  // ===== แถวขยายรายละเอียด =====
+  const renderMachineExpanded = (machine: MachineRow) => {
+    const maintenanceStatus = getMaintenanceStatus(machine.maintenanceDueDays);
+    return (
+      <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Equipment Info */}
+        <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+          <h4 className="text-sm font-semibold text-white/80 mb-3">Equipment Info</h4>
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-white/60">Description:</span>
+              <div className="text-white/90">{machine.description}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Manufacturer:</span>
+              <div className="text-white/90">{machine.manufacturer}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Model:</span>
+              <div className="text-white/90">{machine.model}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Serial Number:</span>
+              <div className="text-white/90">{machine.serialNumber}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Location:</span>
+              <div className="text-white/90">{machine.location}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Capabilities */}
+        <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+          <h4 className="text-sm font-semibold text-white/80 mb-3">Capabilities</h4>
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-white/60">Processes:</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {machine.processes?.map((proc: string) => (
+                  <span
+                    key={proc}
+                    className="px-2 py-0.5 bg-sky-500/10 text-sky-300 text-xs rounded border border-sky-500/20"
+                  >
+                    {proc}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-white/60">Capacity:</span>
+              <div className="text-white/90">{machine.capacityHoursPerDay} hrs/day</div>
+            </div>
+            <div>
+              <span className="text-white/60">Current OEE:</span>
+              <div className={`font-semibold ${getOEEColor(machine.currentOEE, machine.oeeTarget)}`}>
+                {machine.currentOEE}%
+              </div>
+            </div>
+            <div>
+              <span className="text-white/60">Target OEE:</span>
+              <div className="text-white/90">{machine.oeeTarget}%</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Maintenance */}
+        <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+          <h4 className="text-sm font-semibold text-white/80 mb-3">Maintenance</h4>
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="text-white/60">Last PM:</span>
+              <div className="text-white/90">{new Date(machine.lastPMDate).toLocaleDateString()}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Next PM:</span>
+              <div className="text-white/90">{new Date(machine.nextPMDate).toLocaleDateString()}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Due In:</span>
+              <div className={maintenanceStatus.color.split(" ")[0]}>
+                {machine.maintenanceDueDays} days - {maintenanceStatus.text}
+              </div>
+            </div>
+            <div>
+              <span className="text-white/60">Purchase Date:</span>
+              <div className="text-white/90">{new Date(machine.purchaseDate).toLocaleDateString()}</div>
+            </div>
+            <div>
+              <span className="text-white/60">Warranty:</span>
+              <div className="text-white/90">
+                Until {new Date(machine.warrantyExpiry).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {machine.notes && (
+          <div className="md:col-span-3 border border-sky-500/20 rounded-lg p-4 bg-sky-500/10">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} className="text-sky-300 mt-0.5" />
+              <div>
+                <div className="text-sm font-medium text-sky-200 mb-1">Notes</div>
+                <div className="text-sm text-sky-100/90">{machine.notes}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="text-white">
       {/* Header */}
@@ -428,13 +615,13 @@ const MachinesMasterData = () => {
                   placeholder="Search machines..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+                  className="glass-input w-full !pl-10 pr-4"
                 />
               </div>
               <select
                 value={filterWorkCenter}
                 onChange={(e) => setFilterWorkCenter(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+                className="glass-input w-44"
               >
                 <option value="all" className="select option">All Work Centers</option>
                 {workCenter.map((wc) => (
@@ -446,7 +633,7 @@ const MachinesMasterData = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+                className="glass-input w-32"
               >
                 <option value="all">All Status</option>
                 {machineStatus.map((status) => (
@@ -463,209 +650,13 @@ const MachinesMasterData = () => {
 
       {/* Machines List */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="rounded-lg border border-white/10 bg-white/5">
-          {loading ? (
-            <Loading text="Loading machines..." />
-          ) : filteredMachines.length === 0 ? (
-            <EmptyState
-              icon={<Cpu size={48} className="mx-auto text-white/50 mb-4" />}
-              title="No machines found"
-              message="Create your first machines to get started"
-              buttonLabel="Create Machine"
-              onButtonClick={openCreateModal}
-            />
-          ) : (
-            <div className="divide-y divide-white/10">
-              {filteredMachines.map((machine) => {
-                const isExpanded = !!expandedMachines[machine.machineCode];
-                const maintenanceStatus = getMaintenanceStatus(machine.maintenanceDueDays);
-
-                return (
-                  <div key={machine.machineCode} className="hover:bg-white/5 transition-colors">
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1">
-                          <button
-                            onClick={() => toggleMachineExpand(machine.machineCode)}
-                            className="p-1 hover:bg-white/10 rounded"
-                          >
-                            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                          </button>
-
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-lg font-semibold">{machine.machineName}</h3>
-                              <span className="text-sm text-white/60">({machine.machineCode})</span>
-                              <span
-                                className={`text-xs px-2 py-1 rounded border flex items-center gap-1 ${getStatusColor(
-                                  machine.status
-                                )}`}
-                              >
-                                {getStatusIcon(machine.status)}
-                                {machine.status}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-6 text-sm text-white/70">
-                              <div className="flex items-center gap-1">
-                                <Settings size={14} className="text-white/50" />
-                                <span>{machine.workCenterName}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Zap size={14} className="text-white/50" />
-                                <span className={getOEEColor(machine.currentOEE, machine.oeeTarget)}>
-                                  OEE: {machine.currentOEE}% (Target: {machine.oeeTarget}%)
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar size={14} className="text-white/50" />
-                                <span>{machine.calendarName}</span>
-                              </div>
-                              <div className={`chip ${maintenanceStatus.color}`}>
-                                <Wrench size={14} />
-                                <span>PM: {maintenanceStatus.text}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openViewModal(machine)}
-                            className="p-2 hover:bg-white/10 rounded"
-                            title="View Details"
-                          >
-                            <Eye size={18} className="text-white/70" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(machine)}
-                            className="p-2 text-sky-300 hover:bg-white/10 rounded"
-                            title="Edit Machine"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMachine(machine.machineCode)}
-                            className="p-2 text-rose-300 hover:bg-white/10 rounded"
-                            title="Delete Machine"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Expanded Details */}
-                      {isExpanded && (
-                        <div className="mt-4 ml-12 grid grid-cols-3 gap-6">
-                          <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                            <h4 className="text-sm font-semibold text-white/80 mb-3">Equipment Info</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-white/60">Description:</span>
-                                <div className="text-white/90">{machine.description}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Manufacturer:</span>
-                                <div className="text-white/90">{machine.manufacturer}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Model:</span>
-                                <div className="text-white/90">{machine.model}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Serial Number:</span>
-                                <div className="text-white/90">{machine.serialNumber}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Location:</span>
-                                <div className="text-white/90">{machine.location}</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                            <h4 className="text-sm font-semibold text-white/80 mb-3">Capabilities</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-white/60">Processes:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {machine.processes.map((proc) => (
-                                    <span
-                                      key={proc}
-                                      className="px-2 py-0.5 bg-sky-500/10 text-sky-300 text-xs rounded border border-sky-500/20"
-                                    >
-                                      {proc}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Capacity:</span>
-                                <div className="text-white/90">{machine.capacityHoursPerDay} hrs/day</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Current OEE:</span>
-                                <div className={`font-semibold ${getOEEColor(machine.currentOEE, machine.oeeTarget)}`}>
-                                  {machine.currentOEE}%
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Target OEE:</span>
-                                <div className="text-white/90">{machine.oeeTarget}%</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                            <h4 className="text-sm font-semibold text-white/80 mb-3">Maintenance</h4>
-                            <div className="space-y-2 text-sm">
-                              <div>
-                                <span className="text-white/60">Last PM:</span>
-                                <div className="text-white/90">{new Date(machine.lastPMDate).toLocaleDateString()}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Next PM:</span>
-                                <div className="text-white/90">{new Date(machine.nextPMDate).toLocaleDateString()}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Due In:</span>
-                                <div className={maintenanceStatus.color.split(" ")[0]}>
-                                  {machine.maintenanceDueDays} days - {maintenanceStatus.text}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Purchase Date:</span>
-                                <div className="text-white/90">{new Date(machine.purchaseDate).toLocaleDateString()}</div>
-                              </div>
-                              <div>
-                                <span className="text-white/60">Warranty:</span>
-                                <div className="text-white/90">
-                                  Until {new Date(machine.warrantyExpiry).toLocaleDateString()}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {machine.notes && (
-                            <div className="col-span-3 border border-sky-500/20 rounded-lg p-4 bg-sky-500/10">
-                              <div className="flex items-start gap-2">
-                                <AlertCircle size={16} className="text-sky-300 mt-0.5" />
-                                <div>
-                                  <div className="text-sm font-medium text-sky-200 mb-1">Notes</div>
-                                  <div className="text-sm text-sky-100/90">{machine.notes}</div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ExpandableDataTable
+          columns={machineColumns}
+          data={filteredMachines}
+          rowKey={(m) => m.machineCode}
+          renderExpandedRow={renderMachineExpanded}
+          isLoading={loading}
+        />
       </div>
 
       {/* Modal */}
@@ -684,28 +675,39 @@ const MachinesMasterData = () => {
         }
         footer={
           <>
-            <button
-              onClick={closeModal}
-              className="btn btn-outline"
-            >
-              Cancel
-            </button>
+
             {viewMode === "view" ? (
-              <button
-                onClick={() => setViewMode("edit")}
-                className="btn btn-primary"
-              >
-                <Edit size={18} />
-                Edit Machine
-              </button>
+              <div className="flex items-center justify-end gap-3 w-full">
+                <button
+                  onClick={closeModal}
+                  className="btn btn-outline"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => setViewMode("edit")}
+                  className="btn btn-primary"
+                >
+                  <Edit size={18} />
+                  Edit Machine
+                </button>
+              </div>
             ) : (
-              <button
-                onClick={handleSaveMachine}
-                className="btn btn-primary"
-              >
-                <Save size={18} />
-                Save Machine
-              </button>
+              <div className="flex items-center justify-end gap-3 w-full">
+                <button
+                  onClick={closeModal}
+                  className="btn btn-outline"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMachine}
+                  className="btn btn-primary"
+                >
+                  <Save size={18} />
+                  Save Machine
+                </button>
+              </div>
             )}
           </>
         }
@@ -793,7 +795,7 @@ const MachinesMasterData = () => {
                   <div className="pt-2 border-t border-white/10">
                     <span className="text-white/60">Process Capabilities:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {editingMachine.processes.map((proc) => (
+                      {editingMachine.processes?.map((proc) => (
                         <span
                           key={proc}
                           className="px-2 py-0.5 bg-sky-500/10 text-sky-300 text-xs rounded border border-sky-500/20"

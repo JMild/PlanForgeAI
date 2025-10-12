@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
@@ -29,6 +30,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { DataTable } from "@/src/components/shared/table/Table";
 
 /* ===================== Types ===================== */
 type ReportTypeId =
@@ -198,6 +200,7 @@ const REPORT_DATA: ReportData = {
   ],
 };
 
+
 const COLORS: string[] = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
 
 const REPORT_TYPES: ReportTypeItem[] = [
@@ -210,6 +213,63 @@ const REPORT_TYPES: ReportTypeItem[] = [
   { id: "leadtime", name: "Lead Time Analysis", icon: TrendingUp, category: "Performance" },
   { id: "downtime", name: "Downtime Analysis", icon: AlertTriangle, category: "Maintenance" },
 ];
+
+// ===== Tooltip theme (dark glass) =====
+const TOOLTIP_STYLE: React.CSSProperties = {
+  background: "rgba(2, 6, 23, 0.78)",        // deep glass
+  border: "1px solid rgba(59,130,246,0.35)", // fallback border (blue-500)
+  color: "#fff",
+  borderRadius: 10,
+  padding: "8px 10px",
+  boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+  backdropFilter: "blur(6px)",
+};
+const TOOLTIP_LABEL_STYLE: React.CSSProperties = {
+  color: "rgba(255,255,255,0.9)",
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+// ใช้กับทุกกราฟ (Bar/Line/Composed/Pie) 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+
+  const p0 = payload[0];
+  const isPie = !!p0?.payload?.name; // pie slice จะมี name ใน payload
+  // สี series จาก Recharts จะถูกส่งมาใน p0.color (ติดตาม fill/stroke ที่ตั้งไว้)
+  const chipColor = p0?.color || COLORS[0];
+
+  const style = {
+    ...TOOLTIP_STYLE,
+    border: `1px solid ${chipColor}66`, // ไล่โทนตามสี series/slice
+  } as React.CSSProperties;
+
+  // สำหรับ Pie: แสดง % ถ้ามี percent
+  const percent =
+    isPie && p0.payload?.percent != null
+      ? ` (${Math.round(p0.payload.percent * 100)}%)`
+      : "";
+
+  // label (แกน X) โชว์เฉพาะกราฟที่ไม่ใช่ Pie
+  return (
+    <div style={style}>
+      {!isPie && label && <div style={TOOLTIP_LABEL_STYLE}>{label}</div>}
+      {payload.map((item: any, idx: number) => {
+        const name = item.name ?? item.dataKey ?? "value";
+        const color = item.color || chipColor;
+        return (
+          <div key={idx} className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded" style={{ background: color }} />
+            <span className="text-white/90">{name}</span>
+            <span className="ml-2 font-semibold text-white">
+              {item.value}{isPie ? percent : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /* ===================== Page ===================== */
 const ProductionReports: React.FC = () => {
@@ -267,7 +327,7 @@ const ProductionReports: React.FC = () => {
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                 setDateRange(e.target.value as DateRange)
               }
-              className="btn btn-outline"
+              className="glass-input"
             >
               <option value="today" className="select option">
                 Today
@@ -323,8 +383,8 @@ const ProductionReports: React.FC = () => {
                           key={report.id}
                           onClick={() => setSelectedReport(report.id)}
                           className={`px-3 py-1 rounded text-sm border transition-colors ${selectedReport === report.id
-                              ? "bg-sky-500/20 text-sky-300 border-sky-400/20"
-                              : "text-white/70 hover:bg-white/10 border-white/10"
+                            ? "bg-sky-500/20 text-sky-300 border-sky-400/20"
+                            : "text-white/70 hover:bg-white/10 border-white/10"
                             }`}
                         >
                           {report.name}
@@ -385,10 +445,68 @@ const ProductionReports: React.FC = () => {
 };
 
 /* ===================== Report Components ===================== */
-
 const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({ data }) => {
   const avgUtilization = Math.round(data.reduce((sum, m) => sum + m.utilization, 0) / data.length);
   const avgOEE = Math.round(data.reduce((sum, m) => sum + m.oee, 0) / data.length);
+
+  const columns = [
+    {
+      key: "machine",
+      label: "Machine",
+    },
+    {
+      key: "planned",
+      label: "Planned (min)",
+      align: "right",
+    },
+    {
+      key: "actual",
+      label: "Actual (min)",
+      align: "right",
+    },
+    {
+      key: "utilization",
+      label: "Utilization",
+      align: "right",
+      render: (m: UtilizationByMachine) => (
+        <span className="text-sky-300">{m.utilization}%</span>
+      ),
+    },
+    {
+      key: "oee",
+      label: "OEE",
+      align: "right",
+      render: (m: UtilizationByMachine) => (
+        <span className="text-emerald-300">{m.oee}%</span>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      align: "right",
+      render: (m: UtilizationByMachine) => {
+        const statusLabel =
+          m.utilization >= 80
+            ? "Excellent"
+            : m.utilization >= 60
+              ? "Good"
+              : m.utilization > 0
+                ? "Low"
+                : "Down";
+
+        const statusClass =
+          m.utilization >= 80
+            ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
+            : m.utilization >= 60
+              ? "status-inactive"
+              : m.utilization > 0
+                ? "bg-orange-500/15 text-orange-300 border-orange-400/20"
+                : "status-error";
+
+        return <span className={`chip ${statusClass}`}>{statusLabel}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -416,7 +534,8 @@ const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({ data })
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
             <XAxis dataKey="machine" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
             <Legend />
             <Bar dataKey="utilization" fill="#3B82F6" name="Utilization %" />
             <Bar dataKey="oee" fill="#10B981" name="OEE %" />
@@ -424,48 +543,13 @@ const UtilizationReport: React.FC<{ data: UtilizationByMachine[] }> = ({ data })
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Table */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Machine Details</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Machine</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Planned (min)</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Actual (min)</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Utilization</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">OEE</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((m) => (
-                <tr key={m.machine} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{m.machine}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{m.planned}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{m.actual}</td>
-                  <td className="px-4 py-3 text-sm text-right text-sky-300">{m.utilization}%</td>
-                  <td className="px-4 py-3 text-sm text-right text-emerald-300">{m.oee}%</td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`chip ${m.utilization >= 80
-                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        : m.utilization >= 60
-                          ? "status-inactive"
-                          : m.utilization > 0
-                            ? "bg-orange-500/15 text-orange-300 border-orange-400/20"
-                            : "status-error"
-                        }`}
-                    >
-                      {m.utilization >= 80 ? "Excellent" : m.utilization >= 60 ? "Good" : m.utilization > 0 ? "Low" : "Down"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(m) => m.machine}
+        />
       </div>
     </div>
   );
@@ -475,6 +559,54 @@ const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
   const totalChangeovers = data.reduce((sum, m) => sum + m.changeoverCount, 0);
   const totalLoss = data.reduce((sum, m) => sum + m.productionLoss, 0);
   const avgChangeover = Math.round(data.reduce((sum, m) => sum + m.avgChangeover, 0) / data.length);
+
+  const columns = [
+    {
+      key: "machine",
+      label: "Machine",
+    },
+    {
+      key: "avgChangeover",
+      label: "Avg Time",
+      align: "right",
+      render: (m: ChangeoverRow) => <span>{m.avgChangeover} min</span>,
+    },
+    {
+      key: "changeoverCount",
+      label: "Count",
+      align: "right",
+    },
+    {
+      key: "productionLoss",
+      label: "Total Loss",
+      align: "right",
+      render: (m: ChangeoverRow) => (
+        <span className="text-rose-300 font-medium">{m.productionLoss} min</span>
+      ),
+    },
+    {
+      key: "impact",
+      label: "Impact",
+      align: "right",
+      render: (m: ChangeoverRow) => {
+        const label =
+          m.productionLoss > 400
+            ? "High"
+            : m.productionLoss > 300
+              ? "Medium"
+              : "Low";
+
+        const style =
+          m.productionLoss > 400
+            ? "status-error"
+            : m.productionLoss > 300
+              ? "status-inactive"
+              : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+
+        return <span className={`chip ${style}`}>{label}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -502,7 +634,9 @@ const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
             <XAxis dataKey="machine" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+
             <Legend />
             <Bar dataKey="avgChangeover" fill="#F59E0B" name="Avg Changeover (min)" />
             <Bar dataKey="changeoverCount" fill="#3B82F6" name="Count" />
@@ -510,44 +644,14 @@ const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Table */}
+      {/* ✅ Table with DataTable */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Machine Changeover Details</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Machine</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Time</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Count</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Total Loss</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Impact</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((machine) => (
-                <tr key={machine.machine} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{machine.machine}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{machine.avgChangeover} min</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{machine.changeoverCount}</td>
-                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">{machine.productionLoss} min</td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`chip ${machine.productionLoss > 400
-                        ? "status-error"
-                        : machine.productionLoss > 300
-                          ? "status-inactive"
-                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        }`}
-                    >
-                      {machine.productionLoss > 400 ? "High" : machine.productionLoss > 300 ? "Medium" : "Low"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row) => row.machine}
+        />
       </div>
     </div>
   );
@@ -556,6 +660,52 @@ const ChangeoverReport: React.FC<{ data: ChangeoverRow[] }> = ({ data }) => {
 const LateOrdersReport: React.FC<{ data: LateOrderRow[] }> = ({ data }) => {
   const totalDaysLate = data.reduce((sum, o) => sum + o.daysLate, 0);
   const avgDaysLate = Math.round((totalDaysLate / data.length) * 10) / 10;
+
+  const columns = [
+    {
+      key: "orderNo",
+      label: "Order",
+    },
+    {
+      key: "customer",
+      label: "Customer",
+    },
+    {
+      key: "dueDate",
+      label: "Due Date",
+      render: (o: LateOrderRow) => new Date(o.dueDate).toLocaleDateString(),
+    },
+    {
+      key: "completedDate",
+      label: "Completed",
+      render: (o: LateOrderRow) => new Date(o.completedDate).toLocaleDateString(),
+    },
+    {
+      key: "daysLate",
+      label: "Days Late",
+      align: "right",
+      render: (o: LateOrderRow) => (
+        <span className="text-rose-300 font-medium">
+          {o.daysLate} day{o.daysLate !== 1 ? "s" : ""}
+        </span>
+      ),
+    },
+    {
+      key: "priority",
+      label: "Priority",
+      align: "center",
+      render: (o: LateOrderRow) => {
+        const style =
+          o.priority === 1
+            ? "status-error"
+            : o.priority === 2
+              ? "status-inactive"
+              : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+
+        return <span className={`chip ${style}`}>P{o.priority}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -571,52 +721,20 @@ const LateOrdersReport: React.FC<{ data: LateOrderRow[] }> = ({ data }) => {
         </div>
         <div className="p-4 rounded-lg border border-white/10 bg-white/5">
           <div className="text-sm text-white/70 font-medium mb-1">Priority 1 Late</div>
-          <div className="text-3xl font-bold text-yellow-200">{data.filter((o) => o.priority === 1).length}</div>
+          <div className="text-3xl font-bold text-yellow-200">
+            {data.filter((o) => o.priority === 1).length}
+          </div>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ✅ Table with DataTable */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Late Order Details</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Order</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Customer</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Due Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Completed</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Days Late</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-white/60 uppercase">Priority</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((order) => (
-                <tr key={order.orderNo} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{order.orderNo}</td>
-                  <td className="px-4 py-3 text-sm text-white/80">{order.customer}</td>
-                  <td className="px-4 py-3 text-sm text-white/70">{new Date(order.dueDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-sm text-white/70">{new Date(order.completedDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">
-                    {order.daysLate} day{order.daysLate !== 1 ? "s" : ""}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`chip ${order.priority === 1
-                        ? "status-error"
-                        : order.priority === 2
-                          ? "status-inactive"
-                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        }`}
-                    >
-                      P{order.priority}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row) => row.orderNo}
+        />
       </div>
     </div>
   );
@@ -626,6 +744,67 @@ const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
   const avgLeadTime = Math.round(data.reduce((sum, p) => sum + p.avgLeadTime, 0) / data.length);
   const onTarget = data.filter((p) => p.avgLeadTime <= p.targetLeadTime).length;
   const onTargetPercentage = Math.round((onTarget / data.length) * 100);
+  const totalOrders = data.reduce((sum, p) => sum + p.orders, 0);
+
+  const columns = [
+    {
+      key: "product",
+      label: "Product",
+    },
+    {
+      key: "avgLeadTime",
+      label: "Avg Lead Time",
+      align: "right",
+      render: (p: LeadTimeRow) => `${p.avgLeadTime} min`,
+    },
+    {
+      key: "targetLeadTime",
+      label: "Target",
+      align: "right",
+      render: (p: LeadTimeRow) => `${p.targetLeadTime} min`,
+    },
+    {
+      key: "variance",
+      label: "Variance",
+      align: "right",
+      render: (p: LeadTimeRow) => {
+        const variance = p.avgLeadTime - p.targetLeadTime;
+        const sign = variance > 0 ? "+" : "";
+        return (
+          <span className={`font-medium ${variance > 0 ? "text-rose-300" : "text-emerald-300"}`}>
+            {sign}
+            {variance} min
+          </span>
+        );
+      },
+    },
+    {
+      key: "orders",
+      label: "Orders",
+      align: "right",
+    },
+    {
+      key: "status",
+      label: "Status",
+      align: "right",
+      render: (p: LeadTimeRow) => {
+        const variance = p.avgLeadTime - p.targetLeadTime;
+        let statusLabel = "On Target";
+        let statusClass =
+          "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+
+        if (variance > 0 && variance <= 20) {
+          statusLabel = "Slightly Over";
+          statusClass = "status-inactive";
+        } else if (variance > 20) {
+          statusLabel = "Over Target";
+          statusClass = "status-error";
+        }
+
+        return <span className={`chip ${statusClass}`}>{statusLabel}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -641,74 +820,50 @@ const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
         </div>
         <div className="p-4 rounded-lg border border-white/10 bg-white/5">
           <div className="text-sm text-white/70 font-medium mb-1">Total Orders</div>
-          <div className="text-3xl font-bold text-violet-300">{data.reduce((sum, p) => sum + p.orders, 0)}</div>
+          <div className="text-3xl font-bold text-violet-300">{totalOrders}</div>
         </div>
       </div>
 
       {/* Chart */}
       <div>
-        <h3 className="text-lg font-semibold text-white mb-4">Lead Time vs Target by Product</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">
+          Lead Time vs Target by Product
+        </h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
-            <XAxis dataKey="product" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
+            <XAxis
+              dataKey="product"
+              stroke="rgba(255,255,255,0.6)"
+              style={{ fontSize: "12px" }}
+            />
             <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+
             <Legend />
-            <Bar dataKey="targetLeadTime" fill="#94A3B8" name="Target Lead Time (min)" />
-            <Bar dataKey="avgLeadTime" fill="#3B82F6" name="Actual Lead Time (min)" />
+            <Bar
+              dataKey="targetLeadTime"
+              fill="#94A3B8"
+              name="Target Lead Time (min)"
+            />
+            <Bar
+              dataKey="avgLeadTime"
+              fill="#3B82F6"
+              name="Actual Lead Time (min)"
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Detailed Table */}
+      {/* ✅ DataTable */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Product Lead Time Analysis</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Product</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Lead Time</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Target</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Variance</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Orders</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((product) => {
-                const variance = product.avgLeadTime - product.targetLeadTime;
-                return (
-                  <tr key={product.product} className="hover:bg-white/5">
-                    <td className="px-4 py-3 text-sm font-medium text-white">{product.product}</td>
-                    <td className="px-4 py-3 text-sm text-right text-white/80">{product.avgLeadTime} min</td>
-                    <td className="px-4 py-3 text-sm text-right text-white/70">{product.targetLeadTime} min</td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      <span className={`font-medium ${variance > 0 ? "text-rose-300" : "text-emerald-300"}`}>
-                        {variance > 0 ? "+" : ""}
-                        {variance} min
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-white/80">{product.orders}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={`chip ${variance <= 0
-                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                          : variance <= 20
-                            ? "status-inactive"
-                            : "status-error"
-                          }`}
-                      >
-                        {variance <= 0 ? "On Target" : variance <= 20 ? "Slightly Over" : "Over Target"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(p) => p.product}
+        />
       </div>
     </div>
   );
@@ -717,6 +872,58 @@ const LeadTimeReport: React.FC<{ data: LeadTimeRow[] }> = ({ data }) => {
 const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
   const totalDowntime = data.reduce((sum, r) => sum + r.duration, 0);
   const totalIncidents = data.reduce((sum, r) => sum + r.count, 0);
+  const avgDowntime = Math.round(totalDowntime / totalIncidents);
+
+  const columns = [
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: DowntimeReasonRow) => (
+        <div className="flex items-center gap-2">
+          {/* ไม่สามารถใช้ index ได้ตรงนี้ เลยใช้แค่ row */}
+          {/* ถ้าต้องการสีที่วนซ้ำ อาจต้องเปลี่ยน data structure หรือ generate สีล่วงหน้า */}
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[0] }} />
+          {row.reason}
+        </div>
+      ),
+    },
+    {
+      key: "duration",
+      label: "Duration",
+      align: "right",
+      render: (row: DowntimeReasonRow) => `${row.duration} min`,
+    },
+    {
+      key: "count",
+      label: "Incidents",
+      align: "right",
+    },
+    {
+      key: "percentage",
+      label: "Percentage",
+      align: "right",
+      render: (row: DowntimeReasonRow) => `${row.percentage}%`,
+    },
+    {
+      key: "priority",
+      label: "Priority",
+      align: "right",
+      render: (row: DowntimeReasonRow) => {
+        let label = "Low";
+        let cls = "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+
+        if (row.percentage >= 30) {
+          label = "High";
+          cls = "status-error";
+        } else if (row.percentage >= 20) {
+          label = "Medium";
+          cls = "status-inactive";
+        }
+
+        return <span className={`chip ${cls}`}>{label}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -732,22 +939,31 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
         </div>
         <div className="p-4 rounded-lg border border-white/10 bg-white/5">
           <div className="text-sm text-white/70 font-medium mb-1">Avg per Incident</div>
-          <div className="text-3xl font-bold text-sky-300">{Math.round(totalDowntime / totalIncidents)} min</div>
+          <div className="text-3xl font-bold text-sky-300">{avgDowntime} min</div>
         </div>
       </div>
 
-      {/* Pie & Bar */}
+      {/* Pie & Bar Charts */}
       <div className="grid grid-cols-2 gap-6">
         <div>
           <h3 className="text-lg font-semibold text-white mb-4">Downtime by Reason</h3>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie data={data} dataKey="percentage" nameKey="reason" cx="50%" cy="50%" outerRadius={80} label={(e) => `${e.percentage}%`}>
+              <Pie
+                data={data}
+                dataKey="percentage"
+                nameKey="reason"
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                label={(e) => `${e.percentage}%`}
+              >
                 {data.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+                cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -758,55 +974,30 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
             <BarChart data={data} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
               <XAxis type="number" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-              <YAxis dataKey="reason" type="category" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "11px" }} width={120} />
-              <Tooltip />
+              <YAxis
+                dataKey="reason"
+                type="category"
+                stroke="rgba(255,255,255,0.6)"
+                style={{ fontSize: "11px" }}
+                width={120}
+              />
+              <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+                cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+
               <Bar dataKey="duration" fill="#EF4444" name="Duration (min)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ✅ DataTable */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Downtime Breakdown</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Reason</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Duration</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Incidents</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Percentage</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Priority</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((reason, index) => (
-                <tr key={reason.reason} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white flex items-center gap-2">
-                    <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                    {reason.reason}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{reason.duration} min</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{reason.count}</td>
-                  <td className="px-4 py-3 text-sm text-right font-medium text-white/90">{reason.percentage}%</td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`chip ${reason.percentage >= 30
-                        ? "status-error"
-                        : reason.percentage >= 20
-                          ? "status-inactive"
-                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        }`}
-                    >
-                      {reason.percentage >= 30 ? "High" : reason.percentage >= 20 ? "Medium" : "Low"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row) => row.reason}
+        />
       </div>
     </div>
   );
@@ -815,7 +1006,52 @@ const DowntimeReport: React.FC<{ data: DowntimeReasonRow[] }> = ({ data }) => {
 const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({ data }) => {
   const totalOrders = data.reduce((sum, w) => sum + w.total, 0);
   const totalOnTime = data.reduce((sum, w) => sum + w.onTime, 0);
+  const totalLate = totalOrders - totalOnTime;
   const overallPercentage = Math.round((totalOnTime / totalOrders) * 100);
+
+  const columns = [
+    {
+      key: "week",
+      label: "Period",
+      render: (row: OnTimeDeliveryRow) => row.week,
+    },
+    {
+      key: "total",
+      label: "Total Orders",
+      align: "right",
+      render: (row: OnTimeDeliveryRow) => row.total,
+    },
+    {
+      key: "onTime",
+      label: "On-Time",
+      align: "right",
+      render: (row: OnTimeDeliveryRow) => (
+        <span className="text-emerald-300 font-medium">{row.onTime}</span>
+      ),
+    },
+    {
+      key: "late",
+      label: "Late",
+      align: "right",
+      render: (row: OnTimeDeliveryRow) => (
+        <span className="text-rose-300 font-medium">{row.late}</span>
+      ),
+    },
+    {
+      key: "percentage",
+      label: "Performance",
+      align: "right",
+      render: (row: OnTimeDeliveryRow) => {
+        let cls = "status-error";
+        if (row.percentage >= 90) {
+          cls = "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+        } else if (row.percentage >= 80) {
+          cls = "status-inactive";
+        }
+        return <span className={`chip ${cls}`}>{row.percentage}%</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -835,7 +1071,7 @@ const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({ data })
         </div>
         <div className="p-4 rounded-lg border border-white/10 bg-white/5">
           <div className="text-sm text-white/70 font-medium mb-1">Late</div>
-          <div className="text-3xl font-bold text-rose-300">{totalOrders - totalOnTime}</div>
+          <div className="text-3xl font-bold text-rose-300">{totalLate}</div>
         </div>
       </div>
 
@@ -847,7 +1083,9 @@ const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({ data })
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
             <XAxis dataKey="week" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+
             <Legend />
             <Bar dataKey="onTime" fill="#10B981" name="On-Time" />
             <Bar dataKey="late" fill="#EF4444" name="Late" />
@@ -856,53 +1094,26 @@ const OnTimeDeliveryReport: React.FC<{ data: OnTimeDeliveryRow[] }> = ({ data })
         </ResponsiveContainer>
       </div>
 
-      {/* Weekly Details */}
+      {/* Weekly Breakdown Table */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Weekly Breakdown</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Period</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Total Orders</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">On-Time</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Late</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Performance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((week) => (
-                <tr key={week.week} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{week.week}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{week.total}</td>
-                  <td className="px-4 py-3 text-sm text-right text-emerald-300 font-medium">{week.onTime}</td>
-                  <td className="px-4 py-3 text-sm text-right text-rose-300 font-medium">{week.late}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`chip ${week.percentage >= 90
-                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        : week.percentage >= 80
-                          ? "status-inactive"
-                          : "status-error"
-                        }`}
-                    >
-                      {week.percentage}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row) => row.week}
+        />
       </div>
     </div>
   );
 };
 
 const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({ data }) => {
-  const avgVariance = Math.round(data.reduce((sum, d) => sum + Math.abs(d.variance), 0) / data.length);
+  const avgVariance = Math.round(
+    data.reduce((sum, d) => sum + Math.abs(d.variance), 0) / data.length
+  );
   const adherenceRate = data.filter((d) => Math.abs(d.variance) <= 2).length;
   const adherencePercentage = Math.round((adherenceRate / data.length) * 100);
+  const totalPlanned = data.reduce((sum, d) => sum + d.planned, 0);
 
   return (
     <div className="space-y-6">
@@ -920,7 +1131,7 @@ const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({ data }) =
         </div>
         <div className="p-4 rounded-lg border border-white/10 bg-white/5">
           <div className="text-sm text-white/70 font-medium mb-1">Total Planned</div>
-          <div className="text-3xl font-bold text-sky-300">{data.reduce((sum, d) => sum + d.planned, 0)}</div>
+          <div className="text-3xl font-bold text-sky-300">{totalPlanned}</div>
         </div>
       </div>
 
@@ -932,7 +1143,9 @@ const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({ data }) =
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
             <XAxis dataKey="date" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
             <YAxis stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
+
             <Legend />
             <Bar dataKey="planned" fill="#3B82F6" name="Planned Jobs" />
             <Bar dataKey="actual" fill="#10B981" name="Actual Jobs" />
@@ -945,7 +1158,53 @@ const PlanAdherenceReport: React.FC<{ data: PlanAdherenceRow[] }> = ({ data }) =
 };
 
 const BottleneckReport: React.FC<{ data: BottleneckRow[] }> = ({ data }) => {
-  const topBottleneck = data.reduce<BottleneckRow>((max, p) => (p.avgWaitTime > max.avgWaitTime ? p : max), data[0]);
+  const topBottleneck = data.reduce<BottleneckRow>(
+    (max, p) => (p.avgWaitTime > max.avgWaitTime ? p : max),
+    data[0]
+  );
+
+  const columns = [
+    {
+      key: "process",
+      label: "Process",
+      render: (row: BottleneckRow) => row.process,
+    },
+    {
+      key: "avgWaitTime",
+      label: "Avg Wait Time",
+      align: "right",
+      render: (row: BottleneckRow) => `${row.avgWaitTime} min`,
+    },
+    {
+      key: "throughput",
+      label: "Throughput",
+      align: "right",
+      render: (row: BottleneckRow) => row.throughput,
+    },
+    {
+      key: "utilization",
+      label: "Utilization",
+      align: "right",
+      render: (row: BottleneckRow) => `${row.utilization}%`,
+    },
+    {
+      key: "priority",
+      label: "Priority",
+      align: "right",
+      render: (row: BottleneckRow) => {
+        let cls = "status-error";
+        let label = "High";
+        if (row.avgWaitTime < 30) {
+          cls = "bg-emerald-500/15 text-emerald-300 border-emerald-400/20";
+          label = "Low";
+        } else if (row.avgWaitTime < 60) {
+          cls = "status-inactive";
+          label = "Medium";
+        }
+        return <span className={`chip ${cls}`}>{label}</span>;
+      },
+    },
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -970,8 +1229,15 @@ const BottleneckReport: React.FC<{ data: BottleneckRow[] }> = ({ data }) => {
           <BarChart data={data} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" />
             <XAxis type="number" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} />
-            <YAxis dataKey="process" type="category" stroke="rgba(255,255,255,0.6)" style={{ fontSize: "12px" }} width={100} />
-            <Tooltip />
+            <YAxis
+              dataKey="process"
+              type="category"
+              stroke="rgba(255,255,255,0.6)"
+              style={{ fontSize: "12px" }}
+              width={100}
+            />
+            <Tooltip content={<CustomTooltip />} wrapperStyle={{ transition: "none" }}
+              cursor={{ stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 }} />
             <Bar dataKey="avgWaitTime" fill="#EF4444" name="Avg Wait Time (min)" />
           </BarChart>
         </ResponsiveContainer>
@@ -980,41 +1246,11 @@ const BottleneckReport: React.FC<{ data: BottleneckRow[] }> = ({ data }) => {
       {/* Detailed Table */}
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Process Analysis</h3>
-        <div className="overflow-x-auto rounded-xl border border-white/15 bg-white/10 backdrop-blur">
-          <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase">Process</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Avg Wait Time</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Throughput</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Utilization</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-white/60 uppercase">Priority</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((p) => (
-                <tr key={p.process} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{p.process}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.avgWaitTime} min</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.throughput}</td>
-                  <td className="px-4 py-3 text-sm text-right text-white/80">{p.utilization}%</td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`chip ${p.avgWaitTime >= 60
-                        ? "status-error"
-                        : p.avgWaitTime >= 30
-                          ? "status-inactive"
-                          : "bg-emerald-500/15 text-emerald-300 border-emerald-400/20"
-                        }`}
-                    >
-                      {p.avgWaitTime >= 60 ? "High" : p.avgWaitTime >= 30 ? "Medium" : "Low"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          rowKey={(row) => row.process}
+        />
       </div>
     </div>
   );

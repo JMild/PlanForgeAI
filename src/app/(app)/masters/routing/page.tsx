@@ -1,46 +1,34 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Search,
   Edit,
   Trash2,
-  Copy,
   Eye,
   Download,
   Upload,
   ArrowRight,
   Clock,
-  Settings,
   AlertCircle,
   Save,
-  ChevronDown,
-  ChevronRight,
   GitBranch,
 } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
 import Modal from "@/src/components/shared/Modal";
-import { getProcess, getProduct, getWorkCenterRoutings } from "@/src/lib/api";
-import { getRoutings } from "@/src/services/master";
-import EmptyState from "@/src/components/shared/EmptyState";
-import Loading from "@/src/components/Loading";
+import { getProcesses, getRoutings, getWorkCenterDropdown } from "@/src/services/master";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 import toast from "react-hot-toast";
+import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 
 /* ===================== Types ===================== */
 type Status = "Active" | "Draft" | "Obsolete";
 type ViewMode = "view" | "edit" | null;
 
-interface Product {
-  code: string;
-  name: string;
-}
-
 interface Process {
-  code: string;
-  name: string;
-  category: string;
+  process_code: string;
+  process_name: string;
 }
 
 interface WorkCenter {
@@ -48,6 +36,13 @@ interface WorkCenter {
   name: string;
   machines: string[];
 }
+
+type TableCol<T> = {
+  key: keyof T | string;
+  label: string;
+  align?: "left" | "center" | "right";
+  render?: (item: T) => React.ReactNode;
+};
 
 /** Final routing step (มี processName ที่ derive แล้ว) */
 interface RoutingStep {
@@ -70,70 +65,77 @@ type RoutingStepFormData = Omit<RoutingStep, "processName">;
 
 /** Final routing (มี productName) */
 interface Routing {
-  id: string;
-  product_code: string;
-  productName: string;
-  version: string;
+  routing_id: string;
+  routing_name: string;
   status: Status;
-  effectiveDate: string;
   description: string;
   steps: RoutingStep[];
+  step_count: number;
+  total_minutes: number;
 }
 
 /** Form routing (ไม่มี productName และใช้ steps แบบของฟอร์ม) */
-interface RoutingFormData extends Omit<Routing, "productName" | "steps"> {
+interface RoutingFormData extends Omit<Routing, "steps"> {
   steps: RoutingStepFormData[];
 }
 
 /* ===================== Component ===================== */
 const RoutingMasterData = () => {
   const [routings, setRoutings] = useState<Routing[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [workCenters, setWorkCenters] = useState<WorkCenter[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | Status>("all");
-  const [expandedRoutings, setExpandedRoutings] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRouting, setEditingRouting] = useState<Routing | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(null);
 
   const emptyFormData: RoutingFormData = {
-    id: "",
-    product_code: "",
-    version: "1.0",
+    routing_id: "",
+    routing_name: "",
     status: "Draft",
-    effectiveDate: "",
     description: "",
     steps: [],
+    step_count: 0,
+    total_minutes: 0
   };
   const [formData, setFormData] = useState<RoutingFormData>(emptyFormData);
 
+  /* ============ Loads ============ */
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const res = (await getRoutings()) as Routing[];
-        const resProducts = (await getProduct()) as Product[];
-        const resProcesses = (await getProcess()) as Process[];
-        const resWorkCenters = (await getWorkCenterRoutings()) as WorkCenter[];
-        console.log('res',res)
+        const res = await getRoutings();
+        const resProcesses = await getProcesses();
+        const resWorkCenters = await getWorkCenterDropdown();
+
+        // Set state
+        console.log('resProcesses', resProcesses)
         setRoutings(res);
-        setProducts(resProducts);
         setProcesses(resProcesses);
         setWorkCenters(resWorkCenters);
+
       } catch (error) {
-        console.error('Fetch data failed:', error);
+        console.error("❌ Fetch data failed:", error);
         toast.error(ERROR_MESSAGES.fetchFailed);
       } finally {
         setLoading(false);
       }
     };
+
     fetchData();
   }, []);
 
+  /* ============ Memos / Maps ============ */
+  const processMap = useMemo(
+    () => new Map(processes.map((p) => [p.process_code, p.process_name] as const)),
+    [processes]
+  );
+
+  /* ============ Helpers ============ */
   const getStatusColor = (status: Status): string => {
     const colors: Record<Status, string> = {
       Active: "status-success",
@@ -143,28 +145,57 @@ const RoutingMasterData = () => {
     return colors[status];
   };
 
-  const filteredRoutings = routings.filter((routing) => {
-    const qs = searchTerm.toLowerCase();
-    const matchesSearch =
-      routing.product_code.toLowerCase().includes(qs) ||
-      routing.productName.toLowerCase().includes(qs) ||
-      routing.id.toLowerCase().includes(qs);
-    const matchesStatus = filterStatus === "all" || routing.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const getRoutingStatusClass = (s: Status) => getStatusColor(s);
 
-  const toggleRoutingExpand = (id: string) => {
-    setExpandedRoutings((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  const calculateTotalTime = (
+    steps: (RoutingStep | RoutingStepFormData)[] = [],
+    qty: number = 100
+  ): number =>
+    steps.reduce((total, step) => {
+      const batchSize = step.batchSize ?? 1;
+      const setupMin = step.setupMin ?? 0;
+      const runMinPerUnit = step.runMinPerUnit ?? 0;
+      const queueTimeMin = step.queueTimeMin ?? 0;
+      const moveTimeMin = step.moveTimeMin ?? 0;
+      if (batchSize <= 0) return total;
 
+      // จำนวน batch ที่ต้องผลิตจาก qty
+      const batches = Math.ceil(qty / batchSize);
+      // เวลา 1 batch = setup + (run * batchSize)
+      const batchTime = setupMin + batchSize * runMinPerUnit;
+
+      return total + batches * batchTime + queueTimeMin + moveTimeMin;
+    }, 0);
+
+  /* ============ Filters ============ */
+  const filteredRoutings = useMemo(() => {
+    const qs = searchTerm.trim().toLowerCase();
+    return routings.filter((r) => {
+      const matchesSearch =
+        r.routing_name.toLowerCase().includes(qs) ||
+        (r.description ?? "").toLowerCase().includes(qs);
+      const matchesStatus = filterStatus === "all" || r.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [routings, searchTerm, filterStatus]);
+
+  /* ============ Actions ============ */
   const openCreateModal = () => {
+    const nextNumber =
+      routings
+        .map(r => parseInt(r.routing_id.replace(/^RT/, ""), 10))
+        .filter(n => !Number.isNaN(n))
+        .reduce((max, n) => Math.max(max, n), 0) + 1;
+
+    const nextId = `RT${String(nextNumber).padStart(3, "0")}`;
+
     setFormData({
-      id: `RT${String(routings.length + 1).padStart(3, "0")}`,
-      product_code: "",
-      version: "1.0",
+      routing_id: nextId,
+      routing_name: "",
       status: "Draft",
-      effectiveDate: new Date().toISOString().split("T")[0],
       description: "",
+      step_count: 0,
+      total_minutes: 0,
       steps: [
         {
           seq: 10,
@@ -187,8 +218,10 @@ const RoutingMasterData = () => {
   };
 
   const openEditModal = (routing: Routing) => {
-    const { productName: _ignore, steps, ...rest } = routing;
-    const formSteps: RoutingStepFormData[] = steps.map(({ processName: _p, ...s }) => s);
+    const { steps, ...rest } = routing;
+    const formSteps: RoutingStepFormData[] = steps
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
     setFormData({ ...rest, steps: formSteps });
     setEditingRouting(routing);
     setViewMode("edit");
@@ -208,38 +241,54 @@ const RoutingMasterData = () => {
   };
 
   const handleSaveRouting = () => {
-    if (!formData.product_code || formData.steps.length === 0) {
+    // validation เบื้องต้น
+    if (!formData.routing_name || formData.steps.length === 0) {
       alert("Please fill in product and at least one step");
       return;
     }
-
     if (
       formData.steps.some(
-        (s) => !s.processCode || !s.workCenterCode || s.setupMin < 0 || s.runMinPerUnit <= 0
+        (s) =>
+          !s.processCode ||
+          !s.workCenterCode ||
+          s.setupMin < 0 ||
+          s.runMinPerUnit <= 0 ||
+          s.batchSize <= 0
       )
     ) {
       alert("Please complete all step details with valid values");
       return;
     }
 
-    const product = products.find((p) => p.code === formData.product_code);
+    // ป้องกัน routing_id ซ้ำ เมื่อเป็นการสร้างใหม่
+    if (!editingRouting) {
+      const dup = routings.some((r) => r.routing_id === formData.routing_id);
+      if (dup) {
+        alert(`Routing ID ${formData.routing_id} already exists`);
+        return;
+      }
+    }
 
     const newRouting: Routing = {
-      id: formData.id,
-      product_code: formData.product_code,
-      productName: product?.name || "",
-      version: formData.version,
+      routing_id: formData.routing_id,
+      routing_name: formData.routing_name,
       status: formData.status,
-      effectiveDate: formData.effectiveDate,
       description: formData.description,
-      steps: formData.steps.map((step) => {
-        const proc = processes.find((p) => p.code === step.processCode);
-        return { ...step, processName: proc?.name || "" };
-      }),
+      steps: formData.steps
+        .slice()
+        .sort((a, b) => a.seq - b.seq)
+        .map((step) => ({
+          ...step,
+          processName: processMap.get(step.processCode) || "",
+        })),
+      step_count: 0,
+      total_minutes: 0
     };
 
     if (editingRouting) {
-      setRoutings((prev) => prev.map((r) => (r.id === editingRouting.id ? newRouting : r)));
+      setRoutings((prev) =>
+        prev.map((r) => (r.routing_id === editingRouting.routing_id ? newRouting : r))
+      );
     } else {
       setRoutings((prev) => [...prev, newRouting]);
     }
@@ -248,24 +297,12 @@ const RoutingMasterData = () => {
 
   const handleDeleteRouting = (id: string) => {
     if (confirm(`Are you sure you want to delete routing ${id}?`)) {
-      setRoutings((prev) => prev.filter((r) => r.id !== id));
+      setRoutings((prev) => prev.filter((r) => r.routing_id !== id));
     }
   };
 
-  const handleCopyRouting = (routing: Routing) => {
-    const newId = `RT${String(routings.length + 1).padStart(3, "0")}`;
-    const copiedRouting: Routing = {
-      ...routing,
-      id: newId,
-      version: "1.0",
-      status: "Draft",
-      description: `Copy of ${routing.description}`,
-    };
-    setRoutings((prev) => [...prev, copiedRouting]);
-  };
-
   const addStep = () => {
-    const maxSeq = Math.max(...formData.steps.map((s) => s.seq), 0);
+    const maxSeq = Math.max(0, ...formData.steps.map((s) => s.seq));
     setFormData((prev) => ({
       ...prev,
       steps: [
@@ -295,25 +332,28 @@ const RoutingMasterData = () => {
     setFormData((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.seq !== seq) }));
   };
 
-  const updateStep = (
-    seq: number,
-    field: keyof RoutingStepFormData,
-    value: RoutingStepFormData[keyof RoutingStepFormData]
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      steps: prev.steps.map((step) => {
-        if (step.seq !== seq) return step;
-        const updated: RoutingStepFormData = { ...step, [field]: value } as RoutingStepFormData;
-
-        if (field === "workCenterCode") {
-          const wc = workCenters.find((w) => w.code === value);
-          updated.machineList = wc ? wc.machines : [];
-        }
-        return updated;
-      }),
-    }));
-  };
+  const updateStep = useCallback(
+    (
+      seq: number,
+      field: keyof RoutingStepFormData,
+      value: RoutingStepFormData[keyof RoutingStepFormData]
+    ) => {
+      setFormData((prev) => ({
+        ...prev,
+        steps: prev.steps.map((step) => {
+          if (step.seq !== seq) return step;
+          const updated: RoutingStepFormData = { ...step, [field]: value } as RoutingStepFormData;
+          // เปลี่ยน Work Center → เติม machineList ตาม WC
+          if (field === "workCenterCode") {
+            const wc = workCenters.find((w) => w.code === value);
+            updated.machineList = wc ? wc.machines : [];
+          }
+          return updated;
+        }),
+      }));
+    },
+    [workCenters]
+  );
 
   const moveStep = (seq: number, direction: "up" | "down") => {
     const idx = formData.steps.findIndex((s) => s.seq === seq);
@@ -329,17 +369,162 @@ const RoutingMasterData = () => {
     setFormData((prev) => ({ ...prev, steps: resequenced }));
   };
 
-  const calculateTotalTime = (
-    steps: (RoutingStep | RoutingStepFormData)[],
-    qty: number = 100
-  ): number => {
-    return steps.reduce((total, step) => {
-      const batchSize = step.batchSize ?? 1;
-      if (batchSize <= 0) return total;
-      const batches = Math.ceil(qty / batchSize);
-      const batchTime = (step.setupMin ?? 0) + batchSize * (step.runMinPerUnit ?? 0);
-      return total + batches * batchTime + (step.queueTimeMin ?? 0) + (step.moveTimeMin ?? 0);
-    }, 0);
+  /* ====== Columns ของตาราง Routing ====== */
+  type RoutingRow = Routing;
+  const routingColumns: readonly TableCol<RoutingRow>[] = [
+    {
+      key: "routing_name",
+      label: "Name",
+      render: (r: RoutingRow) => (
+        <div className="min-w-0">
+          <div className="font-medium text-sm truncate">
+            {r.routing_name}
+          </div>
+          {r.description && (
+            <div className="text-xs text-white/60 truncate">{r.description}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "step_count",
+      label: "Steps",
+      align: "center" as const,
+      render: (r: RoutingRow) => (
+        <div className="flex items-center justify-center gap-1 text-sm text-white/80">
+          <GitBranch size={14} className="text-white/50" />
+          <span>{r?.step_count ?? 0} steps</span>
+        </div>
+      ),
+    },
+    {
+      key: "total_minutes",
+      label: "Est. Time (min)",
+      align: "center" as const,
+      render: (r: RoutingRow) => (
+        <div className="flex items-center justify-center gap-1 text-sm text-white/80">
+          <Clock size={14} className="text-white/50" />
+          <span>{r?.total_minutes ?? 0}</span>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      align: "center" as const,
+      render: (r: RoutingRow) => (
+        <span className={`chip ${getRoutingStatusClass(r.status)}`}>{r.status}</span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      align: "center" as const,
+      render: (r: RoutingRow) => (
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => openViewModal(r)}
+            className="p-2 hover:bg-white/10 rounded"
+            title="View Details"
+          >
+            <Eye size={18} className="text-white/70" />
+          </button>
+          <button
+            onClick={() => openEditModal(r)}
+            className="p-2 text-sky-300 hover:bg-white/10 rounded"
+            title="Edit Routing"
+          >
+            <Edit size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteRouting(r.routing_id)}
+            className="p-2 text-rose-300 hover:bg-white/10 rounded"
+            title="Delete Routing"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ),
+    },
+  ] as const;
+
+  /* ====== Expanded Row ====== */
+  const renderRoutingExpanded = (routing: Routing) => {
+    const totalTime = calculateTotalTime(routing.steps, 100);
+    return (
+      <div className="mt-2">
+        <h4 className="text-sm font-semibold text-white/80 mb-3">
+          Process Steps:{" "}
+          <span className="text-white/60 font-normal">
+            Est. {Math.round(totalTime)} min (100 units)
+          </span>
+        </h4>
+
+        <div className="space-y-2">
+          {routing.steps?.sort((a, b) => a.seq - b.seq).map((step, idx) => (
+            <div key={step.seq} className="flex items-center gap-3">
+              <div className="flex-1 border border-white/10 rounded-lg p-3 bg-white/5">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 text-sky-300 font-semibold text-sm flex-shrink-0">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold">{step.processName}</span>
+                      <span className="text-sm text-white/60">({step.processCode})</span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-4 text-sm text-white/70 mt-2">
+                      <div>
+                        <span className="text-white/60">Work Center:</span>
+                        <div className="font-medium">{step.workCenterCode}</div>
+                      </div>
+                      <div>
+                        <span className="text-white/60">Setup:</span>
+                        <div className="font-medium">{step.setupMin} min</div>
+                      </div>
+                      <div>
+                        <span className="text-white/60">Run Time:</span>
+                        <div className="font-medium">{step.runMinPerUnit} min/unit</div>
+                      </div>
+                      <div>
+                        <span className="text-white/60">Batch Size:</span>
+                        <div className="font-medium">{step.batchSize} units</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-sm text-white/70 mt-2">
+                      <div>
+                        <span className="text-white/60">Machines:</span>
+                        <span className="font-medium ml-1">
+                          {step.machineList.join(", ")}
+                        </span>
+                      </div>
+                      {step.changeoverFamily && (
+                        <div>
+                          <span className="text-white/60">Changeover Family:</span>
+                          <span className="font-medium ml-1">{step.changeoverFamily}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {step.notes && (
+                      <div className="mt-2 text-xs text-sky-300 bg-sky-500/10 p-2 rounded">
+                        {step.notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {idx < routing.steps.length - 1 && (
+                <ArrowRight size={20} className="text-white/40 flex-shrink-0" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -368,26 +553,18 @@ const RoutingMasterData = () => {
                 placeholder="Search routings..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+                className="glass-input w-full !pl-10 pr-4"
               />
             </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as "all" | Status)}
-              className="px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
+              className="glass-input w-32"
             >
-              <option value="all" className="select option">
-                All Status
-              </option>
-              <option value="Active" className="select option">
-                Active
-              </option>
-              <option value="Draft" className="select option">
-                Draft
-              </option>
-              <option value="Obsolete" className="select option">
-                Obsolete
-              </option>
+              <option value="all" className="select option">All Status</option>
+              <option value="Active" className="select option">Active</option>
+              <option value="Draft" className="select option">Draft</option>
+              <option value="Obsolete" className="select option">Obsolete</option>
             </select>
           </div>
         }
@@ -411,177 +588,13 @@ const RoutingMasterData = () => {
 
       {/* Routings List */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="rounded-lg border border-white/10 bg-white/5">
-          {loading ? (
-            <Loading text="Loading routing..." />
-          ) : filteredRoutings.length === 0 ? (
-            <EmptyState
-              icon={<GitBranch size={48} className="mx-auto text-white/50 mb-4" />}
-              title="No routings found"
-              message="Create your first routing to get started"
-              buttonLabel="Create Routing"
-              onButtonClick={openCreateModal}
-            />
-          ) : (
-            <div className="divide-y divide-white/10">
-              {filteredRoutings.map((routing) => {
-                const isExpanded = expandedRoutings[routing.id];
-                const totalTime = calculateTotalTime(routing.steps);
-
-                return (
-                  <div key={routing.id} className="hover:bg-white/5 transition-colors">
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1">
-                          <button
-                            onClick={() => toggleRoutingExpand(routing.id)}
-                            className="p-1 hover:bg-white/10 rounded"
-                          >
-                            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                          </button>
-
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-lg font-semibold">
-                                {routing.product_code} - {routing.productName}
-                              </h3>
-                              <span className="text-sm text-white/60">v{routing.version}</span>
-                              <span className={`chip ${getStatusColor(routing.status)}`}>{routing.status}</span>
-                            </div>
-
-                            <div className="flex items-center gap-6 text-sm text-white/70">
-                              <div className="flex items-center gap-1">
-                                <GitBranch size={14} className="text-white/50" />
-                                <span>{routing.steps.length} steps</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock size={14} className="text-white/50" />
-                                <span>Est. {Math.round(totalTime)} min (100 units)</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Settings size={14} className="text-white/50" />
-                                <span>ID: {routing.id}</span>
-                              </div>
-                            </div>
-                            {routing.description && (
-                              <div className="text-sm text-white/60 mt-1">{routing.description}</div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openViewModal(routing)}
-                            className="p-2 hover:bg-white/10 rounded"
-                            title="View Details"
-                          >
-                            <Eye size={18} className="text-white/70" />
-                          </button>
-                          <button
-                            onClick={() => handleCopyRouting(routing)}
-                            className="p-2 hover:bg-white/10 rounded"
-                            title="Copy Routing"
-                          >
-                            <Copy size={18} className="text-white/70" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(routing)}
-                            className="p-2 text-sky-300 hover:bg-white/10 rounded"
-                            title="Edit Routing"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRouting(routing.id)}
-                            className="p-2 text-rose-300 hover:bg-white/10 rounded"
-                            title="Delete Routing"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Expanded Steps */}
-                      {isExpanded && (
-                        <div className="mt-4 ml-12">
-                          <h4 className="text-sm font-semibold text-white/80 mb-3">Process Steps:</h4>
-                          <div className="space-y-2">
-                            {routing.steps.map((step, idx) => (
-                              <div key={step.seq} className="flex items-center gap-3">
-                                <div className="flex-1 border border-white/10 rounded-lg p-3 bg-white/5">
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3 flex-1">
-                                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 text-sky-300 font-semibold text-sm flex-shrink-0">
-                                        {idx + 1}
-                                      </div>
-
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <span className="font-semibold">{step.processName}</span>
-                                          <span className="text-sm text-white/60">({step.processCode})</span>
-                                        </div>
-
-                                        <div className="grid grid-cols-4 gap-4 text-sm text-white/70 mt-2">
-                                          <div>
-                                            <span className="text-white/60">Work Center:</span>
-                                            <div className="font-medium">{step.workCenterCode}</div>
-                                          </div>
-                                          <div>
-                                            <span className="text-white/60">Setup:</span>
-                                            <div className="font-medium">{step.setupMin} min</div>
-                                          </div>
-                                          <div>
-                                            <span className="text-white/60">Run Time:</span>
-                                            <div className="font-medium">{step.runMinPerUnit} min/unit</div>
-                                          </div>
-                                          <div>
-                                            <span className="text-white/60">Batch Size:</span>
-                                            <div className="font-medium">{step.batchSize} units</div>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4 text-sm text-white/70 mt-2">
-                                          <div>
-                                            <span className="text-white/60">Machines:</span>
-                                            <span className="font-medium ml-1">
-                                              {step.machineList.join(", ")}
-                                            </span>
-                                          </div>
-                                          {step.changeoverFamily && (
-                                            <div>
-                                              <span className="text-white/60">Changeover Family:</span>
-                                              <span className="font-medium ml-1">
-                                                {step.changeoverFamily}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        {step.notes && (
-                                          <div className="mt-2 text-xs text-sky-300 bg-sky-500/10 p-2 rounded">
-                                            {step.notes}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {idx < routing.steps.length - 1 && (
-                                  <ArrowRight size={20} className="text-white/40 flex-shrink-0" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ExpandableDataTable<Routing>
+          columns={routingColumns}
+          data={filteredRoutings}
+          rowKey={(r) => r.routing_id}
+          renderExpandedRow={renderRoutingExpanded}
+          isLoading={loading}
+        />
       </div>
 
       {/* Modal */}
@@ -596,31 +609,35 @@ const RoutingMasterData = () => {
         }
         footer={
           <>
-            <button onClick={closeModal} className="btn btn-outline">
-              Cancel
-            </button>
 
             {viewMode === "view" ? (
-              <button
-                onClick={() => {
-                  if (editingRouting) {
-                    // เตรียมฟอร์มก่อนสลับเป็นโหมดแก้ไข
-                    const { productName: _ignore, steps, ...rest } = editingRouting;
-                    const formSteps: RoutingStepFormData[] = steps.map(({ processName: _p, ...s }) => s);
-                    setFormData({ ...rest, steps: formSteps });
-                  }
-                  setViewMode("edit");
-                }}
-                className="btn btn-primary"
-              >
-                <Edit size={18} />
-                Edit Routing
-              </button>
+              <div className="flex items-center justify-end gap-3 w-full">
+                <button onClick={closeModal} className="btn btn-outline">
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    if (editingRouting) {
+                      const { steps, ...rest } = editingRouting;
+                      const formSteps: RoutingStepFormData[] = steps.map(({ processName: _p, ...s }) => s);
+                      setFormData({ ...rest, steps: formSteps });
+                    }
+                    setViewMode("edit");
+                  }}
+                  className="btn btn-primary"
+                >
+                  <Edit size={18} />
+                  Edit Routing
+                </button>
+              </div>
             ) : (
-              <button onClick={handleSaveRouting} className="btn btn-primary">
-                <Save size={18} />
-                Save Routing
-              </button>
+              <div className="flex items-center justify-end gap-3 w-full">
+                <button onClick={closeModal} className="btn btn-outline">Cancel</button>
+                <button onClick={handleSaveRouting} className="btn btn-primary">
+                  <Save size={18} />
+                  Save Changes
+                </button>
+              </div>
             )}
           </>
         }
@@ -630,18 +647,8 @@ const RoutingMasterData = () => {
           <div className="space-y-6 text-white">
             <div className="grid grid-cols-3 gap-6">
               <div>
-                <label className="text-sm text-white/70">Routing ID</label>
-                <p className="mt-1 text-lg font-semibold">{editingRouting.id}</p>
-              </div>
-              <div>
-                <label className="text-sm text-white/70">Product</label>
-                <p className="mt-1">
-                  {editingRouting.product_code} - {editingRouting.productName}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm text-white/70">Version</label>
-                <p className="mt-1">v{editingRouting.version}</p>
+                <label className="text-sm text-white/70">Routing Name</label>
+                <p className="mt-1 text-lg font-semibold">{editingRouting.routing_name}</p>
               </div>
               <div>
                 <label className="text-sm text-white/70">Status</label>
@@ -652,12 +659,8 @@ const RoutingMasterData = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm text-white/70">Effective Date</label>
-                <p className="mt-1">{new Date(editingRouting.effectiveDate).toLocaleDateString()}</p>
-              </div>
-              <div>
                 <label className="text-sm text-white/70">Total Steps</label>
-                <p className="mt-1">{editingRouting.steps.length}</p>
+                <p className="mt-1">{editingRouting?.step_count ?? 0}</p>
               </div>
             </div>
 
@@ -671,49 +674,53 @@ const RoutingMasterData = () => {
             <div>
               <label className="text-sm text-white/70 mb-3 block">Process Steps</label>
               <div className="space-y-3">
-                {editingRouting.steps.map((step, idx) => (
-                  <div key={step.seq} className="border border-white/10 rounded-lg p-4 bg-white/5">
-                    <div className="flex items-start gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 text-sky-300 font-semibold">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold mb-2">{step.processName}</h4>
-                        <div className="grid grid-cols-3 gap-4 text-sm text-white/80">
-                          <div>
-                            <span className="text-white/60">Work Center:</span>
-                            <div className="font-medium">{step.workCenterCode}</div>
-                          </div>
-                          <div>
-                            <span className="text-white/60">Machines:</span>
-                            <div className="font-medium">{step.machineList.join(", ")}</div>
-                          </div>
-                          <div>
-                            <span className="text-white/60">Setup Time:</span>
-                            <div className="font-medium">{step.setupMin} min</div>
-                          </div>
-                          <div>
-                            <span className="text-white/60">Run Time:</span>
-                            <div className="font-medium">{step.runMinPerUnit} min/unit</div>
-                          </div>
-                          <div>
-                            <span className="text-white/60">Batch Size:</span>
-                            <div className="font-medium">{step.batchSize} units</div>
-                          </div>
-                          <div>
-                            <span className="text-white/60">Changeover Family:</span>
-                            <div className="font-medium">{step.changeoverFamily || "None"}</div>
-                          </div>
+                {(editingRouting?.steps ?? [])
+                  .sort((a, b) => a.seq - b.seq)
+                  .map((step, idx) => (
+                    <div key={step.seq} className="border border-white/10 rounded-lg p-4 bg-white/5">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-sky-500/20 text-sky-300 font-semibold grid place-items-center">
+                          {idx + 1}
                         </div>
-                        {step.notes && (
-                          <div className="mt-2 text-sm text-sky-300 bg-sky-500/10 p-2 rounded">
-                            {step.notes}
+                        <div className="flex-1">
+                          <h4 className="font-semibold mb-2">{step.processName}</h4>
+                          <div className="grid grid-cols-3 gap-4 text-sm text-white/80">
+                            <div>
+                              <span className="text-white/60">Work Center:</span>
+                              <div className="font-medium">{step.workCenterCode}</div>
+                            </div>
+                            <div>
+                              <span className="text-white/60">Machines:</span>
+                              <div className="font-medium">{step.machineList.join(", ")}</div>
+                            </div>
+                            <div>
+                              <span className="text-white/60">Setup Time:</span>
+                              <div className="font-medium">{step.setupMin} min</div>
+                            </div>
+                            <div>
+                              <span className="text-white/60">Run Time:</span>
+                              <div className="font-medium">{step.runMinPerUnit} min/unit</div>
+                            </div>
+                            <div>
+                              <span className="text-white/60">Batch Size:</span>
+                              <div className="font-medium">{step.batchSize} units</div>
+                            </div>
+                            <div>
+                              <span className="text-white/60">Changeover Family:</span>
+                              <div className="font-medium">
+                                {step.changeoverFamily || "None"}
+                              </div>
+                            </div>
                           </div>
-                        )}
+                          {step.notes && (
+                            <div className="mt-2 text-sm text-sky-300 bg-sky-500/10 p-2 rounded">
+                              {step.notes}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </div>
@@ -722,41 +729,14 @@ const RoutingMasterData = () => {
             {/* Routing Header */}
             <div className="grid grid-cols-3 gap-6">
               <div>
-                <label className="text-sm text-white/80 block mb-2">Routing ID</label>
+                <label className="text-sm text-white/80 block mb-2">Routing Name</label>
                 <input
                   type="text"
-                  value={formData.id}
+                  value={formData.routing_name}
                   readOnly
                   className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-white"
                 />
-              </div>
-              <div>
-                <label className="text-sm text-white/80 block mb-2">Product *</label>
-                <select
-                  value={formData.product_code}
-                  onChange={(e) => setFormData({ ...formData, product_code: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
-                  required
-                >
-                  <option value="" className="select option">
-                    Select Product
-                  </option>
-                  {products.map((p) => (
-                    <option key={p.code} value={p.code} className="select option">
-                      {p.code} - {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm text-white/80 block mb-2">Version</label>
-                <input
-                  type="text"
-                  value={formData.version}
-                  onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
-                />
-              </div>
+              </div>              
               <div>
                 <label className="text-sm text-white/80 block mb-2">Status *</label>
                 <select
@@ -765,20 +745,9 @@ const RoutingMasterData = () => {
                   className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                 >
                   {(["Draft", "Active", "Obsolete"] as Status[]).map((s) => (
-                    <option key={s} value={s} className="select option">
-                      {s}
-                    </option>
+                    <option key={s} value={s} className="select option">{s}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="text-sm text-white/80 block mb-2">Effective Date *</label>
-                <input
-                  type="date"
-                  value={formData.effectiveDate}
-                  onChange={(e) => setFormData({ ...formData, effectiveDate: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
-                />
               </div>
             </div>
 
@@ -821,7 +790,7 @@ const RoutingMasterData = () => {
                         >
                           ▲
                         </button>
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-600 text-white font-semibold text-sm">
+                        <div className="w-8 h-8 rounded-full bg-sky-600 text-white grid place-items-center font-semibold text-sm">
                           {idx + 1}
                         </div>
                         <button
@@ -846,12 +815,10 @@ const RoutingMasterData = () => {
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               required
                             >
-                              <option value="" className="select option">
-                                Select Process
-                              </option>
+                              <option value="" className="select option">Select Process</option>
                               {processes.map((proc) => (
-                                <option key={proc.code} value={proc.code} className="select option">
-                                  {proc.name} ({proc.code})
+                                <option key={proc.process_code} value={proc.process_code} className="select option">
+                                  {proc.process_name} ({proc.process_code})
                                 </option>
                               ))}
                             </select>
@@ -865,9 +832,7 @@ const RoutingMasterData = () => {
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               required
                             >
-                              <option value="" className="select option">
-                                Select Work Center
-                              </option>
+                              <option value="" className="select option">Select Work Center</option>
                               {workCenters.map((wc) => (
                                 <option key={wc.code} value={wc.code} className="select option">
                                   {wc.name}
@@ -880,10 +845,8 @@ const RoutingMasterData = () => {
                             <label className="text-xs text-white/80 block mb-1">Changeover Family</label>
                             <input
                               type="text"
-                              value={step.changeoverFamily || ""}
-                              onChange={(e) =>
-                                updateStep(step.seq, "changeoverFamily", e.target.value || null)
-                              }
+                              value={step.changeoverFamily ?? ""}
+                              onChange={(e) => updateStep(step.seq, "changeoverFamily", e.target.value || null)}
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               placeholder="e.g., METAL-A"
                             />
@@ -898,7 +861,7 @@ const RoutingMasterData = () => {
                               type="number"
                               value={step.setupMin}
                               onChange={(e) =>
-                                updateStep(step.seq, "setupMin", parseFloat(e.target.value) || 0)
+                                updateStep(step.seq, "setupMin", Number.isNaN(+e.target.value) ? 0 : parseFloat(e.target.value))
                               }
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               min={0}
@@ -908,18 +871,12 @@ const RoutingMasterData = () => {
                           </div>
 
                           <div>
-                            <label className="text-xs text-white/80 block mb-1">
-                              Run Time (min/unit) *
-                            </label>
+                            <label className="text-xs text-white/80 block mb-1">Run Time (min/unit) *</label>
                             <input
                               type="number"
                               value={step.runMinPerUnit}
                               onChange={(e) =>
-                                updateStep(
-                                  step.seq,
-                                  "runMinPerUnit",
-                                  parseFloat(e.target.value) || 0
-                                )
+                                updateStep(step.seq, "runMinPerUnit", Number.isNaN(+e.target.value) ? 0 : parseFloat(e.target.value))
                               }
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               min={0}
@@ -934,7 +891,7 @@ const RoutingMasterData = () => {
                               type="number"
                               value={step.batchSize}
                               onChange={(e) =>
-                                updateStep(step.seq, "batchSize", parseInt(e.target.value) || 1)
+                                updateStep(step.seq, "batchSize", Number.isNaN(+e.target.value) ? 1 : parseInt(e.target.value))
                               }
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               min={1}
@@ -948,7 +905,7 @@ const RoutingMasterData = () => {
                               type="number"
                               value={step.queueTimeMin}
                               onChange={(e) =>
-                                updateStep(step.seq, "queueTimeMin", parseInt(e.target.value) || 0)
+                                updateStep(step.seq, "queueTimeMin", Number.isNaN(+e.target.value) ? 0 : parseInt(e.target.value))
                               }
                               className="w-full px-2 py-1.5 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-transparent"
                               min={0}

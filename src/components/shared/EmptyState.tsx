@@ -19,7 +19,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     // <div className="overflow-x-auto rounded-lg border border-white/10 bg-white/5">
-      <div className="text-center py-12">
+      <div className="text-center py-16">
         {/* {icon}
         <h3 className="text-lg font-medium">{title}</h3> */}
          <p className="text-white/70">No records available.</p>

@@ -1,97 +1,62 @@
 "use client";
 
-import React, { useState, ChangeEvent, FC, useEffect, useMemo } from "react";
-import {
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Eye,
-  Download,
-  Upload,
-  Save,
-  ChevronDown,
-  ChevronRight,
-  Box,
-} from "lucide-react";
+import React, { useEffect, useMemo, useState, ChangeEvent, FC } from "react";
+import { Plus, Search, Edit, Trash2, Eye, Download, Upload, Save } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
 import Modal from "@/src/components/shared/Modal";
-import { getAllDropdownMaterial } from "@/src/services/config";
-import { getMaterial } from "@/src/lib/api";
 import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
-import Loading from "@/src/components/Loading";
-import EmptyState from "@/src/components/shared/EmptyState";
+import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
+import { getAllDropdownMaterial } from "@/src/services/config";
+import { getMaterial } from "@/src/services/master";
 
-/* =========================
- * Types
- * ========================= */
-
-type MaterialStatus = "Active" | "Inactive" | "Discontinued";
-
-type MaterialCategory =
-  | "Raw Material"
-  | "Component"
-  | "Subassembly"
-  | "Packaging"
-  | "Consumable"
-  | "Tool";
-
-type Supplier = {
-  code: string;
-  name: string;
-};
-
-type UnitOption = {
-  code: string; // e.g., "PCS"
-  label: string; // e.g., "Pieces"
-};
-
-type CategoryOption = {
-  code: string; // e.g., "Raw Material"
-  label: string;
-};
-
+/* ========= Types from dropdowns ========= */
+type Supplier = { supplier_code: string; supplier_name: string };
+type UnitOption = { id: number; code: string; label: string };
+type CategoryOption = { id: number; code: string; label: string };
 type StatusOption = {
-  code: MaterialStatus;
-  label: string;
+  id: number;
+  code: "ACTIVE" | "INACTIVE" | "DISCONTINUED";
+  label: "Active" | "Inactive" | "Discontinued";
 };
 
+/* ========= API material (ดิบ) ========= */
+type ApiMaterial = {
+  material_code: string;
+  material_name: string;
+  description?: string;
+  category_code: string; // อาจเป็น id (string-number) จาก backend
+  uom_code: string; // อาจเป็น id (string-number) จาก backend
+  lead_time_days?: number;
+  min_stock?: number;
+  max_stock?: number;
+  reorder_point?: number;
+  supplier_code?: string;
+  storage_location?: string;
+  batch_tracking?: 0 | 1;
+  status: "Active" | "Inactive" | "Discontinued";
+  notes?: string;
+};
+
+/* ========= Internal model ========= */
+type MaterialStatus = "Active" | "Inactive" | "Discontinued";
 type Material = {
-  code: string;
-  name: string;
+  material_code: string;
+  material_name: string;
   description: string;
-  category: MaterialCategory; // store category as its code string
-  unitCode: string; // store unit as code string
-  standardCost: number;
+  category_code: string; // เก็บเป็น code เช่น "RAW"
+  uom_code: string; // เก็บเป็น code เช่น "PCS"
   leadTimeDays: number;
   minStock: number;
   maxStock: number;
   reorderPoint: number;
-  supplierCode: string;
-  supplierName: string;
+  supplierCode: string; // ใช้ supplier_code
+  supplierName?: string; // ชื่อไว้โชว์
   storageLocation: string;
   batchTracking: boolean;
   status: MaterialStatus;
   notes: string;
 };
-
-type StockStatusInfo = {
-  status: "Low" | "Medium" | "Good";
-  color: string;
-  stock: number;
-};
-
-type DropdownPayload = {
-  SUPPLIERS: Supplier[];
-  MATERIAL_CATEGORY: CategoryOption[];
-  UNIT: UnitOption[];
-  MATERIAL_STATUS: StatusOption[];
-};
-
-/* =========================
- * Component
- * ========================= */
 
 const MaterialsMasterData: FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -102,158 +67,181 @@ const MaterialsMasterData: FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState<MaterialCategory | "all">("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<MaterialStatus | "all">("all");
-  const [expandedMaterials, setExpandedMaterials] = useState<Record<string, boolean>>({});
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [viewMode, setViewMode] = useState<"view" | "edit" | null>(null);
 
-  const initialFormData: Omit<Material, "supplierName"> = {
-    code: "",
-    name: "",
+  const [formData, setFormData] = useState<Material>({
+    material_code: "",
+    material_name: "",
     description: "",
-    category: "Raw Material",
-    unitCode: "PCS",
-    standardCost: 0,
+    category_code: "",
+    uom_code: "",
     leadTimeDays: 0,
     minStock: 0,
     maxStock: 0,
     reorderPoint: 0,
     supplierCode: "",
+    supplierName: "",
     storageLocation: "",
     batchTracking: false,
     status: "Active",
     notes: "",
-  };
-  const [formData, setFormData] = useState<Omit<Material, "supplierName">>(initialFormData);
+  });
 
-  /* =========================
-   * Lookups (code -> label)
-   * ========================= */
+  /* ===== memo maps ===== */
+  const supplierByCode = useMemo(() => {
+    const m = new Map<string, Supplier>();
+    suppliers.forEach((s) => m.set(s.supplier_code, s));
+    return m;
+  }, [suppliers]);
+
   const unitLabelByCode = useMemo(
-    () =>
-      units.reduce<Record<string, string>>((acc, u) => {
-        acc[u.code] = u.label;
-        return acc;
-      }, {}),
+    () => Object.fromEntries(units.map((u) => [u.code, u.label])),
     [units]
   );
-
   const categoryLabelByCode = useMemo(
-    () =>
-      categories.reduce<Record<string, string>>((acc, c) => {
-        acc[c.code] = c.label;
-        return acc;
-      }, {}),
+    () => Object.fromEntries(categories.map((c) => [c.code, c.label])),
     [categories]
   );
 
-  const supplierNameByCode = useMemo(
-    () =>
-      suppliers.reduce<Record<string, string>>((acc, s) => {
-        acc[s.code] = s.name;
-        return acc;
-      }, {}),
-    [suppliers]
-  );
-
-  /* =========================
-   * Fetch data
-   * ========================= */
+  /* ===== fetch + normalize (ทำครั้งเดียวให้จบ ป้องกัน race) ===== */
   useEffect(() => {
-    const fetchData = async () => {
+    const run = async () => {
       try {
         setLoading(true);
 
-        const dropdowns = (await getAllDropdownMaterial()) as unknown as DropdownPayload;
-        const resMaterial = (await getMaterial()) as unknown as Material[];
+        const dropdowns = await getAllDropdownMaterial();
+        // map ให้แน่ใจว่ามีฟิลด์ที่ต้องใช้
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const SUPPLIERS: Supplier[] = (dropdowns?.SUPPLIERS || []).map((s: any) => ({
+          supplier_code: s.supplier_code ?? "",
+          supplier_name: s.supplier_name ?? "",
+        }));
+        const MATERIAL_CATEGORY: CategoryOption[] = dropdowns?.MATERIAL_CATEGORY || [];
+        const UNIT: UnitOption[] = dropdowns?.UNIT || [];
+        const MATERIAL_STATUS: StatusOption[] = dropdowns?.MATERIAL_STATUS || [];
 
-        setMaterials(resMaterial || []);
-        setSuppliers(dropdowns?.SUPPLIERS || []);
-        setCategories(dropdowns?.MATERIAL_CATEGORY || []);
-        setUnits(dropdowns?.UNIT || []);
-        setStatuses(dropdowns?.MATERIAL_STATUS || []);
-      } catch (error) {
-        console.error("Fetch data failed:", error);
+        setSuppliers(SUPPLIERS);
+        setCategories(MATERIAL_CATEGORY);
+        setUnits(UNIT);
+        setStatuses(MATERIAL_STATUS);
+
+        // สร้าง map ชั่วคราวจาก dropdowns เพื่อ normalize materials ดิบ
+        const catIdMap = new Map<number, CategoryOption>(
+          MATERIAL_CATEGORY.map((c) => [c.id, c])
+        );
+        const unitIdMap = new Map<number, UnitOption>(UNIT.map((u) => [u.id, u]));
+        const supplierCodeMap = new Map<string, Supplier>(
+          SUPPLIERS.map((s) => [s.supplier_code, s])
+        );
+
+        const apiMaterials: ApiMaterial[] = await getMaterial();
+
+        const normalized: Material[] = apiMaterials.map((row) => {
+          const cat = catIdMap.get(Number(row.category_code));
+          const uom = unitIdMap.get(Number(row.uom_code));
+          const sup = row.supplier_code ? supplierCodeMap.get(row.supplier_code) : undefined;
+
+          return {
+            material_code: row.material_code,
+            material_name: row.material_name,
+            description: row.description ?? "",
+            category_code: cat?.code ?? String(row.category_code),
+            uom_code: uom?.code ?? String(row.uom_code),
+            leadTimeDays: Number(row.lead_time_days ?? 0),
+            minStock: Number(row.min_stock ?? 0),
+            maxStock: Number(row.max_stock ?? 0),
+            reorderPoint: Number(row.reorder_point ?? 0),
+            supplierCode: row.supplier_code ?? "",
+            supplierName: sup?.supplier_name,
+            storageLocation: row.storage_location ?? "",
+            batchTracking: (row.batch_tracking ?? 0) === 1,
+            status: row.status,
+            notes: row.notes ?? "",
+          };
+        });
+
+        setMaterials(normalized);
+      } catch (e) {
+        console.error(e);
         toast.error(ERROR_MESSAGES.fetchFailed || "Failed to fetch materials.");
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    run();
   }, []);
 
-  /* =========================
-   * UI helpers
-   * ========================= */
-  const getStatusColor = (status: MaterialStatus): string => {
-    const colors: Record<MaterialStatus, string> = {
-      Active: "status-success",
-      Inactive: "status-inactive",
-      Discontinued: "status-error",
-    };
-    return colors[status] || "status-inactive";
+  /* ===== helpers ===== */
+  const getStatusColor = (status: MaterialStatus) =>
+    status === "Active"
+      ? "status-success"
+      : status === "Inactive"
+      ? "status-inactive"
+      : "status-error";
+
+  const calculateStockStatus = (m: Material) => {
+    const current = Math.floor(Math.random() * ((m.maxStock || 0) + 1));
+    if (current <= (m.reorderPoint || 0))
+      return { stock: current, color: "text-red-500" };
+    if (current < (m.minStock || 0))
+      return { stock: current, color: "text-amber-500" };
+    return { stock: current, color: "text-emerald-500" };
   };
 
-  const getCategoryColor = (categoryCode: MaterialCategory): string | undefined => {
-    // Map by label to color, but lookup label by code first
-    const label = categoryLabelByCode[categoryCode] || categoryCode;
-    const colorsByLabel: Record<string, string> = {
-      "Raw Material": "status-info",
-      Component: "status-purple",
-      Subassembly: "status-indigo",
-      Packaging: "status-warning",
-      Consumable: "status-yellow",
-      Tool: "status-inactive",
-    };
-    return colorsByLabel[label] || "status-info";
-  };
-
+  /* ===== filters ===== */
   const filteredMaterials = useMemo(() => {
-    const searchLower = searchTerm.trim().toLowerCase();
+    const q = searchTerm.trim().toLowerCase();
     return materials.filter((m) => {
-      const matchesSearch =
-        !searchLower ||
-        m.code.toLowerCase().includes(searchLower) ||
-        m.name.toLowerCase().includes(searchLower) ||
-        (m.description || "").toLowerCase().includes(searchLower);
-
-      const matchesCategory = filterCategory === "all" || m.category === filterCategory;
-      const matchesStatus = filterStatus === "all" || m.status === filterStatus;
-
-      return matchesSearch && matchesCategory && matchesStatus;
+      const matchQ =
+        !q ||
+        m.material_code.toLowerCase().includes(q) ||
+        m.material_name.toLowerCase().includes(q) ||
+        (m.description || "").toLowerCase().includes(q);
+      const matchCat = filterCategory === "all" || m.category_code === filterCategory;
+      const matchStatus = filterStatus === "all" || m.status === filterStatus;
+      return matchQ && matchCat && matchStatus;
     });
   }, [materials, searchTerm, filterCategory, filterStatus]);
 
-  const toggleMaterialExpand = (code: string) => {
-    setExpandedMaterials((prev) => ({ ...prev, [code]: !prev[code] }));
-  };
-
+  /* ===== modal controls ===== */
   const openCreateModal = () => {
-    setFormData((prev) => ({
-      ...initialFormData,
-      code: `MAT-${String(materials.length + 1).padStart(3, "0")}`,
-      supplierCode: suppliers.length > 0 ? suppliers[0].code : "",
-      unitCode: units.length > 0 ? units[0].code : "PCS",
-      category: (categories[0]?.code as MaterialCategory) || "Raw Material",
-      status: (statuses[0]?.code as MaterialStatus) || "Active",
-    }));
+    const nextCode = `MAT-${String(materials.length + 1).padStart(3, "0")}`;
+    setFormData({
+      material_code: nextCode,
+      material_name: "",
+      description: "",
+      category_code: categories[0]?.code ?? "",
+      uom_code: units[0]?.code ?? "",
+      leadTimeDays: 0,
+      minStock: 0,
+      maxStock: 0,
+      reorderPoint: 0,
+      supplierCode: suppliers[0]?.supplier_code ?? "",
+      supplierName: suppliers[0]?.supplier_name ?? "",
+      storageLocation: "",
+      batchTracking: false,
+      status: "Active",
+      notes: "",
+    });
     setEditingMaterial(null);
     setViewMode("edit");
     setIsModalOpen(true);
   };
 
-  const openEditModal = (material: Material) => {
-    const { supplierName: _omit, ...rest } = material;
-    setFormData({ ...rest });
-    setEditingMaterial(material);
+  const openEditModal = (m: Material) => {
+    setFormData({ ...m });
+    setEditingMaterial(m);
     setViewMode("edit");
     setIsModalOpen(true);
   };
 
-  const openViewModal = (material: Material) => {
-    setEditingMaterial(material);
+  const openViewModal = (m: Material) => {
+    setEditingMaterial(m);
     setViewMode("view");
     setIsModalOpen(true);
   };
@@ -264,22 +252,23 @@ const MaterialsMasterData: FC = () => {
     setViewMode(null);
   };
 
-  /* =========================
-   * Save/Delete
-   * ========================= */
+  /* ===== save/delete ===== */
   const handleSaveMaterial = () => {
-    // basic validation
-    if (!formData.code || !formData.name || !formData.category) {
-      toast.error("Please fill in required fields: Code, Name, and Category.");
+    if (
+      !formData.material_code ||
+      !formData.material_name ||
+      !formData.category_code ||
+      !formData.uom_code
+    ) {
+      toast.error("Please fill in required fields (Code, Name, Category, Unit).");
       return;
     }
-    const numericInvalid =
-      formData.standardCost < 0 ||
-      formData.leadTimeDays < 0 ||
+    if (
       formData.minStock < 0 ||
       formData.maxStock < 0 ||
-      formData.reorderPoint < 0;
-    if (numericInvalid) {
+      formData.reorderPoint < 0 ||
+      formData.leadTimeDays < 0
+    ) {
       toast.error("Numeric values cannot be negative.");
       return;
     }
@@ -288,23 +277,23 @@ const MaterialsMasterData: FC = () => {
       return;
     }
 
-    const supplierName = supplierNameByCode[formData.supplierCode] || "";
-
-    const newMaterial: Material = {
-      ...formData,
-      supplierName,
-    };
+    // เติมชื่อ supplier ให้ตรงกับ code
+    const sup = formData.supplierCode
+      ? supplierByCode.get(formData.supplierCode)
+      : undefined;
+    const payload: Material = { ...formData, supplierName: sup?.supplier_name };
 
     setMaterials((prev) => {
       if (editingMaterial) {
-        return prev.map((m) => (m.code === editingMaterial.code ? newMaterial : m));
+        return prev.map((m) =>
+          m.material_code === editingMaterial.material_code ? payload : m
+        );
       }
-      // prevent duplicate code
-      if (prev.some((m) => m.code === newMaterial.code)) {
-        toast.error(`Material code "${newMaterial.code}" already exists.`);
+      if (prev.some((m) => m.material_code === payload.material_code)) {
+        toast.error(`Material code "${payload.material_code}" already exists.`);
         return prev;
       }
-      return [...prev, newMaterial];
+      return [...prev, payload];
     });
 
     toast.success("Material saved.");
@@ -312,50 +301,27 @@ const MaterialsMasterData: FC = () => {
   };
 
   const handleDeleteMaterial = (code: string) => {
-    if (window.confirm(`Are you sure you want to delete material ${code}?`)) {
-      setMaterials((prev) => prev.filter((m) => m.code !== code));
+    if (confirm(`Delete material ${code}?`)) {
+      setMaterials((prev) => prev.filter((m) => m.material_code !== code));
       toast.success("Material deleted.");
     }
   };
 
+  /* ===== form change ===== */
   const handleFormChange = (
-    e: ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    const { name, value, type } = e.target;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { name, value, type, checked } = e.target as any;
     if (type === "checkbox") {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: (e.target as HTMLInputElement).checked,
-      }));
-      return;
+      setFormData((p) => ({ ...p, [name]: checked }));
+    } else if (type === "number") {
+      setFormData((p) => ({ ...p, [name]: value === "" ? 0 : Number(value) }));
+    } else {
+      setFormData((p) => ({ ...p, [name]: value }));
     }
-    if (type === "number") {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value === "" ? 0 : parseFloat(value),
-      }));
-      return;
-    }
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-  /* =========================
-   * Demo: Stock Status
-   * ========================= */
-  const calculateStockStatus = (material: Material): StockStatusInfo => {
-    // demo only
-    const currentStock = Math.floor(Math.random() * (material.maxStock + 1));
-    if (currentStock <= material.reorderPoint)
-      return { status: "Low", color: "text-red-600", stock: currentStock };
-    if (currentStock < material.minStock)
-      return { status: "Medium", color: "text-yellow-600", stock: currentStock };
-    return { status: "Good", color: "text-green-600", stock: currentStock };
   };
 
-  /* =========================
-   * Render
-   * ========================= */
   return (
     <div className="text-white">
       <PageHeader
@@ -393,42 +359,38 @@ const MaterialsMasterData: FC = () => {
                 type="text"
                 placeholder="Search materials by code, name..."
                 value={searchTerm}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="glass-input w-full !pl-10 pr-4"
               />
             </div>
 
-            {/* Category filter by code */}
             <select
               value={filterCategory}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setFilterCategory((e.target.value as MaterialCategory) || "all")
-              }
-              className="glass-input"
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="glass-input w-44"
             >
               <option value="all" className="select option">
                 All Categories
               </option>
-              {categories.map((cat) => (
-                <option key={cat.code} value={cat.code} className="select option">
-                  {cat.label}
+              {categories.map((c) => (
+                <option key={c.code} value={c.code} className="select option">
+                  {c.label}
                 </option>
               ))}
             </select>
 
-            {/* Status filter by code */}
             <select
               value={filterStatus}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setFilterStatus((e.target.value as MaterialStatus) || "all")
+              onChange={(e) =>
+                setFilterStatus(e.target.value as MaterialStatus | "all")
               }
-              className="glass-input"
+              className="glass-input w-32"
             >
               <option value="all" className="select option">
                 All Status
               </option>
               {statuses.map((s) => (
-                <option key={s.code} value={s.code} className="select option">
+                <option key={s.code} value={s.label} className="select option">
                   {s.label}
                 </option>
               ))}
@@ -438,187 +400,217 @@ const MaterialsMasterData: FC = () => {
       />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-          {loading ? (
-            <Loading text="Loading materials..." />
-          ) : filteredMaterials.length === 0 ? (
-            <EmptyState
-              icon={<Box size={48} className="mx-auto text-white/50 mb-4" />}
-              title="No materials found"
-              message="Create your first material to get started"
-              buttonLabel="Create Material"
-              onButtonClick={openCreateModal}
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-white/5 border-b border-white/10">
-                  <tr>
-                    {["", "Code", "Name", "Category", "Unit", "Cost", "Stock", "Status", "Actions"].map(
-                      (h) => (
-                        <th key={h} className="px-6 py-3 text-left text-sm uppercase font-semibold text-white/80">
-                          {h}
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {filteredMaterials.map((m) => {
-                    const expanded = expandedMaterials[m.code];
-                    const stockStatus = calculateStockStatus(m);
-                    return (
-                      <React.Fragment key={m.code}>
-                        <tr className="hover:bg-white/5">
-                          <td className="px-6 py-3 align-top">
-                            <button onClick={() => toggleMaterialExpand(m.code)} className="p-1 hover:bg-white/10 rounded">
-                              {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                            </button>
-                          </td>
-                          <td className="px-6 py-3 align-top font-medium">{m.code}</td>
-                          <td className="px-6 py-3 align-top">{m.name}</td>
-                          <td className="px-6 py-3 align-top">
-                            <span className={`chip ${getCategoryColor(m.category)}`}>
-                              {categoryLabelByCode[m.category] ?? m.category}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 align-top text-sm">{unitLabelByCode[m.unitCode] ?? m.unitCode}</td>
-                          <td className="px-6 py-3 align-top text-sm">${m.standardCost.toFixed(2)}</td>
-                          <td className={`px-6 py-3 align-top text-sm ${stockStatus.color}`}>
-                            {stockStatus.stock} ({stockStatus.status})
-                          </td>
-                          <td className="px-6 py-3 align-top">
-                            <span className={`chip ${getStatusColor(m.status)}`}>{m.status}</span>
-                          </td>
-                          <td className="px-6 py-3 align-top">
-                            <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => openViewModal(m)} className="p-1 hover:bg-white/10 rounded">
-                                <Eye size={16} className="text-white/70" />
-                              </button>
-                              <button onClick={() => openEditModal(m)} className="p-1 hover:bg-white/10 rounded">
-                                <Edit size={16} className="text-cyan-300" />
-                              </button>
-                              <button onClick={() => handleDeleteMaterial(m.code)} className="p-1 hover:bg-white/10 rounded">
-                                <Trash2 size={16} className="text-rose-300" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Expanded row */}
-                        {expanded && (
-                          <tr className="bg-white/[0.03]">
-                            <td colSpan={9} className="px-6 pb-6">
-                              <div className="grid grid-cols-3 gap-6 mt-2">
-                                <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm">
-                                  <h4 className="font-semibold mb-1">Description</h4>
-                                  <p>{m.description || "N/A"}</p>
-                                </div>
-                                <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm">
-                                  <h4 className="font-semibold mb-1">Supplier</h4>
-                                  <p>{m.supplierName || supplierNameByCode[m.supplierCode] || "-"} ({m.supplierCode || "-"})</p>
-                                  <p>Location: {m.storageLocation || "-"}</p>
-                                </div>
-                                <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm">
-                                  <h4 className="font-semibold mb-1">Stock Levels</h4>
-                                  <p>Min: {m.minStock} / Max: {m.maxStock}</p>
-                                  <p>Reorder: {m.reorderPoint}</p>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <ExpandableDataTable
+          columns={[
+            {
+              key: "material_name",
+              label: "Name",
+              render: (m: Material) => (
+                <div className="text-sm flex flex-col gap-1">
+                  <div className="flex items-center gap-1">
+                    <span>{m.material_name}</span>
+                  </div>
+                  {m.description && (
+                    <div className="text-white/70">{m.description}</div>
+                  )}
+                </div>
+              ),
+            },
+            {
+              key: "category",
+              label: "Category",
+              render: (m: Material) =>
+                categoryLabelByCode[m.category_code] ?? m.category_code,
+            },
+            {
+              key: "uom_code",
+              label: "Unit",
+              render: (m: Material) =>
+                unitLabelByCode[m.uom_code] ?? m.uom_code,
+            },
+            {
+              key: "stock",
+              label: "Stock",
+              render: (m: Material) => {
+                const s = calculateStockStatus(m);
+                return (
+                  <span className={s.color}>
+                    {s.stock}
+                  </span>
+                );
+              },
+            },
+            {
+              key: "status",
+              label: "Status",
+              render: (m: Material) => (
+                <span className={`chip ${getStatusColor(m.status)}`}>
+                  {m.status}
+                </span>
+              ),
+            },
+            {
+              key: "actions",
+              label: "Actions",
+              render: (m: Material) => (
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => openViewModal(m)}
+                    className="p-1 hover:bg-white/10 rounded"
+                  >
+                    <Eye size={16} className="text-white/70" />
+                  </button>
+                  <button
+                    onClick={() => openEditModal(m)}
+                    className="p-1 hover:bg-white/10 rounded"
+                  >
+                    <Edit size={16} className="text-cyan-300" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMaterial(m.material_code)}
+                    className="p-1 hover:bg-white/10 rounded"
+                  >
+                    <Trash2 size={16} className="text-rose-300" />
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+          data={filteredMaterials}
+          rowKey={(m) => m.material_code}
+          renderExpandedRow={(m: Material) => (
+            <div className="grid grid-cols-2 gap-6">
+              <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm">
+                <h4 className="font-semibold mb-1">Supplier</h4>
+                <p>
+                  {m.supplierName ??
+                    supplierByCode.get(m.supplierCode)?.supplier_name ??
+                    "-"}
+                </p>
+                <p>Location: {m.storageLocation || "-"}</p>
+              </div>
+              <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm">
+                <h4 className="font-semibold mb-1">Stock Levels</h4>
+                <p>
+                  Min: {m.minStock} / Max: {m.maxStock}
+                </p>
+                <p>Reorder: {m.reorderPoint}</p>
+              </div>
             </div>
           )}
+          isLoading={loading}
+        />
       </div>
 
+      {/* ===== Modal ===== */}
       <Modal
         open={isModalOpen}
         onClose={closeModal}
         size="xl"
         title={
           <span className="text-xl font-semibold">
-            {viewMode === "view" ? "Material Details" : editingMaterial ? "Edit Material" : "Create New Material"}
+            {viewMode === "view"
+              ? "Material Details"
+              : editingMaterial
+              ? "Edit Material"
+              : "Create New Material"}
           </span>
         }
         footer={
-          viewMode !== "view"
-            ? (
-              <>
-                <button onClick={closeModal} className="btn btn-outline">Cancel</button>
-                <button onClick={handleSaveMaterial} className="btn btn-primary">
-                  <Save size={18} />
-                  Save Changes
-                </button>
-              </>
-            )
-            : undefined
+          viewMode === "view" ? (
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">
+                Close
+              </button>
+              <button onClick={() => setViewMode("edit")} className="btn btn-primary">
+                <Edit size={18} /> Edit Material
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button onClick={closeModal} className="btn btn-outline">
+                Cancel
+              </button>
+              <button onClick={handleSaveMaterial} className="btn btn-primary">
+                <Save size={18} /> Save Changes
+              </button>
+            </div>
+          )
         }
       >
         {viewMode === "view" && editingMaterial ? (
           <div className="space-y-6 text-white">
             <div className="grid grid-cols-3 gap-6">
               <p>
-                <label className="text-sm text-white/60">Code</label>
-                <span className="block mt-1 text-lg font-semibold">{editingMaterial.code}</span>
-              </p>
-              <p>
                 <label className="text-sm text-white/60">Name</label>
-                <span className="block mt-1">{editingMaterial.name}</span>
+                <span className="block mt-1">{editingMaterial.material_name}</span>
               </p>
               <p>
                 <label className="text-sm text-white/60">Category</label>
-                <span className={`block mt-1 text-xs font-medium px-2 py-1 rounded-full w-fit border ${getCategoryColor(editingMaterial.category)}`}>
-                  {categoryLabelByCode[editingMaterial.category] ?? editingMaterial.category}
+                <span className="block mt-1">
+                  {categoryLabelByCode[editingMaterial.category_code] ??
+                    editingMaterial.category_code}
                 </span>
               </p>
             </div>
 
             <p>
               <label className="text-sm text-white/60">Description</label>
-              <span className="block mt-1">{editingMaterial.description || "-"}</span>
+              <span className="block mt-1">
+                {editingMaterial.description || "-"}
+              </span>
             </p>
 
             <div className="grid grid-cols-2 gap-x-8 gap-y-4 p-4 border border-white/10 rounded-lg bg-white/5">
               <h3 className="col-span-2 text-md font-semibold mb-2">Details</h3>
               <p>
                 <label className="text-sm text-white/60">Unit</label>
-                <span className="block mt-1">{unitLabelByCode[editingMaterial.unitCode] ?? editingMaterial.unitCode}</span>
-              </p>
-              <p>
-                <label className="text-sm text-white/60">Standard Cost</label>
-                <span className="block mt-1">${editingMaterial.standardCost.toFixed(2)}</span>
+                <span className="block mt-1">
+                  {unitLabelByCode[editingMaterial.uom_code] ??
+                    editingMaterial.uom_code}
+                </span>
               </p>
               <p>
                 <label className="text-sm text-white/60">Lead Time</label>
-                <span className="block mt-1">{editingMaterial.leadTimeDays} days</span>
+                <span className="block mt-1">
+                  {editingMaterial.leadTimeDays} days
+                </span>
               </p>
               <p>
                 <label className="text-sm text-white/60">Supplier</label>
-                <span className="block mt-1">{editingMaterial.supplierName || supplierNameByCode[editingMaterial.supplierCode] || "-"}</span>
+                <span className="block mt-1">
+                  {editingMaterial.supplierName ??
+                    supplierByCode.get(editingMaterial.supplierCode)
+                      ?.supplier_name ??
+                    "-"}
+                </span>
               </p>
               <p>
                 <label className="text-sm text-white/60">Min/Max Stock</label>
                 <span className="block mt-1">
-                  {editingMaterial.minStock} / {editingMaterial.maxStock} {unitLabelByCode[editingMaterial.unitCode] ?? editingMaterial.unitCode}
+                  {editingMaterial.minStock} / {editingMaterial.maxStock}{" "}
+                  {unitLabelByCode[editingMaterial.uom_code] ??
+                    editingMaterial.uom_code}
                 </span>
               </p>
               <p>
                 <label className="text-sm text-white/60">Reorder Point</label>
                 <span className="block mt-1">
-                  {editingMaterial.reorderPoint} {unitLabelByCode[editingMaterial.unitCode] ?? editingMaterial.unitCode}
+                  {editingMaterial.reorderPoint}{" "}
+                  {unitLabelByCode[editingMaterial.uom_code] ??
+                    editingMaterial.uom_code}
                 </span>
               </p>
             </div>
 
             {editingMaterial.notes && (
               <p className="p-3 bg-amber-500/10 border border-amber-400/20 rounded-lg">
-                <label className="text-sm font-semibold text-amber-200">Notes</label>
-                <span className="block mt-1 text-amber-100/90">{editingMaterial.notes}</span>
+                <label className="text-sm font-semibold text-amber-200">
+                  Notes
+                </label>
+                <span className="block mt-1 text-amber-100/90">
+                  {editingMaterial.notes}
+                </span>
               </p>
             )}
           </div>
@@ -628,29 +620,21 @@ const MaterialsMasterData: FC = () => {
               <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Material Code *</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Name *
+                  </label>
                   <input
                     type="text"
-                    name="code"
-                    value={formData.code}
+                    name="material_name"
+                    value={formData.material_name}
                     onChange={handleFormChange}
-                    readOnly={!!editingMaterial}
-                    className="glass-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Name *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleFormChange}
-                    required
                     className="glass-input w-full"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-sm font-medium text-white/80 block mb-2">Description</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Description
+                  </label>
                   <textarea
                     name="description"
                     value={formData.description}
@@ -660,10 +644,12 @@ const MaterialsMasterData: FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Category *</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Category *
+                  </label>
                   <select
-                    name="category"
-                    value={formData.category}
+                    name="category_code"
+                    value={formData.category_code}
                     onChange={handleFormChange}
                     className="glass-input w-full"
                   >
@@ -675,10 +661,12 @@ const MaterialsMasterData: FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Unit of Measure *</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Unit *
+                  </label>
                   <select
-                    name="unitCode"
-                    value={formData.unitCode}
+                    name="uom_code"
+                    value={formData.uom_code}
                     onChange={handleFormChange}
                     className="glass-input w-full"
                   >
@@ -690,19 +678,9 @@ const MaterialsMasterData: FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Standard Cost *</label>
-                  <input
-                    type="number"
-                    name="standardCost"
-                    value={formData.standardCost}
-                    onChange={handleFormChange}
-                    min={0}
-                    step="0.01"
-                    className="glass-input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Status *</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Status *
+                  </label>
                   <select
                     name="status"
                     value={formData.status}
@@ -710,7 +688,7 @@ const MaterialsMasterData: FC = () => {
                     className="glass-input w-full"
                   >
                     {statuses.map((s) => (
-                      <option key={s.code} value={s.code} className="select option">
+                      <option key={s.code} value={s.label} className="select option">
                         {s.label}
                       </option>
                     ))}
@@ -723,7 +701,9 @@ const MaterialsMasterData: FC = () => {
               <h3 className="text-lg font-semibold mb-4">Stock & Supplier</h3>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Min Stock Level</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Min Stock
+                  </label>
                   <input
                     type="number"
                     name="minStock"
@@ -734,7 +714,9 @@ const MaterialsMasterData: FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Max Stock Level</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Max Stock
+                  </label>
                   <input
                     type="number"
                     name="maxStock"
@@ -745,7 +727,9 @@ const MaterialsMasterData: FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Reorder Point</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Reorder Point
+                  </label>
                   <input
                     type="number"
                     name="reorderPoint"
@@ -755,28 +739,36 @@ const MaterialsMasterData: FC = () => {
                     className="glass-input w-full"
                   />
                 </div>
+
                 <div className="col-span-2">
-                  <label className="text-sm font-medium text-white/80 block mb-2">Supplier *</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Supplier *
+                  </label>
                   <select
                     name="supplierCode"
                     value={formData.supplierCode}
                     onChange={handleFormChange}
                     className="glass-input w-full"
                   >
-                    {suppliers.length === 0 && (
-                      <option value="" className="select option">
-                        No suppliers
-                      </option>
-                    )}
+                    <option value="" className="select option">
+                      -- Select supplier --
+                    </option>
                     {suppliers.map((s) => (
-                      <option key={s.code} value={s.code} className="select option">
-                        {s.name}
+                      <option
+                        key={s.supplier_code}
+                        value={s.supplier_code}
+                        className="select option"
+                      >
+                        {s.supplier_name}
                       </option>
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-sm font-medium text-white/80 block mb-2">Lead Time (days)</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Lead Time (days)
+                  </label>
                   <input
                     type="number"
                     name="leadTimeDays"
@@ -786,8 +778,11 @@ const MaterialsMasterData: FC = () => {
                     className="glass-input w-full"
                   />
                 </div>
+
                 <div className="col-span-3">
-                  <label className="text-sm font-medium text-white/80 block mb-2">Storage Location</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Storage Location
+                  </label>
                   <input
                     type="text"
                     name="storageLocation"
@@ -796,6 +791,7 @@ const MaterialsMasterData: FC = () => {
                     className="glass-input w-full"
                   />
                 </div>
+
                 <div className="col-span-3">
                   <label className="flex items-center gap-2">
                     <input
@@ -805,11 +801,16 @@ const MaterialsMasterData: FC = () => {
                       onChange={handleFormChange}
                       className="h-4 w-4 rounded border-white/30 bg-white/10"
                     />
-                    <span className="text-sm font-medium text-white/80">Enable Batch Tracking</span>
+                    <span className="text-sm font-medium text-white/80">
+                      Enable Batch Tracking
+                    </span>
                   </label>
                 </div>
+
                 <div className="col-span-3">
-                  <label className="text-sm font-medium text-white/80 block mb-2">Notes</label>
+                  <label className="text-sm font-medium text-white/80 block mb-2">
+                    Notes
+                  </label>
                   <textarea
                     name="notes"
                     value={formData.notes}
