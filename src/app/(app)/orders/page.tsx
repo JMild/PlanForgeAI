@@ -203,9 +203,25 @@ const OrderManagement = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const resOrder = await getOrders(); 
-        const resCustomers = await getCustomersDropdown(); 
-        setOrders(resOrder);
+        const resOrderRaw = await getOrders();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const transformedOrders: Order[] = resOrderRaw.map((order: any) => ({
+          orderNo: order.order_no,
+          customer: order.customer_name,
+          customerCode: order.customer_code,
+          dueDate: order.due_date.split(' ')[0], // ตัดเวลาออก
+          priority: order.priority,
+          status: order.status,
+          createdDate: order.created_date.split(' ')[0],
+          items: [],
+          notes: order.notes || '',
+          attachments: [],
+        }));
+
+        setOrders(transformedOrders);
+
+        const resCustomers = await getCustomersDropdown();
         setCustomers(resCustomers);
       } catch (error) {
         console.error("Fetch data failed:", error);
@@ -413,7 +429,10 @@ const OrderManagement = () => {
         <div>
           <div className="font-medium">{o.orderNo}</div>
           <div className="text-xs text-white/60">
-            {o.createdDate} • {o.attachments.length} file{o.attachments.length !== 1 ? "s" : ""}
+            {o.createdDate}
+            {o.attachments && o.attachments.length > 0 && (
+              <> • {o.attachments.length} file{o.attachments.length === 1 ? "" : "s"}</>
+            )}
           </div>
         </div>
       ),
@@ -456,7 +475,7 @@ const OrderManagement = () => {
     {
       key: "items",
       label: "Items",
-      render: (o: OrderRow) => <span className="text-sm">{o.items.length}</span>,
+      render: (o: OrderRow) => <span className="text-sm">{o.items?.length ?? 0}</span>,
     },
     {
       key: "actions",
@@ -558,7 +577,6 @@ const OrderManagement = () => {
     </div>
   );
 
-
   return (
     <div className="text-white">
       {/* Header (คงสไตล์เดียวกับ BOM) */}
@@ -602,7 +620,7 @@ const OrderManagement = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as Status | "all")}
-              className="glass-input"
+              className="glass-input w-36"
             >
               <option className="select option" value="all">All Status</option>
               <option className="select option" value="Unplanned">Unplanned</option>
@@ -614,7 +632,7 @@ const OrderManagement = () => {
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value as "all" | "1" | "2" | "3")}
-              className="glass-input"
+              className="glass-input w-36"
             >
               <option className="select option" value="all">All Priority</option>
               <option className="select option" value="1">Priority 1</option>

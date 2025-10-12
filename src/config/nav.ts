@@ -5,6 +5,7 @@ import {
   Settings,
   Users,
   BarChart3,
+  Wrench,
 } from "lucide-react";
 
 export type Sub = { label: string; href: string; code?: string };
@@ -58,7 +59,7 @@ export const NAV: Group[] = [
       // 4️⃣ Tools & Maintenance
       {
         label: "Maintenance",
-        icon: Settings,
+        icon: Wrench,
         sub: [
           { label: "Maintenance Machines", href: "/maintenance", code: "MAS012" },
         ],

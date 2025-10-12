@@ -403,7 +403,7 @@ const RoutingMasterData = () => {
       align: "center" as const,
       render: (r: RoutingRow) => (
         <div className="flex items-center justify-center gap-1 text-sm text-white/80">
-          <Clock size={14} className="text-white/50" />
+          {/* <Clock size={14} className="text-white/50" /> */}
           <span>{r?.total_minutes ?? 0}</span>
         </div>
       ),
@@ -421,24 +421,24 @@ const RoutingMasterData = () => {
       label: "Actions",
       align: "center" as const,
       render: (r: RoutingRow) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => openViewModal(r)}
-            className="p-2 hover:bg-white/10 rounded"
+            className="p-1 hover:bg-white/10 rounded"
             title="View Details"
           >
             <Eye size={18} className="text-white/70" />
           </button>
           <button
             onClick={() => openEditModal(r)}
-            className="p-2 text-sky-300 hover:bg-white/10 rounded"
+            className="p-1 text-sky-300 hover:bg-white/10 rounded"
             title="Edit Routing"
           >
             <Edit size={18} />
           </button>
           <button
             onClick={() => handleDeleteRouting(r.routing_id)}
-            className="p-2 text-rose-300 hover:bg-white/10 rounded"
+            className="p-1 text-rose-300 hover:bg-white/10 rounded"
             title="Delete Routing"
           >
             <Trash2 size={18} />

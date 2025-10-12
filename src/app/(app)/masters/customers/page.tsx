@@ -27,8 +27,8 @@ const formatCurrency = (v: number, c: Currency = "USD") =>
 
 const statusBadge = (s: CustomerStatus) =>
   s === "Active" ? "status-success" :
-  s === "On Hold" ? "status-warning" :
-  s === "Blacklisted" ? "status-error" : "status-inactive";
+    s === "On Hold" ? "status-warning" :
+      s === "Blacklisted" ? "status-error" : "status-inactive";
 
 /* --------- constants for form --------- */
 const CUSTOMER_TYPES: CustomerType[] = ["Distributor", "OEM", "Retail", "Wholesaler"];
@@ -165,8 +165,8 @@ const CustomersPage: React.FC = () => {
 
   /* ---------- save/delete (mock-only) ---------- */
   const handleSave = () => {
-    if (!formData.code.trim() || !formData.name.trim()) {
-      toast.error("Customer Code and Name are required.");
+    if (!formData.name.trim()) {
+      toast.error("Customer Name is required.");
       return;
     }
 
@@ -190,17 +190,17 @@ const CustomersPage: React.FC = () => {
         prev.map((it) =>
           it.code === selected.code
             ? {
-                ...it,
-                name: formData.name,
-                shortName: formData.shortName,
-                status: formData.status,
-                type: formData.type,
-                contact: { contactPerson: formData.contact.contactPerson || "", email: formData.contact.email || "" },
-                stats: {
-                  totalOrders: formData.stats.totalOrders || 0,
-                  activeOrders: formData.stats.activeOrders || 0,
-                },
-              }
+              ...it,
+              name: formData.name,
+              shortName: formData.shortName,
+              status: formData.status,
+              type: formData.type,
+              contact: { contactPerson: formData.contact.contactPerson || "", email: formData.contact.email || "" },
+              stats: {
+                totalOrders: formData.stats.totalOrders || 0,
+                activeOrders: formData.stats.activeOrders || 0,
+              },
+            }
             : it
         )
       );
@@ -249,6 +249,41 @@ const CustomersPage: React.FC = () => {
 
   const currencyFor: Currency = (selected?.financial.currency || "USD") as Currency;
 
+  const OrderProgress = ({ active, total }: { active: number; total: number }) => {
+    return (
+      <div className=" border-white/10">
+        <div className="text-xs text-white/60 pb-1">
+          {`${active} of ${total} items`}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* <FileText className="w-3 h-3 text-white/50" /> */}
+          <div className="flex-1 bg-white/10 rounded-full h-1.5">
+            <div
+              className="bg-sky-500 h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${(active/total) * 100}%`}}
+            />
+          </div>
+        </div>
+      </div>
+
+      // <div className="w-full">
+      //   <div className="flex justify-between items-center text-sm text-white/80 font-medium mb-1">
+      //     <span>Active Orders</span>
+      //     <span className="text-white/60">
+      //       {active} / {total} ({Math.round(percentage)}%)
+      //     </span>
+      //   </div>
+      //   <div className="w-full bg-white/10 rounded-full h-1.5">
+      //     <div
+      //       className="bg-sky-500 h-1.5 rounded-full transition-all duration-300"
+      //       style={{ width: `${percentage}%` }}
+      //     />
+      //   </div>
+      // </div>
+    );
+  };
+
   return (
     <div className="text-white">
       <PageHeader
@@ -262,7 +297,7 @@ const CustomersPage: React.FC = () => {
         }
         actions={
           <div className="flex gap-3">
-            <button onClick={() => toast("Import (mock)") } className="btn btn-outline">
+            <button onClick={() => toast("Import (mock)")} className="btn btn-outline">
               <Upload size={18} /> Import
             </button>
             <button onClick={exportToCSV} className="btn btn-outline">
@@ -330,21 +365,14 @@ const CustomersPage: React.FC = () => {
         <ExpandableDataTable<CustomerListItem>
           columns={[
             {
-              key: "code",
-              label: "Code",
-              render: (c) => (
-                <div className="flex items-center gap-2">
-                  <Building2 size={16} className="text-white/50" />
-                  <span className="text-sm font-medium">{c.code}</span>
-                </div>
-              ),
-            },
-            {
               key: "name",
               label: "Customer",
               render: (c) => (
-                <div>
-                  <div className="text-sm">{c.name}</div>
+                <div className="items-center">
+                  <div className="flex gap-2">
+                    <Building2 size={16} className="text-white/50" />
+                    <span className="text-sm font-medium">{c.name}</span>
+                  </div>
                   {c.shortName && <div className="text-xs text-white/60">{c.shortName}</div>}
                 </div>
               ),
@@ -371,23 +399,21 @@ const CustomersPage: React.FC = () => {
               label: "Orders",
               align: "center",
               render: (c) => (
-                <div>
-                  <div className="text-sm font-medium">{c.stats.totalOrders}</div>
-                  <div className="text-xs text-emerald-300">{c.stats.activeOrders} active</div>
-                </div>
+                <OrderProgress active={c.stats.activeOrders} total={c.stats.totalOrders} />
               ),
             },
             {
               key: "status",
               label: "Status",
-              render: (c) => <span className={`chip ${statusBadge(c.status)}`}>{c.status}</span>,
+              align: "center",
+              render: (c) => <span className={`chip items-center justify-center ${statusBadge(c.status)}`}>{c.status}</span>,
             },
             {
               key: "actions",
               label: "Actions",
-              align: "right",
+              align: "center",
               render: (c) => (
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <button onClick={() => openModal("view", c)} className="p-1 hover:bg-white/10 rounded" title="View">
                     <Eye size={16} className="text-white/70" />
                   </button>
@@ -403,7 +429,6 @@ const CustomersPage: React.FC = () => {
           ]}
           data={filtered}
           rowKey={(c) => c.code}
-          // ✅ แถวขยายก็ยังใช้ข้อมูลจาก list เท่านั้น (ไม่ดึงเพิ่ม)
           renderExpandedRow={(c) => (
             <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
               <div className="grid grid-cols-3 gap-4">
@@ -465,9 +490,8 @@ const CustomersPage: React.FC = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id as TabKey)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === id ? "border-sky-400/60 text-sky-300" : "border-transparent text-white/70 hover:text-white"
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === id ? "border-sky-400/60 text-sky-300" : "border-transparent text-white/70 hover:text-white"
+                }`}
             >
               <Icon size={16} /> {label}
             </button>
@@ -479,16 +503,6 @@ const CustomersPage: React.FC = () => {
           {activeTab === "basic" && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Customer Code *</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    disabled={modalMode !== "create"}
-                    className="w-full glass-input"
-                  />
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Customer Name *</label>
                   <input
@@ -553,7 +567,7 @@ const CustomersPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">Rating</label>
                   <div className="flex items-center gap-2">
-                    {[1,2,3,4,5].map(star => (
+                    {[1, 2, 3, 4, 5].map(star => (
                       <button
                         key={star}
                         type="button"
@@ -694,7 +708,7 @@ const CustomersPage: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, paymentTerms: e.target.value as PaymentTerm } })}
                     disabled={modalMode === "view"} className="w-full glass-input"
                   >
-                    {["COD","Net 15","Net 30","Net 45","Net 60"].map((t) => <option key={t} value={t}>{t}</option>)}
+                    {["COD", "Net 15", "Net 30", "Net 45", "Net 60"].map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -704,7 +718,7 @@ const CustomersPage: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, financial: { ...formData.financial, currency: e.target.value as Currency } })}
                     disabled={modalMode === "view"} className="w-full glass-input"
                   >
-                    {["USD","EUR","THB","JPY"].map((c) => <option key={c} value={c}>{c}</option>)}
+                    {["USD", "EUR", "THB", "JPY"].map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>

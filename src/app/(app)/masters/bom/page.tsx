@@ -252,9 +252,9 @@ const BOMPage = () => {
       render: (bom: BOM) => (
         <div>
           <div className="font-medium">{bom.id}</div>
-          <div className="text-xs text-white/60">
+          {/* <div className="text-xs text-white/60">
             {bom.status} • {bom.lines.length} items
-          </div>
+          </div> */}
         </div>
       ),
     },
@@ -274,6 +274,7 @@ const BOMPage = () => {
     {
       key: "components",
       label: "Components",
+      align: "center",
       render: (bom: BOM) => <span className="text-sm">{bom.lines.length}</span>,
     },
     {
@@ -292,9 +293,9 @@ const BOMPage = () => {
     {
       key: "actions",
       label: "Actions",
-      align: "right" as const,
+      align: "center" as const,
       render: (bom: BOM) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => handleEditBOM(bom)}
             className="p-1 hover:bg-white/10 rounded"

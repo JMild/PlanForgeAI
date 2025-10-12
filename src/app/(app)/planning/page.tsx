@@ -540,7 +540,7 @@ const ProductionPlannerBoard: React.FC = () => {
       };
 
       // ใช้ day0 แบบ "naive" ให้ตรงกับ due_date ที่ไม่มี timezone (หลีกเลี่ยง offset error)
-      const res = await fetch("http://localhost:4000/api/ai/plan?day0=2025-09-22", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/plan?day0=2025-09-22`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

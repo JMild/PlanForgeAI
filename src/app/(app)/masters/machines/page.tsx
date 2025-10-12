@@ -164,26 +164,26 @@ const MachinesMasterData = () => {
   /* -------------------- Helpers -------------------- */
   const getStatusColor = (status: string): string => {
     const colors: Record<string, string> = {
-      Running: "status-success",
-      Idle: "status-inactive",
+      RUNNING: "status-success",
+      IDLE: "status-inactive",
       PM: "status-yellow",
-      Down: "status-error",
-      Setup: "status-info",
+      DOWN: "status-error",
+      SETUP: "status-info",
     };
     return colors[status] ?? "status-inactive";
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "Running":
+      case "RUNNING":
         return <Activity className="text-green-600" size={16} />;
-      case "Idle":
+      case "IDLE":
         return <Clock className="text-gray-600" size={16} />;
       case "PM":
         return <Wrench className="text-yellow-600" size={16} />;
-      case "Down":
+      case "DOWN":
         return <AlertCircle className="text-red-600" size={16} />;
-      case "Setup":
+      case "SETUP":
         return <Settings className="text-blue-600" size={16} />;
       default:
         return <Cpu className="text-gray-600" size={16} />;
@@ -217,7 +217,6 @@ const MachinesMasterData = () => {
 
     return matchesSearch && matchesWorkCenter && matchesStatus;
   });
-
 
   /* -------------------- Actions -------------------- */
   const openCreateModal = () => {
@@ -338,21 +337,8 @@ const MachinesMasterData = () => {
   type MachineRow = typeof filteredMachines[number];
 
   const machineColumns = [
-    {
-      key: "machine",
-      label: "Machine",
-      render: (m: MachineRow) => (
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-600 to-sky-600 grid place-items-center text-white/90 text-xs font-bold">
-            {m.machineName?.slice(0, 2)?.toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium truncate">{m.machineName}</div>
-            <div className="text-xs text-white/60 truncate">({m.machineCode})</div>
-          </div>
-        </div>
-      ),
-    },
+    { key: "machineCode", label: "Code" },
+    { key: "machineName", label: "Name" },
     {
       key: "workcenter",
       label: "Work Center",
@@ -370,7 +356,7 @@ const MachinesMasterData = () => {
         <div className="flex items-center gap-1 text-sm">
           <Zap size={14} className="text-white/50" />
           <span className={getOEEColor(m.currentOEE, m.oeeTarget)}>
-            OEE: {m.currentOEE}% (Target: {m.oeeTarget}%)
+            {m.currentOEE || 0}% (Target: {m.oeeTarget}%)
           </span>
         </div>
       ),
@@ -378,8 +364,9 @@ const MachinesMasterData = () => {
     {
       key: "status",
       label: "Status",
+      align: "center",
       render: (m: MachineRow) => (
-        <span className={`text-xs px-2 py-1 rounded border inline-flex items-center gap-1 ${getStatusColor(m.status)}`}>
+        <span className={`text-xs px-2 py-1 rounded border inline-flex justify-center items-center gap-1 ${getStatusColor(m.status)}`}>
           {getStatusIcon(m.status)}
           {m.status}
         </span>
@@ -388,26 +375,26 @@ const MachinesMasterData = () => {
     {
       key: "actions",
       label: "Actions",
-      align: "right",
+      align: "center",
       render: (m: MachineRow) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => openViewModal(m)}
-            className="p-2 hover:bg-white/10 rounded"
+            className="p-1 hover:bg-white/10 rounded"
             title="View Details"
           >
             <Eye size={18} className="text-white/70" />
           </button>
           <button
             onClick={() => openEditModal(m)}
-            className="p-2 text-sky-300 hover:bg-white/10 rounded"
+            className="p-1 text-sky-300 hover:bg-white/10 rounded"
             title="Edit Machine"
           >
             <Edit size={18} />
           </button>
           <button
             onClick={() => handleDeleteMachine(m.machineCode)}
-            className="p-2 text-rose-300 hover:bg-white/10 rounded"
+            className="p-1 text-rose-300 hover:bg-white/10 rounded"
             title="Delete Machine"
           >
             <Trash2 size={18} />
@@ -901,23 +888,23 @@ const MachinesMasterData = () => {
               <h3 className="text-lg font-semibold mb-4">Process Capabilities *</h3>
               <p className="text-sm text-white/70 mb-3">Select all processes this machine can perform:</p>
               <div className="grid grid-cols-5 gap-2">
-                {processes.map((proc) => (
-                  <label
-                    key={proc.process_code}
-                    className={`flex items-center justify-center px-3 py-2 rounded-lg cursor-pointer transition-colors border-2 ${formData.processes.includes(proc.process_code)
-                      ? "border-sky-500 bg-sky-500/10 text-sky-300"
-                      : "border-white/20 hover:border-white/40 bg-white/5 text-white"
-                      }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={formData.processes.includes(proc.process_code)}
-                      onChange={() => toggleProcess(proc.process_code)}
-                      className="mr-2 accent-sky-500"
-                    />
-                    <span className="text-sm font-medium">{proc.process_name}</span>
-                  </label>
-                ))}
+                {processes.map((proc) => {
+                  const isSelected = formData.processes.includes(proc.process_code);
+                  return (
+                    <button
+                      type="button"
+                      key={proc.process_code}
+                      onClick={() => toggleProcess(proc.process_code)}
+                      className={`flex items-center justify-center px-3 py-2 rounded-lg transition-colors border-2 w-full
+                        ${isSelected
+                          ? "border-sky-500 bg-sky-500/10 text-sky-300"
+                          : "border-white/20 hover:border-white/40 bg-white/5 text-white"
+                        }`}
+                    >
+                      <span className="text-sm font-medium">{proc.process_name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

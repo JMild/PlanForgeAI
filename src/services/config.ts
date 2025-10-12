@@ -9,3 +9,7 @@ export async function getAllDropdownMaterial() {
   const res = await axiosClient.get("/enum_values/all-material");
   return res.data;
 }
+// export async function getWorkCenterDeptDropdown() {
+//   const res = await axiosClient.get("/enum_values/work_centers-dept-dropdown");
+//   return res.data;
+// }

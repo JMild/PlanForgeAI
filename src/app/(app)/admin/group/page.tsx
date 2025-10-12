@@ -491,9 +491,10 @@ const RoleManagement: React.FC = () => {
       {
         key: "status",
         label: "Status",
+        align: "center",
         render: (role: Role) => (
           <span className={`inline-flex items-center gap-1 chip ${role.status === "Active" ? "status-success" : "status-inactive"}`}>
-            {role.status === "Active" ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-white/60" />}
+            {/* {role.status === "Active" ? <CheckCircle size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-white/60" />} */}
             {role.status}
           </span>
         ),
@@ -501,9 +502,9 @@ const RoleManagement: React.FC = () => {
       {
         key: "actions",
         label: "Actions",
-        align: "center" as const,
+        align: "center",
         render: (role: Role) => (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-center gap-2">
             <button onClick={() => openViewModal(role)} className="p-1 hover:bg-white/10 rounded" title="View Details">
               <Eye size={16} className="text-white/70" />
             </button>

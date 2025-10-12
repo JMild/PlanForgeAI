@@ -356,9 +356,10 @@ const UserManagement = () => {
       {
         key: "status",
         label: "Status",
+        align: "center",
         render: (user: User) => (
           <span
-            className={`inline-flex items-center gap-1 chip ${user.status === "Active"
+            className={`inline-flex items-center justify-center gap-1 chip ${user.status === "Active"
               ? "bg-emerald-500/15 text-emerald-200 border border-emerald-400/30"
               : user.status === "Inactive"
                 ? "bg-white/5 text-white/80 border border-white/15"
@@ -367,7 +368,7 @@ const UserManagement = () => {
                   : "bg-cyan-500/15 text-cyan-200 border border-cyan-400/30"
               }`}
           >
-            {getStatusIcon(user.status)}
+            {/* {getStatusIcon(user.status)} */}
             {user.status}
           </span>
         ),
@@ -377,7 +378,7 @@ const UserManagement = () => {
         label: "Actions",
         align: "center",
         render: (user: User) => (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-center gap-2">
             <button onClick={() => openViewModal(user)} className="p-1 hover:bg-white/10 rounded" title="View Details">
               <Eye size={16} className="text-white/70" />
             </button>

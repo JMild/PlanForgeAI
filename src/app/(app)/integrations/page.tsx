@@ -391,7 +391,7 @@ export default function IntegrationsLocked() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Integrations</h1>
-          <p className="text-white/70">Locked view • ERP • WMS • MES • HR • CMMS</p>
+          <p className="text-white/70">ERP • WMS • MES • HR • CMMS</p>
         </div>
 
         <button
@@ -590,8 +590,6 @@ export default function IntegrationsLocked() {
                 </tbody>
               </table>
             </div>
-
-            {!editing && <p className="text-xs text-white/50 mt-3">* Locked – เปลี่ยน endpoint/แก้ mapping ได้เมื่อ Edit</p>}
           </div>
 
           {/* Docs */}

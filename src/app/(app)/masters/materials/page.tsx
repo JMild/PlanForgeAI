@@ -443,8 +443,9 @@ const MaterialsMasterData: FC = () => {
             {
               key: "status",
               label: "Status",
+              align: "center",
               render: (m: Material) => (
-                <span className={`chip ${getStatusColor(m.status)}`}>
+                <span className={`chip items-center justify-center ${getStatusColor(m.status)}`}>
                   {m.status}
                 </span>
               ),
@@ -452,8 +453,9 @@ const MaterialsMasterData: FC = () => {
             {
               key: "actions",
               label: "Actions",
+              align: "center",
               render: (m: Material) => (
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <button
                     onClick={() => openViewModal(m)}
                     className="p-1 hover:bg-white/10 rounded"

@@ -334,7 +334,7 @@ const ProductMasterData = () => {
   const productColumns = [
     {
       key: "code",
-      label: "Product Code",
+      label: "Code",
       render: (product: Product) => (
         <div className="flex items-center">
           <Package size={16} className="text-white/50 mr-2" />
@@ -941,13 +941,13 @@ const ProductMasterData = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium text-white/70">
                           Description
                         </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-white/70">
+                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
                           Qty per Unit
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-white/70">
+                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
                           Unit
                         </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-white/70">
+                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
                           Scrap %
                         </th>
                         {modalMode !== "view" && (

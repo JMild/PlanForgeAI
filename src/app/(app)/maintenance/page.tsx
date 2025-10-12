@@ -89,6 +89,7 @@ const Maintenance = () => {
       try {
         setLoading(true);
         const res = await getMaintenanceMachines();
+        console.log('res', res)
         setPlans(res);
         // const resBoms = (await getBOM()) as BOM[];
         // setProducts(resProducts);
@@ -233,23 +234,13 @@ const Maintenance = () => {
   const getDueStatus = (plan: MaintenancePlan): { status: string; color: string; icon: React.ReactNode } => {
     const days = getDaysUntilDue(plan.nextDue);
     if (days < 0) {
-      return { status: 'Overdue', color: 'status-errror', icon: <AlertCircle className="w-4 h-4" /> };
+      return { status: 'Overdue', color: 'status-error', icon: <AlertCircle className="w-4 h-4" /> };
     } else if (days === 0) {
       return { status: 'Due Today', color: 'status-warning', icon: <Clock className="w-4 h-4" /> };
     } else if (days <= 7) {
       return { status: `Due in ${days}d`, color: 'status-yellow', icon: <Calendar className="w-4 h-4" /> };
     } else {
       return { status: `Due in ${days}d`, color: 'status-success', icon: <CheckCircle className="w-4 h-4" /> };
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Critical': return 'status-errror';
-      case 'High': return 'status-warning';
-      case 'Medium': return 'status-yellow';
-      case 'Low': return 'status-success';
-      default: return 'status-inactive';
     }
   };
 
@@ -280,15 +271,8 @@ const Maintenance = () => {
 
   const maintenancePlanColumns = [
     {
-      key: "id",
-      label: "Plan ID",
-      render: (plan: MaintenancePlan) => (
-        <span className="text-sm font-medium text-white">{plan.id}</span>
-      ),
-    },
-    {
       key: "machineCode",
-      label: "Machine",
+      label: "Machine Code",
       render: (plan: MaintenancePlan) => (
         <span className="text-sm text-white/80">{plan.machineCode}</span>
       ),
@@ -303,36 +287,19 @@ const Maintenance = () => {
     {
       key: "planType",
       label: "Type",
+      align: "center",
       render: (plan: MaintenancePlan) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(plan.planType)}`}>
-          {plan.planType}
-        </span>
-      ),
-    },
-    {
-      key: "priority",
-      label: "Priority",
-      render: (plan: MaintenancePlan) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(plan.priority)}`}>
-          {plan.priority}
-        </span>
-      ),
-    },
-    {
-      key: "frequency",
-      label: "Frequency",
-      render: (plan: MaintenancePlan) => (
-        <span className="text-sm text-white/70">{plan.frequency}</span>
+        <span className="text-sm text-white">{plan.planType}</span>
       ),
     },
     {
       key: "nextDue",
       label: "Next Due",
+      align: "center",
       render: (plan: MaintenancePlan) => {
         const dueStatus = getDueStatus(plan);
         return (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${dueStatus.color}`}>
-            {dueStatus.icon}
+          <span className={`items-center justify-center ${dueStatus.color}`} style={{ backgroundColor: 'transparent' }}>
             {plan.nextDue}
           </span>
         );
@@ -341,9 +308,10 @@ const Maintenance = () => {
     {
       key: "status",
       label: "Status",
+      align: "center",
       render: (plan: MaintenancePlan) => (
         <span
-          className={`chip ${plan.status === "Active"
+          className={`chip items-center justify-center ${plan.status === "Active"
             ? "status-success"
             : plan.status === "Suspended"
               ? "status-warning"
@@ -351,6 +319,7 @@ const Maintenance = () => {
                 ? "status-indigo"
                 : "status-inactive"
             }`}
+          style={{ minWidth: 'fit-content' }}
         >
           {plan.status}
         </span>
@@ -359,18 +328,18 @@ const Maintenance = () => {
     {
       key: "actions",
       label: "Actions",
-      align: "right",
+      align: "center",
       render: (plan: MaintenancePlan) => (
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => handleEdit(plan)}
-            className="text-sky-300 hover:text-sky-200"
+            className="p-1 text-sky-300 hover:text-sky-200"
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
             onClick={() => handleDelete(plan.id)}
-            className="text-rose-300 hover:text-rose-200"
+            className="p-1 text-rose-300 hover:text-rose-200"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -517,130 +486,140 @@ const Maintenance = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {loading ? (
-          <Loading />
-        ) : filteredPlans.length === 0 ? (
-          <EmptyState/>
-        ) : (
-          <>
-            {/* Cards View */}
-            {viewMode === 'cards' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredPlans.map((plan) => {
-                  const dueStatus = getDueStatus(plan);
+        {/* Cards View */}
+        {loading && viewMode === 'cards' && (
+          <div className="overflow-x-auto rounded-lg border border-white/10 bg-white/5">
+            <Loading />
+          </div>
+        )}
+        {!loading && filteredPlans.length === 0 && viewMode === 'cards' && (
+          <div className="overflow-x-auto rounded-lg border border-white/10 bg-white/5">
+            <EmptyState />
+          </div>
+        )}
 
-                  return (
-                    <div key={plan.id} className="rounded-lg border border-white/10 bg-white/5 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                      <div className="p-4 border-b border-white/10 bg-white/5">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-semibold text-white">{plan.id}</h3>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${dueStatus.color}`}>
-                                {dueStatus.icon}
-                                {dueStatus.status}
-                              </span>
-                            </div>
-                            <p className="text-sm text-white/80 font-medium">{plan.title}</p>
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEdit(plan)}
-                              className="p-2 text-sky-300 hover:bg-white/10 rounded"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(plan.id)}
-                              className="p-2 text-rose-300 hover:bg-white/10 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+        {viewMode === 'cards' && !loading && filteredPlans.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredPlans.map((plan) => {
+              const dueStatus = getDueStatus(plan);
+
+              return (
+                <div key={plan.id} className="rounded-lg border border-white/10 bg-white/5 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="p-4 border-b border-white/10 bg-white/5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold text-white">{plan.id}</h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${dueStatus.color}`}>
+                            {dueStatus.icon}
+                            {dueStatus.status}
+                          </span>
                         </div>
+                        <p className="text-sm text-white/80 font-medium">{plan.title}</p>
                       </div>
-
-                      <div className="p-4 space-y-3">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-white/60">Machine</span>
-                          <span className="font-medium text-white">{plan.machineCode} - {plan.machineName}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(plan.planType)}`}>
-                            {plan.planType}
-                          </span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(plan.priority)}`}>
-                            {plan.priority}
-                          </span>
-                        </div>
-
-                        <div className="text-sm text-white/80">
-                          {plan.description}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
-                          <div>
-                            <div className="text-xs text-white/60">Frequency</div>
-                            <div className="text-sm font-medium text-white">
-                              {plan.frequency}
-                              {plan.frequencyValue && ` (${plan.frequencyValue})`}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-white/60">Duration</div>
-                            <div className="text-sm font-medium text-white">{plan.durationMinutes} min</div>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-white/10 space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-white/60">Last Executed</span>
-                            <span className="font-medium text-white">{plan.lastExecuted || 'Never'}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-white/60">Next Due</span>
-                            <span className="font-medium text-white">{plan.nextDue}</span>
-                          </div>
-                          {plan.assignedTo && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-white/60">Assigned To</span>
-                              <span className="font-medium text-white">{plan.assignedTo}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {plan.checklist && plan.checklist.length > 0 && (
-                          <div className="pt-2 border-t border-white/10">
-                            <div className="text-xs text-white/60 mb-1">Checklist ({plan.checklist.length} items)</div>
-                            <div className="flex items-center gap-1">
-                              <FileText className="w-3 h-3 text-white/50" />
-                              <div className="flex-1 bg-white/10 rounded-full h-1.5">
-                                <div
-                                  className="bg-sky-500 h-1.5 rounded-full"
-                                  style={{ width: '0%' }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleEdit(plan)}
+                          className="p-2 text-sky-300 hover:bg-white/10 rounded"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(plan.id)}
+                          className="p-2 text-rose-300 hover:bg-white/10 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
 
-            {/* Table View */}
-            {viewMode === 'table' && (
-              <DataTable
-                columns={maintenancePlanColumns}
-                data={filteredPlans}
-                rowKey={(p) => p.id}
-                isLoading={loading}
-              />
-            )}
-          </>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">Machine</span>
+                      <span className="font-medium text-white">{plan.machineCode} - {plan.machineName}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(plan.planType)}`}>
+                        {plan.planType}
+                      </span>
+                    </div>
+
+                    <div className="text-sm text-white/80">
+                      {plan.description}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+                      <div>
+                        <div className="text-xs text-white/60">Frequency</div>
+                        <div className="text-sm font-medium text-white">
+                          {plan.frequency}
+                          {plan.frequencyValue && ` (${plan.frequencyValue})`}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60">Duration</div>
+                        <div className="text-sm font-medium text-white">{plan.durationMinutes} min</div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-white/60">Last Executed</span>
+                        <span className="font-medium text-white">{plan.lastExecuted || 'Never'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-white/60">Next Due</span>
+                        <span className="font-medium text-white">{plan.nextDue}</span>
+                      </div>
+                      {plan.assignedTo && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/60">Assigned To</span>
+                          <span className="font-medium text-white">{plan.assignedTo}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {plan.checklist && plan.checklist.length > 0 && (
+                      <div className="pt-2 border-t border-white/10">
+                        <div className="text-xs text-white/60 mb-1">
+                          {(() => {
+                            const completedCount = plan.checklist.filter(item => item.completed).length;
+                            const totalCount = plan.checklist.length;
+                            return `Checklist (${completedCount} of ${totalCount} items)`;
+                          })()}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-white/50" />
+                          <div className="flex-1 bg-white/10 rounded-full h-1.5">
+                            <div
+                              className="bg-sky-500 h-1.5 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${(plan.checklist.filter(item => item.completed).length / plan.checklist.length) * 100
+                                  }%`
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table View */}
+        {viewMode === 'table' && (
+          <DataTable
+            columns={maintenancePlanColumns}
+            data={filteredPlans}
+            rowKey={(p) => p.id}
+            isLoading={loading}
+          />
         )}
       </div>
 
@@ -675,7 +654,7 @@ const Maintenance = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-white/80 mb-1">
-                  Machine Code *
+                  Machine *
                 </label>
                 <select
                   value={planForm.machineCode}
@@ -1035,7 +1014,6 @@ const Maintenance = () => {
           </div>
         </div>
       </Modal>
-
 
       {/* Overdue Alert Panel */}
       {!isEditing && stats.overdue > 0 && (

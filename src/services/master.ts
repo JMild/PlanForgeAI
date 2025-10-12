@@ -19,8 +19,11 @@ export async function getProductCategory() {
 }
 
 export async function getMachines() {
-  // const res = await axiosClient.get("/integrations?type=MES&endpoint=machines");
   const res = await axiosClient.get("/master/machines");
+  return res.data;
+}
+export async function getMachinesDropdown() {
+  const res = await axiosClient.get("/master/machines-dropdown");
   return res.data;
 }
 export async function getDropdownMachineStatus() {
@@ -152,6 +155,11 @@ export async function getPersonnel() {
       allowedMachines: ["M003"],
     },
   ];
+}
+
+export async function getCalendarsFull() {
+  const res = await axiosClient.get("/master/calendars_full");
+  return res.data;
 }
 
 // export async function getUserById(id: string) {

@@ -11,13 +11,12 @@ import {
   Download,
   Users,
   Award,
-  Calendar,
   Briefcase,
   Phone,
   Clock,
   UserCheck,
-  AlertCircle,
-  CheckCircle,
+  // AlertCircle,
+  // CheckCircle,
   Settings,
   Filter,
   Eye,
@@ -76,18 +75,18 @@ const getStatusColor = (status: string) => {
       return "status-inactive";
   }
 };
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case "Active":
-      return <CheckCircle className="w-4 h-4" />;
-    case "On Leave":
-      return <Clock className="w-4 h-4" />;
-    case "Inactive":
-      return <AlertCircle className="w-4 h-4" />;
-    default:
-      return null;
-  }
-};
+// const getStatusIcon = (status: string) => {
+//   switch (status) {
+//     case "Active":
+//       return <CheckCircle className="w-4 h-4" />;
+//     case "On Leave":
+//       return <Clock className="w-4 h-4" />;
+//     case "Inactive":
+//       return <AlertCircle className="w-4 h-4" />;
+//     default:
+//       return null;
+//   }
+// };
 const toggleCode = (arr: string[], code: string) =>
   arr.includes(code) ? arr.filter((c) => c !== code) : [...arr, code];
 
@@ -175,13 +174,8 @@ const PersonnelPage = () => {
 
   const stats = useMemo(() => {
     const activeCount = personnel.filter((p) => p.status === "Active").length;
-    const avgTenure =
-      personnel.reduce((sum, p) => {
-        const years = (Date.now() - new Date(p.hireDate).getTime()) / (1000 * 60 * 60 * 24 * 365);
-        return sum + years;
-      }, 0) / Math.max(personnel.length, 1);
     const departments = new Set(personnel.map((p) => p.department)).size;
-    return { activeCount, avgTenure, departments };
+    return { activeCount, departments };
   }, [personnel]);
 
   // lookups
@@ -392,20 +386,6 @@ const PersonnelPage = () => {
     { key: "department", label: "Department", align: "left" },
     { key: "position", label: "Position", align: "left" },
     {
-      key: "status",
-      label: "Status",
-      render: (person: Personnel) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit border ${getStatusColor(
-            person.status
-          )}`}
-        >
-          {getStatusIcon(person.status)}
-          {person.status}
-        </span>
-      ),
-    },
-    {
       key: "eligible",
       label: "Eligible",
       render: (person: Personnel) => (
@@ -414,6 +394,21 @@ const PersonnelPage = () => {
         </span>
       ),
     },
+    {
+      key: "status",
+      label: "Status",
+      align: "center",
+      render: (person: Personnel) => (
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit border ${getStatusColor(
+            person.status
+          )}`}
+        >
+          {/* {getStatusIcon(person.status)} */}
+          {person.status}
+        </span>
+      ),
+    },    
     {
       key: "actions",
       label: "Actions",
@@ -480,7 +475,7 @@ const PersonnelPage = () => {
         tabs={
           <>
             {/* Stats Bar */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="glass-card glass-card-default-padding">
                 <div className="flex items-center justify-between">
                   <div>
@@ -508,15 +503,6 @@ const PersonnelPage = () => {
                     <div className="text-2xl font-bold text-sky-300 mt-1">{stats.departments}</div>
                   </div>
                   <Briefcase className="w-10 h-10 text-sky-300/30" />
-                </div>
-              </div>
-              <div className="glass-card glass-card-default-padding">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-white/60">Avg Tenure</div>
-                    <div className="text-2xl font-bold text-violet-300 mt-1">{stats.avgTenure.toFixed(1)}y</div>
-                  </div>
-                  <Calendar className="w-10 h-10 text-violet-300/30" />
                 </div>
               </div>
             </div>
@@ -646,7 +632,7 @@ const PersonnelPage = () => {
           <div className="space-y-6 text-white">
             {/* Header card */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 grid place-items-center font-bold">
+              <div className="w-12 h-12 rounded-full grid place-items-center bg-cyan-500/10 border border-cyan-400/30 text-cyan-200">
                 {modalPerson.firstName?.[0]}
                 {modalPerson.lastName?.[0]}
               </div>
