@@ -113,7 +113,7 @@ const RoutingMasterData = () => {
         const resWorkCenters = await getWorkCenterDropdown();
 
         // Set state
-        console.log('resProcesses', resProcesses)
+        console.log('res', res)
         setRoutings(res);
         setProcesses(resProcesses);
         setWorkCenters(resWorkCenters);
@@ -374,7 +374,7 @@ const RoutingMasterData = () => {
   const routingColumns: readonly TableCol<RoutingRow>[] = [
     {
       key: "routing_name",
-      label: "Name",
+      label: "Routing Name",
       render: (r: RoutingRow) => (
         <div className="min-w-0">
           <div className="font-medium text-sm truncate">

@@ -15,15 +15,18 @@ import {
   FileText,
 } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
-import { getCustomers, getCustomersDropdown, getOrders } from "@/src/services/master";
+import {
+  getCustomersDropdown,
+  getOrders,
+  getOrderItems,            // <-- NEW: lazy fetch items
+  getOrderAttachments,      // <-- NEW: lazy fetch attachments
+} from "@/src/services/master";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 import toast from "react-hot-toast";
 import Modal from "@/src/components/shared/Modal";
 import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 
-/* =======================
- * Types
- * ======================= */
+/* ===================== Types ===================== */
 type Status = "Unplanned" | "Planned" | "In Progress" | "Completed" | "Late";
 type ViewMode = "view" | "edit" | null;
 
@@ -59,13 +62,15 @@ interface Order {
   orderNo: string;
   customer: string;
   customerCode: string;
-  dueDate: string; // YYYY-MM-DD
+  dueDate: string;
   priority: 1 | 2 | 3;
   status: Status;
-  createdDate: string; // YYYY-MM-DD
-  items: OrderItem[];
+  createdDate: string;
+  items?: OrderItem[];
+  attachments?: string[];
+  itemCount?: number;
+  attachmentCount?: number;
   notes: string;
-  attachments: string[];
 }
 
 interface OrderFormItem {
@@ -85,9 +90,7 @@ interface OrderForm {
   items: OrderFormItem[];
 }
 
-/* =======================
- * Mock Data (demo)
- * ======================= */
+/* ===================== Mock (คงไว้) ===================== */
 const PRODUCT_CATALOG: ProductCatalogEntry[] = [
   {
     code: "WDGT-A",
@@ -107,76 +110,10 @@ const PRODUCT_CATALOG: ProductCatalogEntry[] = [
       { seq: 3, process: "ASSY", processName: "Assembly", setupMin: 15, runMinPerUnit: 1.0, machineGroup: ["M003"] },
     ],
   },
-  {
-    code: "WDGT-C",
-    name: "Widget C",
-    routing: [
-      { seq: 1, process: "MACH", processName: "Machining", setupMin: 30, runMinPerUnit: 1.3, machineGroup: ["M001", "M002"] },
-      { seq: 2, process: "PAINT", processName: "Painting", setupMin: 30, runMinPerUnit: 0.8, machineGroup: ["M005"] },
-      { seq: 3, process: "PACK", processName: "Packaging", setupMin: 10, runMinPerUnit: 0.5, machineGroup: ["M003"] },
-    ],
-  },
-  {
-    code: "WDGT-D",
-    name: "Widget D",
-    routing: [
-      { seq: 1, process: "PRESS", processName: "Pressing", setupMin: 25, runMinPerUnit: 0.8, machineGroup: ["M004"] },
-      { seq: 2, process: "DRILL", processName: "Drilling", setupMin: 20, runMinPerUnit: 0.6, machineGroup: ["M001", "M002"] },
-      { seq: 3, process: "PAINT", processName: "Painting", setupMin: 30, runMinPerUnit: 0.7, machineGroup: ["M005"] },
-      { seq: 4, process: "ASSY", processName: "Assembly", setupMin: 15, runMinPerUnit: 0.5, machineGroup: ["M003"] },
-    ],
-  },
+  // … (ตัดทอน)
 ];
 
-const INITIAL_ORDERS: Order[] = [
-  {
-    orderNo: "ORD001",
-    customer: "ABC Corp",
-    customerCode: "CUST001",
-    dueDate: "2025-10-03",
-    priority: 1,
-    status: "Planned",
-    createdDate: "2025-09-25",
-    items: [
-      { itemNo: 1, productCode: "WDGT-A", productName: "Widget A", qty: 100, notes: "" },
-      { itemNo: 2, productCode: "WDGT-B", productName: "Widget B", qty: 50, notes: "" },
-    ],
-    notes: "Rush order - expedite if possible",
-    attachments: ["PO_ABC_001.pdf"],
-  },
-  {
-    orderNo: "ORD002",
-    customer: "XYZ Ltd",
-    customerCode: "CUST002",
-    dueDate: "2025-10-02",
-    priority: 2,
-    status: "In Progress",
-    createdDate: "2025-09-24",
-    items: [{ itemNo: 1, productCode: "WDGT-C", productName: "Widget C", qty: 75, notes: "" }],
-    notes: "",
-    attachments: [],
-  },
-  {
-    orderNo: "ORD003",
-    customer: "Tech Inc",
-    customerCode: "CUST003",
-    dueDate: "2025-10-04",
-    priority: 1,
-    status: "Unplanned",
-    createdDate: "2025-09-26",
-    items: [
-      { itemNo: 1, productCode: "WDGT-D", productName: "Widget D", qty: 200, notes: "Special finish required" },
-      { itemNo: 2, productCode: "WDGT-A", productName: "Widget A", qty: 150, notes: "" },
-      { itemNo: 3, productCode: "WDGT-B", productName: "Widget B", qty: 80, notes: "" },
-    ],
-    notes: "Customer will provide materials",
-    attachments: ["Spec_Sheet_Tech.pdf", "Drawing_V2.dwg"],
-  },
-];
-
-/* =======================
- * Component
- * ======================= */
+/* ===================== Component ===================== */
 const OrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -199,27 +136,41 @@ const OrderManagement = () => {
     items: [{ itemNo: 1, productCode: "", qty: 0, notes: "" }],
   });
 
+  // ===== Cache สำหรับ expanded details (ต่อออเดอร์) =====
+  const [detailsCache, setDetailsCache] = useState<
+    Record<string, { items: OrderItem[]; attachments: string[] }>
+  >({});
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const resOrderRaw = await getOrders();
 
+        // getOrders: เวอร์ชันที่ "ยังไม่ส่ง items, attachments" มา
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const transformedOrders: Order[] = resOrderRaw.map((order: any) => ({
+        const resOrderRaw: any[] = await getOrders();
+
+        const transformed: Order[] = resOrderRaw.map((order) => ({
           orderNo: order.order_no,
           customer: order.customer_name,
           customerCode: order.customer_code,
-          dueDate: order.due_date.split(' ')[0], // ตัดเวลาออก
-          priority: order.priority,
-          status: order.status,
-          createdDate: order.created_date.split(' ')[0],
-          items: [],
-          notes: order.notes || '',
-          attachments: [],
+          dueDate: (order.due_date || "").split(" ")[0],
+          priority: order.priority as 1 | 2 | 3,
+          status: order.status as Status,
+          createdDate: (order.created_date || "").split(" ")[0],
+
+          // ยังไม่โหลดรายการจริง
+          items: undefined,
+          attachments: undefined,
+
+          // รับเฉพาะ count มาก่อน
+          itemCount: order.item_count ?? 0,
+          attachmentCount: order.attachment_count ?? 0,
+
+          notes: order.notes || "",
         }));
 
-        setOrders(transformedOrders);
+        setOrders(transformed);
 
         const resCustomers = await getCustomersDropdown();
         setCustomers(resCustomers);
@@ -297,7 +248,7 @@ const OrderManagement = () => {
       dueDate: order.dueDate,
       priority: order.priority,
       notes: order.notes,
-      items: order.items.map(({ productName, ...rest }) => ({ ...rest })),
+      items: (order.items ?? []).map(({ productName, ...rest }) => ({ ...rest })),
     });
     setEditingOrder(order);
     setViewMode("edit");
@@ -332,23 +283,40 @@ const OrderManagement = () => {
       priority: formData.priority,
       status: editingOrder?.status || "Unplanned",
       createdDate: editingOrder?.createdDate || new Date().toISOString().split("T")[0],
-      items: formData.items.map((item) => {
-        const product = PRODUCT_CATALOG.find((p) => p.code === item.productCode);
-        return { ...item, productName: product?.name || "" };
-      }),
+
+      // อันนี้จากฟอร์ม (ใช้เฉพาะตอนสร้าง/แก้ไขภายในหน้า)
+      items: formData.items.map((item) => ({
+        ...item,
+        productName: PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.name || "",
+      })),
+
+      // เมื่อสร้างเองในหน้า ก็ยังไม่มี attachments
+      attachments: editingOrder?.attachments ?? [],
+
+      // คำนวณ count จากฟอร์ม
+      itemCount: formData.items.length,
+      attachmentCount: editingOrder?.attachmentCount ?? 0,
+
       notes: formData.notes,
-      attachments: editingOrder?.attachments || [],
     };
 
     setOrders((prev) => {
       if (editingOrder) return prev.map((o) => (o.orderNo === editingOrder.orderNo ? newOrder : o));
-      // กัน code ซ้ำ
       if (prev.some((o) => o.orderNo === newOrder.orderNo)) {
         toast.error(`Order number "${newOrder.orderNo}" already exists.`);
         return prev;
       }
       return [...prev, newOrder];
     });
+
+    // อัปเดต cache ด้วย (กัน UI กระตุก)
+    setDetailsCache((prev) => ({
+      ...prev,
+      [newOrder.orderNo]: {
+        items: newOrder.items ?? [],
+        attachments: newOrder.attachments ?? [],
+      },
+    }));
 
     toast.success("Order saved.");
     closeModal();
@@ -357,6 +325,11 @@ const OrderManagement = () => {
   const handleDeleteOrder = (orderNo: string) => {
     if (confirm(`Delete order ${orderNo}?`)) {
       setOrders((prev) => prev.filter((o) => o.orderNo !== orderNo));
+      setDetailsCache((prev) => {
+        const c = { ...prev };
+        delete c[orderNo];
+        return c;
+      });
       toast.success("Order deleted.");
     }
   };
@@ -374,7 +347,9 @@ const OrderManagement = () => {
         toast.error("Order must have at least one item");
         return prev;
       }
-      const kept = prev.items.filter((i) => i.itemNo !== itemNo).map((item, idx) => ({ ...item, itemNo: idx + 1 }));
+      const kept = prev.items
+        .filter((i) => i.itemNo !== itemNo)
+        .map((item, idx) => ({ ...item, itemNo: idx + 1 }));
       return { ...prev, items: kept };
     });
   };
@@ -394,8 +369,8 @@ const OrderManagement = () => {
       o.dueDate,
       o.priority,
       o.status,
-      o.items.length,
-      o.items.reduce((sum, it) => sum + it.qty, 0),
+      o.itemCount ?? o.items?.length ?? 0,
+      (o.items ?? []).reduce((sum, it) => sum + it.qty, 0),
     ]);
     const csv =
       [headers, ...rows]
@@ -418,7 +393,7 @@ const OrderManagement = () => {
     URL.revokeObjectURL(url);
   };
 
-  // ===== Columns สำหรับ Orders =====
+  // ===== Columns =====
   type OrderRow = typeof filteredOrders[number];
 
   const orderColumns = [
@@ -430,8 +405,8 @@ const OrderManagement = () => {
           <div className="font-medium">{o.orderNo}</div>
           <div className="text-xs text-white/60">
             {o.createdDate}
-            {o.attachments && o.attachments.length > 0 && (
-              <> • {o.attachments.length} file{o.attachments.length === 1 ? "" : "s"}</>
+            {(o.attachmentCount ?? o.attachments?.length ?? 0) > 0 && (
+              <> • {(o.attachmentCount ?? o.attachments?.length ?? 0)} file{o.attachmentCount === 1 ? "" : "s"}</>
             )}
           </div>
         </div>
@@ -440,11 +415,7 @@ const OrderManagement = () => {
     {
       key: "customer",
       label: "Customer",
-      render: (o: OrderRow) => (
-        <div className="flex items-center gap-2 text-sm">
-          <span>{o.customer}</span>
-        </div>
-      ),
+      render: (o: OrderRow) => <div className="text-sm">{o.customer}</div>,
     },
     {
       key: "dueDate",
@@ -459,23 +430,17 @@ const OrderManagement = () => {
     {
       key: "priority",
       label: "Priority",
-      render: (o: OrderRow) => (
-        <span className={`chip ${getPriorityColor(o.priority)}`}>
-          Priority {o.priority}
-        </span>
-      ),
+      render: (o: OrderRow) => <span className={`chip ${getPriorityColor(o.priority)}`}>Priority {o.priority}</span>,
     },
     {
       key: "status",
       label: "Status",
-      render: (o: OrderRow) => (
-        <span className={`chip ${getStatusColor(o.status)}`}>{o.status}</span>
-      ),
+      render: (o: OrderRow) => <span className={`chip ${getStatusColor(o.status)}`}>{o.status}</span>,
     },
     {
       key: "items",
       label: "Items",
-      render: (o: OrderRow) => <span className="text-sm">{o.items?.length ?? 0}</span>,
+      render: (o: OrderRow) => <span className="text-sm">{o.itemCount ?? o.items?.length ?? 0}</span>,
     },
     {
       key: "actions",
@@ -483,25 +448,13 @@ const OrderManagement = () => {
       align: "center",
       render: (o: OrderRow) => (
         <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={() => openViewModal(o)}
-            className="p-1 hover:bg-white/10 rounded"
-            title="View"
-          >
+          <button onClick={() => openViewModal(o)} className="p-1 hover:bg-white/10 rounded" title="View">
             <Eye size={16} className="text-white/70" />
           </button>
-          <button
-            onClick={() => openEditModal(o)}
-            className="p-1 hover:bg-white/10 rounded"
-            title="Edit"
-          >
+          <button onClick={() => openEditModal(o)} className="p-1 hover:bg-white/10 rounded" title="Edit">
             <Edit size={16} className="text-cyan-300" />
           </button>
-          <button
-            onClick={() => handleDeleteOrder(o.orderNo)}
-            className="p-1 hover:bg-white/10 rounded"
-            title="Delete"
-          >
+          <button onClick={() => handleDeleteOrder(o.orderNo)} className="p-1 hover:bg-white/10 rounded" title="Delete">
             <Trash2 size={16} className="text-rose-300" />
           </button>
         </div>
@@ -509,77 +462,166 @@ const OrderManagement = () => {
     },
   ] as const;
 
-  // ===== Expanded Row (รายการ Items + Notes/Attachments) =====
-  const renderOrderExpanded = (order: OrderRow) => (
-    <div className="rounded-lg border border-white/10 overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-white/5">
-          <tr>
-            {["Item No", "Product Code", "Product Name", "Qty", "Est. Time (min)", "Notes"].map((h) => (
-              <th
-                key={h}
-                className="px-4 py-2 text-left text-xs font-medium uppercase text-white/60"
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/10">
-          {order.items.map((it) => {
-            const est = Math.round(calculateTotalProcessTime(it.productCode, it.qty));
-            return (
-              <tr key={it.itemNo} className="hover:bg-white/5">
-                <td className="px-4 py-3 text-sm font-medium">{it.itemNo}</td>
-                <td className="px-4 py-3 text-sm">{it.productCode}</td>
-                <td className="px-4 py-3 text-sm">{it.productName}</td>
-                <td className="px-4 py-3 text-sm text-white/80">{it.qty}</td>
-                <td className="px-4 py-3 text-sm text-white/80">{est}</td>
-                <td className="px-4 py-3 text-sm text-white/80">{it.notes || "-"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+  // ===== Expanded Row (lazy fetch) =====
+  const ExpandedOrderRow: React.FC<{ order: OrderRow }> = ({ order }) => {
+    const cached = detailsCache[order.orderNo];
+    const [loadingDetail, setLoadingDetail] = useState<boolean>(!cached);
+    const [items, setItems] = useState<OrderItem[]>(cached?.items ?? []);
+    const [attachments, setAttachments] = useState<string[]>(cached?.attachments ?? []);
 
-      {/* Notes & Attachments */}
-      {(order.notes || order.attachments.length > 0) && (
-        <div className="p-4 bg-white/5 border-t border-white/10">
-          {order.notes && (
-            <div className="mt-1 p-3 bg-amber-500/10 border border-amber-400/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                <FileText size={16} className="text-amber-300 mt-0.5" />
-                <div>
-                  <div className="text-xs font-medium text-amber-200 mb-1">Order Notes:</div>
-                  <div className="text-xs text-amber-200/90">{order.notes}</div>
+    useEffect(() => {
+      let active = true;
+      const run = async () => {
+        if (cached) return;
+        try {
+          setLoadingDetail(true);
+          const [itsRaw, atts] = await Promise.all([
+            getOrderItems(order.orderNo),
+            getOrderAttachments(order.orderNo),
+          ]);
+
+          
+          const its: OrderItem[] = (itsRaw ?? []).map((i: any) => ({
+            itemNo: i.item_no,
+            productCode: i.product_code,
+            productName: i.product_name,
+            qty: i.quantity,
+            notes: i.notes,
+          }));
+
+          console.log('itsRaw', itsRaw)
+          console.log('its', its)
+          console.log('atts', atts)
+
+          if (!active) return;
+          setItems(its ?? []);
+          setAttachments(atts ?? []);
+          // เก็บ cache และอัปเดต count ในตารางหลักสวย ๆ
+          setDetailsCache((prev) => ({
+            ...prev,
+            [order.orderNo]: { items: its ?? [], attachments: atts ?? [] },
+          }));
+          setOrders((prev) =>
+            prev.map((o) =>
+              o.orderNo === order.orderNo
+                ? {
+                  ...o,
+                  items: its ?? [],
+                  attachments: atts ?? [],
+                  itemCount: its?.length ?? o.itemCount ?? 0,
+                  attachmentCount: atts?.length ?? o.attachmentCount ?? 0,
+                }
+                : o
+            )
+          );
+        } catch (err) {
+          console.error("load order details failed:", err);
+          toast.error("Failed to load order details");
+        } finally {
+          if (active) setLoadingDetail(false);
+        }
+      };
+      run();
+      return () => {
+        active = false;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [order.orderNo]);
+
+    const rows = items;
+    const showNotes = !!order.notes;
+    const showAtts = (attachments?.length ?? 0) > 0;
+
+    if (loadingDetail) {
+      return (
+        <div className="p-4 text-sm text-white/70">
+          Loading items & attachments…
+        </div>
+      );
+    }
+
+    return (
+      <div>
+      {/* <div className="rounded-lg border border-white/10 overflow-hidden"> */}
+        {/* <table className="w-full">
+          <thead className="bg-white/5">
+            <tr>
+              {["Item No", "Product Code", "Product Name", "Qty", "Est. Time (min)", "Notes"].map((h) => (
+                <th key={h} className="px-4 py-2 text-left text-xs font-medium uppercase text-white/60">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {rows.map((it) => {
+              const est = Math.round(calculateTotalProcessTime(it.productCode, it.qty));
+              return (
+                <tr key={it.itemNo} className="hover:bg-white/5">
+                  <td className="px-4 py-3 text-sm font-medium">{it.itemNo}</td>
+                  <td className="px-4 py-3 text-sm">{it.productCode}</td>
+                  <td className="px-4 py-3 text-sm">{it.productName}</td>
+                  <td className="px-4 py-3 text-sm text-white/80">{it.qty}</td>
+                  <td className="px-4 py-3 text-sm text-white/80">{est}</td>
+                  <td className="px-4 py-3 text-sm text-white/80">{it.notes || "-"}</td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td className="px-4 py-3 text-sm text-white/60" colSpan={6}>
+                  No items.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table> */}
+
+        {(showNotes || showAtts) && (
+          <div className="p-4 bg-white/5 border-t border-white/10">
+            {showNotes && (
+              <div className="mt-1 p-3 bg-amber-500/10 border border-amber-400/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <FileText size={16} className="text-amber-300 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-medium text-amber-200 mb-1">Order Notes:</div>
+                    <div className="text-xs text-amber-200/90">{order.notes}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          {order.attachments.length > 0 && (
-            <div className="mt-3">
-              <div className="text-xs font-medium text-white/80 mb-2">Attachments:</div>
-              <div className="flex flex-wrap gap-2">
-                {order.attachments.map((file, idx) => (
+            )}
+
+          </div>
+        )}
+
+        {showAtts && attachments?.length > 0 && (
+          <>
+            {/* <div className="text-xs font-medium text-white/80 mb-2">Attachments:</div> */}
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((file: any, idx: number) => {
+                const fileName = typeof file === "string" ? file : file.file_name ?? "Unnamed File";
+                return (
                   <div
                     key={idx}
-                    className="flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded text-xs"
+                    className="flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded-lg text-xs hover:bg-white/15 transition-colors"
                   >
-                    <Paperclip size={12} />
-                    <span className="text-white/80">{file}</span>
+                    <Paperclip size={12} className="text-white/70" />
+                    <span className="text-white/80 truncate max-w-[160px]" title={fileName}>
+                      {fileName}
+                    </span>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+          </>
+        )}
+      </div>
+    );
+  };
 
+  // ตัวเดิม แต่เปลี่ยน renderExpandedRow ให้เรียกคอมโพเนนต์ข้างบน
   return (
     <div className="text-white">
-      {/* Header (คงสไตล์เดียวกับ BOM) */}
       <PageHeader
         title={
           <div className="flex items-center justify-between">
@@ -643,50 +685,32 @@ const OrderManagement = () => {
         }
       />
 
-      {/* ===== Table style (ตามไฟล์ตัวอย่าง) ===== */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <ExpandableDataTable
           columns={orderColumns}
           data={filteredOrders}
           rowKey={(o) => o.orderNo}
-          renderExpandedRow={renderOrderExpanded}
           isLoading={loading}
+          renderExpandedRow={(order) => <ExpandedOrderRow order={order} />}
         />
       </div>
 
-      {/* Modal (view/edit) — คงเดิมจากของคุณ */}
+      {/* ===== Modal เดิม ===== */}
       <Modal
         open={isModalOpen}
         onClose={closeModal}
-        title={
-          viewMode === "view"
-            ? "Order Details"
-            : editingOrder
-              ? "Edit Order"
-              : "Create New Order"
-        }
+        title={viewMode === "view" ? "Order Details" : editingOrder ? "Edit Order" : "Create New Order"}
         size="2xl"
         footer={
           viewMode === "view" ? (
-            <button
-              onClick={() => setViewMode("edit")}
-              className="btn btn-primary"
-            >
+            <button onClick={() => setViewMode("edit")} className="btn btn-primary">
               <Edit size={18} />
               Edit Order
             </button>
           ) : (
             <>
-              <button
-                onClick={closeModal}
-                className="btn btn-outline"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveOrder}
-                className="btn btn-primary"
-              >
+              <button onClick={closeModal} className="btn btn-outline">Cancel</button>
+              <button onClick={handleSaveOrder} className="btn btn-primary">
                 <Save size={18} />
                 Save Changes
               </button>
@@ -695,7 +719,6 @@ const OrderManagement = () => {
         }
       >
         {viewMode === "view" && editingOrder ? (
-          /* ----- VIEW ----- */
           <div className="space-y-6 text-white">
             <div className="grid grid-cols-2 gap-6">
               <div>
@@ -705,9 +728,7 @@ const OrderManagement = () => {
               <div>
                 <label className="text-sm text-white/80">Status</label>
                 <p className="mt-1">
-                  <span className={`text-sm px-3 py-1 rounded ${getStatusColor(editingOrder.status)}`}>
-                    {editingOrder.status}
-                  </span>
+                  <span className={`text-sm px-3 py-1 rounded ${getStatusColor(editingOrder.status)}`}>{editingOrder.status}</span>
                 </p>
               </div>
               <div>
@@ -717,9 +738,7 @@ const OrderManagement = () => {
               <div>
                 <label className="text-sm text-white/80">Priority</label>
                 <p className="mt-1">
-                  <span className={`text-sm px-3 py-1 rounded ${getPriorityColor(editingOrder.priority)}`}>
-                    Priority {editingOrder.priority}
-                  </span>
+                  <span className={`text-sm px-3 py-1 rounded ${getPriorityColor(editingOrder.priority)}`}>Priority {editingOrder.priority}</span>
                 </p>
               </div>
               <div>
@@ -735,12 +754,10 @@ const OrderManagement = () => {
             <div>
               <label className="text-sm text-white/80 mb-3 block">Order Items</label>
               <div className="space-y-3">
-                {editingOrder.items.map((item) => (
+                {(editingOrder.items ?? detailsCache[editingOrder.orderNo]?.items ?? []).map((item) => (
                   <div key={item.itemNo} className="border border-white/10 rounded-lg p-4 bg-white/5">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium">
-                        Item {item.itemNo}: {item.productName}
-                      </span>
+                      <span className="font-medium">Item {item.itemNo}: {item.productName}</span>
                       <span className="text-sm text-white/60">{item.productCode}</span>
                     </div>
                     <p className="text-sm text-white/80">Quantity: {item.qty} units</p>
@@ -758,7 +775,7 @@ const OrderManagement = () => {
             )}
           </div>
         ) : (
-          /* ----- EDIT/CREATE ----- */
+          // ----- EDIT/CREATE -----
           <div className="space-y-6 text-white">
             <div className="grid grid-cols-2 gap-6">
               <div>
@@ -912,7 +929,6 @@ const OrderManagement = () => {
           </div>
         )}
       </Modal>
-
     </div>
   );
 };

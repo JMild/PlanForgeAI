@@ -623,7 +623,7 @@ const ShiftsCalendarsMaster = () => {
                   <div>
                     <div className="font-medium">{c.name}</div>
                     {c.description && (
-                      <div className="text-xs text-white/60 mt-1 line-clamp-1">
+                      <div className="text-xs text-white/60 line-clamp-1">
                         {c.description}
                       </div>
                     )}

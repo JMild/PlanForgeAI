@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 import {
   getBOMById,
+  getMaterialDropdown,
   getProcesses,
   getProduct,
   getProductCategory,
@@ -38,7 +39,6 @@ type ProductStatus = "Active" | "Inactive" | "Discontinued";
 type RoutingStep = {
   seq: number;
   process: string;
-  processName: string;
   setupMin: number;
   runMinPerUnit: number;
   machineGroup: string;
@@ -83,7 +83,12 @@ type Process = {
   description: string;
   setup_time_min: number
   run_time_per_unit: number
-  machine_list: ["M001","M002"]
+  machine_list: ["M001", "M002"]
+};
+
+type Material = {
+  material_code: string;
+  material_name: string;
 };
 
 /* ===================== Utils ===================== */
@@ -109,6 +114,7 @@ const ProductMasterData = () => {
   const [category, setCategory] = useState<Category[]>([]);
   const [unit, setUnit] = useState<Unit[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -145,9 +151,6 @@ const ProductMasterData = () => {
         setProducts(resProduct);
         setCategory(resCategory);
         setUnit(resUnit);
-        // console.log('resProduct', resProduct)
-        // console.log('resCategory', resCategory)
-        // console.log('resUnit', resUnit)
       } catch (error) {
         console.error("Fetch data failed:", error);
         toast.error(ERROR_MESSAGES.fetchFailed);
@@ -170,7 +173,7 @@ const ProductMasterData = () => {
   });
 
   /* ---------- Modal controls ---------- */
-  const openModal = (mode: Exclude<ModalMode, null>, product: Product | null = null) => {
+  const openModal = async (mode: Exclude<ModalMode, null>, product: Product | null = null) => {
     setModalMode(mode);
     setSelectedProduct(product);
     setActiveTab("basic");
@@ -181,7 +184,7 @@ const ProductMasterData = () => {
         product_code: nextCode,
         product_name: "",
         description: "",
-        category_code: category[0]?.code ?? "",  
+        category_code: category[0]?.code ?? "",
         uom_code: unit[0]?.code ?? "",
         lot_size: 1,
         status: "Active",
@@ -193,7 +196,7 @@ const ProductMasterData = () => {
       });
       setIsModalOpen(true);
     } else if (product) {
-      loadProductDetails(product); 
+      loadProductDetails(product);
     }
   };
 
@@ -203,7 +206,6 @@ const ProductMasterData = () => {
       const routing: RoutingStep[] = routingRaw.map((step: any, index: number) => ({
         seq: step.step_sequence ?? index + 1,
         process: step.process_code,
-        processName: step.process_name,
         setupMin: step.setup_time_min,
         runMinPerUnit: step.run_time_per_unit,
         machineGroup: step.changeover_family,
@@ -224,8 +226,6 @@ const ProductMasterData = () => {
         bom,
       });
 
-      const resProcesses = await getProcesses();
-      setProcesses(resProcesses);
       setIsModalOpen(true);
     } catch (error) {
       console.error("Failed to load details:", error);
@@ -263,6 +263,22 @@ const ProductMasterData = () => {
   };
 
   /* ---------- Routing ops ---------- */
+  useEffect(() => {
+    const fetchProcesses = async () => {
+      if (activeTab === 'routing') {
+        const resProcesses = await getProcesses();
+        setProcesses(resProcesses);
+      }
+      if (activeTab === 'bom') {
+        const resMaterials = await getMaterialDropdown();
+        setMaterials(resMaterials);
+      }
+    };
+
+    fetchProcesses();
+  }, [activeTab]);
+
+
   const addRoutingStep = () => {
     setFormData((prev) => ({
       ...prev,
@@ -271,7 +287,6 @@ const ProductMasterData = () => {
         {
           seq: (prev.routing?.length ?? 0) + 1,
           process: "",
-          processName: "",
           setupMin: 0,
           runMinPerUnit: 0,
           machineGroup: "",
@@ -334,17 +349,17 @@ const ProductMasterData = () => {
   const productColumns = [
     {
       key: "code",
-      label: "Code",
+      label: "Product Code",
       render: (product: Product) => (
         <div className="flex items-center">
-          <Package size={16} className="text-white/50 mr-2" />
+          {/* <Package size={16} className="text-white/50 mr-2" /> */}
           <span className="text-sm font-medium">{product.product_code}</span>
         </div>
       ),
     },
     {
       key: "name",
-      label: "Name",
+      label: "Product Name",
       render: (product: Product) => (
         <>
           <div className="text-sm">{product.product_name}</div>
@@ -564,11 +579,10 @@ const ProductMasterData = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab
-                  ? "border-sky-500 text-sky-300"
-                  : "border-transparent text-white/70 hover:text-white"
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
+                ? "border-sky-500 text-sky-300"
+                : "border-transparent text-white/70 hover:text-white"
+                }`}
             >
               {tab === "basic" && (
                 <span className="flex items-center gap-2">
@@ -777,33 +791,26 @@ const ProductMasterData = () => {
                         <div className="flex-1 grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs font-medium text-white/80 mb-1">
-                              Process Code
+                              Process
                             </label>
-                            <input
-                              type="text"
+                            <select
                               value={step.process}
                               onChange={(e) =>
-                                updateRoutingStep(index, "process", e.target.value)
+                                updateRoutingStep(index, "process", e.target.value as string)
                               }
                               disabled={modalMode === "view"}
-                              placeholder="e.g., MACH"
                               className="w-full glass-input"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-white/80 mb-1">
-                              Process Name
-                            </label>
-                            <input
-                              type="text"
-                              value={step.processName}
-                              onChange={(e) =>
-                                updateRoutingStep(index, "processName", e.target.value)
-                              }
-                              disabled={modalMode === "view"}
-                              placeholder="e.g., Machining"
-                              className="w-full glass-input"
-                            />
+                            >
+                              {processes.map((p) => (
+                                <option
+                                  key={p.process_code}
+                                  value={p.process_code}
+                                  className="select option"
+                                >
+                                  {p.process_code} - {p.process_name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-white/80 mb-1">
@@ -844,7 +851,7 @@ const ProductMasterData = () => {
                               className="w-full glass-input"
                             />
                           </div>
-                          <div className="col-span-2">
+                          <div>
                             <label className="block text-xs font-medium text-white/80 mb-1">
                               Machine Group
                             </label>
@@ -935,54 +942,40 @@ const ProductMasterData = () => {
                   <table className="w-full">
                     <thead className="bg-white/5 border-b border-white/10">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-white/70">
-                          Material Code
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-white/70">
-                          Description
-                        </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
-                          Qty per Unit
-                        </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
-                          Unit
-                        </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
-                          Scrap %
-                        </th>
-                        {modalMode !== "view" && (
-                          <th className="px-4 py-2 text-center text-xs font-medium text-white/70">
-                            Action
+                        {[
+                          "Material",
+                          "Qty/Unit",
+                          "Unit",
+                          "Scrap %",
+                          "",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="px-3 py-2 text-left text-xs font-medium uppercase text-white/60"
+                          >
+                            {h}
                           </th>
-                        )}
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
                       {formData.bom?.map((item, index) => (
                         <tr key={index} className="hover:bg-white/5">
                           <td className="px-4 py-3">
-                            <input
-                              type="text"
+                            <select
                               value={item.material}
                               onChange={(e) =>
                                 updateBOMLine(index, "material", e.target.value)
                               }
                               disabled={modalMode === "view"}
-                              placeholder="MAT-001"
-                              className="w-full px-2 py-1 text-sm rounded border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="text"
-                              value={item.description}
-                              onChange={(e) =>
-                                updateBOMLine(index, "description", e.target.value)
-                              }
-                              disabled={modalMode === "view"}
-                              placeholder="Material description"
-                              className="w-full px-2 py-1 text-sm rounded border border-white/20 bg-white/5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
-                            />
+                              className="w-full px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
+                            >
+                              {materials.map((m) => (
+                                <option key={m.material_code} value={m.material_code} className="select option">
+                                  {m.material_code} - {m.material_name}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-4 py-3">
                             <input

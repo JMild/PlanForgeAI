@@ -25,7 +25,7 @@ import PageHeader from "@/src/components/layout/PageHeader";
 import Modal from "@/src/components/shared/Modal";
 import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
-import { getMachines, getProcesses, getPersonnel } from "@/src/services/master";
+import { getMachines, getProcesses, getPersonnel, getMachinesProcesses } from "@/src/services/master";
 import { DataTable } from "@/src/components/shared/table/Table";
 
 /* ========= Types ========= */
@@ -59,6 +59,7 @@ type Personnel = {
 
 type Process = { process_code: string; process_name: string };
 type Machine = { machineCode: string; machineName: string };
+type MachinesProcesses = { machine_code: string; process_code: string };
 
 type ModalMode = "view" | "assign" | "edit" | null;
 
@@ -94,6 +95,7 @@ const toggleCode = (arr: string[], code: string) =>
 const PersonnelPage = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
+  const [machinesProcesses, setMachinesProcesses] = useState<MachinesProcesses[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -140,7 +142,7 @@ const PersonnelPage = () => {
         setLoading(true);
         const resPeople = (await getPersonnel()) as Personnel[];
         const resProcesses = await getProcesses();
-        const resMachines = await getMachines();
+        const resMachines = await getMachines();       
         setProcesses(resProcesses);
         setMachines(resMachines);
         setPersonnel(resPeople);
@@ -229,7 +231,7 @@ const PersonnelPage = () => {
     setModalOpen(true);
   };
 
-  const openAssign = (person: Personnel | null) => {
+  const openAssign = async(person: Personnel | null) => {
     // seed form for preview chips
     const base = person ?? (personForm as Personnel);
     setPersonForm({
@@ -237,6 +239,9 @@ const PersonnelPage = () => {
       allowedProcesses: base.allowedProcesses ?? [],
       allowedMachines: base.allowedMachines ?? [],
     });
+
+    const res = await getMachinesProcesses();
+    setMachinesProcesses(res)
 
     // seed selections
     setAssignSelectedProcs([...(base.allowedProcesses ?? [])]);

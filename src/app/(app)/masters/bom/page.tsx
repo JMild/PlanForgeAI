@@ -16,6 +16,7 @@ import { getBOM, getProduct } from "@/src/lib/api";
 import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
+import { getMaterial, getMaterialDropdown } from "@/src/services/master";
 
 /* ================= Types ================= */
 type Product = {
@@ -32,7 +33,6 @@ type Product = {
 type BOMLine = {
   id: string;
   materialCode: string;
-  materialName: string;
   qtyPer: number;
   unit: string;
   scrapRate: number; // 0..1
@@ -49,9 +49,15 @@ type BOM = {
   lines: BOMLine[];
 };
 
+type Material = {
+  material_code: string;
+  material_name: string;
+};
+
 /* ================ Component ================ */
 const BOMPage = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [boms, setBoms] = useState<BOM[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -117,7 +123,12 @@ const BOMPage = () => {
   }, [boms, searchTerm, filterStatus, filterProduct, productMap]);
 
   // ===== Modal helpers =====
-  const openModal = () => setIsModalOpen(true);
+  const openModal = async() => {
+    const resMaterials = await getMaterialDropdown();
+    setMaterials(resMaterials);
+    setIsModalOpen(true)
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setIsEditing(false);
@@ -184,7 +195,6 @@ const BOMPage = () => {
     const newLine: BOMLine = {
       id: `L${Date.now()}`,
       materialCode: "",
-      materialName: "",
       qtyPer: 1,
       unit: "PCS",
       scrapRate: 0,
@@ -339,7 +349,7 @@ const BOMPage = () => {
         <tbody className="divide-y divide-white/10">
           {bom.lines.map((line) => (
             <tr key={line.id} className="hover:bg-white/5">
-              <td className="px-4 py-3 text-sm">{line.materialName}</td>
+              <td className="px-4 py-3 text-sm">{line.materialCode}</td>
               <td className="px-4 py-3 text-sm text-white/80">{line.qtyPer}</td>
               <td className="px-4 py-3 text-sm text-white/80">{line.unit}</td>
               <td className="px-4 py-3 text-sm text-white/80">
@@ -468,7 +478,7 @@ const BOMPage = () => {
           </>
         }
       >
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="space-y-6 px-0.5 max-h-[70vh] overflow-y-auto">
           {/* BOM Form */}
           <div className="grid grid-cols-2 gap-4">
             {/* Product Code */}
@@ -542,12 +552,10 @@ const BOMPage = () => {
                 <thead className="bg-white/5">
                   <tr>
                     {[
-                      "Material Code",
-                      "Material Name",
+                      "Material",
                       "Qty/Unit",
                       "Unit",
                       "Scrap %",
-                      "Gate Process",
                       "",
                     ].map((h) => (
                       <th
@@ -563,24 +571,19 @@ const BOMPage = () => {
                   {(bomForm.lines || []).map((line) => (
                     <tr key={line.id}>
                       <td className="px-3 py-2">
-                        <input
-                          type="text"
+                        <select
                           value={line.materialCode}
                           onChange={(e) =>
                             handleUpdateBOMLine(line.id, "materialCode", e.target.value)
                           }
                           className="w-full px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={line.materialName}
-                          onChange={(e) =>
-                            handleUpdateBOMLine(line.id, "materialName", e.target.value)
-                          }
-                          className="w-full px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
-                        />
+                        >
+                          {materials.map((m) => (
+                            <option key={m.material_code} value={m.material_code} className="select option">
+                              {m.material_code} - {m.material_name}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -625,16 +628,6 @@ const BOMPage = () => {
                             )
                           }
                           className="w-24 px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm text-right focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={line.gateProcess || ""}
-                          onChange={(e) =>
-                            handleUpdateBOMLine(line.id, "gateProcess", e.target.value)
-                          }
-                          className="w-full px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
                         />
                       </td>
                       <td className="px-3 py-2 text-right">

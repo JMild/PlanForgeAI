@@ -36,6 +36,10 @@ export async function getProcesses() {
   const res = await axiosClient.get("/master/processes");
   return res.data;
 }
+export async function getMachinesProcesses() {
+  const res = await axiosClient.get("/master/machines_processes");
+  return res.data;
+}
 export async function getProducts() {
   const res = await axiosClient.get("/master/products");
   return res.data;
@@ -71,6 +75,10 @@ export async function getMaterial() {
   const res = await axiosClient.get("/master/materials");
   return res.data;
 }
+export async function getMaterialDropdown() {
+  const res = await axiosClient.get("/master/materials-dropdown");
+  return res.data;
+}
 
 export async function getRoutings() {
   const res = await axiosClient.get("/master/routings");
@@ -87,8 +95,16 @@ export async function getOrders() {
   const res = await axiosClient.get("/orders");
   return res.data;
 }
-export async function getOrderByItems() {
-  const res = await axiosClient.get("/orders/items");
+export async function getOrderItems(order_no: string) {
+  const res = await axiosClient.get("/orders/items", {
+    params: { order_no },
+  });
+  return res.data;
+}
+export async function getOrderAttachments(order_no: string) {
+  const res = await axiosClient.get("/orders/attachments", {
+    params: { order_no },
+  });
   return res.data;
 }
 

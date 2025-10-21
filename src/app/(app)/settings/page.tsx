@@ -1,19 +1,21 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Save, RefreshCw, Building, Globe, Sliders, Bell, Database, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, 
+  // Building, 
+  Globe, Sliders, Bell, Database, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
 
 // Types
-type CompanySettings = {
-  companyName: string;
-  industry: string;
-  address: string;
-  phone: string;
-  email: string;
-  website: string;
-  logo?: string;
-};
+// type CompanySettings = {
+//   companyName: string;
+//   industry: string;
+//   address: string;
+//   phone: string;
+//   email: string;
+//   website: string;
+//   logo?: string;
+// };
 
 type SystemSettings = {
   timezone: string;
@@ -68,20 +70,20 @@ type NotificationSettings = {
 
 
 const SettingsPage = () => {
-  const [activeSection, setActiveSection] = useState<string>('company');
+  const [activeSection, setActiveSection] = useState<string>('system');
   const [hasChanges, setHasChanges] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const granularityOptions: PlanningGranularity[] = ['Minute', 'Hour', 'Shift', 'Day'];
 
   // Settings State
-  const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    companyName: 'ACME Manufacturing Co.',
-    industry: 'Automotive Parts',
-    address: '123 Industrial Park, Bangkok 10110, Thailand',
-    phone: '+66-2-123-4567',
-    email: 'contact@acme-mfg.com',
-    website: 'www.acme-mfg.com',
-  });
+  // const [companySettings, setCompanySettings] = useState<CompanySettings>({
+  //   companyName: 'ACME Manufacturing Co.',
+  //   industry: 'Automotive Parts',
+  //   address: '123 Industrial Park, Bangkok 10110, Thailand',
+  //   phone: '+66-2-123-4567',
+  //   email: 'contact@acme-mfg.com',
+  //   website: 'www.acme-mfg.com',
+  // });
 
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     timezone: 'Asia/Bangkok',
@@ -157,7 +159,7 @@ const SettingsPage = () => {
   // const totalWeight = Object.values(objectiveWeights).reduce((sum, val) => sum + val, 0);
 
   const sections = [
-    { id: 'company', name: 'Company Profile', icon: Building },
+    // { id: 'company', name: 'Company Profile', icon: Building },
     { id: 'system', name: 'System Settings', icon: Globe },
     { id: 'planning', name: 'Planning Parameters', icon: Sliders },
     // { id: 'objectives', name: 'Objective Weights', icon: Cpu },
@@ -165,6 +167,29 @@ const SettingsPage = () => {
     { id: 'notifications', name: 'Notifications', icon: Bell },
     // { id: 'integrations', name: 'Integrations', icon: Key },
   ];
+
+  const handleSendTestEmail = async () => {
+    try {
+      // edit เรียก API ฝั่ง backend ที่ส่งอีเมล
+      const res = await fetch('/api/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: notificationSettings.emailRecipients,
+        }),
+      });
+
+      if (res.ok) {
+        alert('Test email sent!');
+      } else {
+        alert('Failed to send test email');
+      }
+    } catch (err) {
+      console.error('Send test email error:', err);
+      alert('Error sending test email');
+    }
+  };
+
 
   return (
     <div className="text-white">
@@ -256,7 +281,7 @@ const SettingsPage = () => {
           <div className="flex-1">
             <div className="rounded-xl p-6 bg-white/10 border border-white/15 backdrop-blur">
               {/* Company Profile */}
-              {activeSection === 'company' && (
+              {/* {activeSection === 'company' && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold mb-1">Company Profile</h2>
@@ -325,7 +350,7 @@ const SettingsPage = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* System Settings */}
               {activeSection === 'system' && (
@@ -409,29 +434,6 @@ const SettingsPage = () => {
                           </option>
                         ))}
                       </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-white/80 mb-1">Week Start Day</label>
-                      <select
-                        value={systemSettings.weekStartDay}
-                        onChange={(e) => { setSystemSettings({ ...systemSettings, weekStartDay: e.target.value as 'Sunday' | 'Monday' }); markChanged(); }}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
-                      >
-                        {['Monday', 'Sunday'].map(v => <option key={v} value={v} className="select option">{v}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-white/80 mb-1">Fiscal Year Start (MM-DD)</label>
-                      <input
-                        type="text"
-                        value={systemSettings.fiscalYearStart}
-                        onChange={(e) => { setSystemSettings({ ...systemSettings, fiscalYearStart: e.target.value }); markChanged(); }}
-                        placeholder="01-01"
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30"
-                      />
                     </div>
                   </div>
                 </div>
@@ -677,12 +679,12 @@ const SettingsPage = () => {
                         <label className="block text-sm text-white/80 mb-1">{l}</label>
                         <input
                           type="number"
-                          value={engineSettings[k as keyof EngineSettings]} 
+                          value={engineSettings[k as keyof EngineSettings]}
                           onChange={(e) => {
                             const value = parseInt(e.target.value);
                             setEngineSettings(prev => ({
                               ...prev,
-                              [k]: isNaN(value) ? 0 : value, 
+                              [k]: isNaN(value) ? 0 : value,
                             }));
                             markChanged();
                           }}
@@ -697,52 +699,68 @@ const SettingsPage = () => {
               {/* Notifications */}
               {activeSection === 'notifications' && (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-semibold mb-1">Notifications</h2>
-                    <p className="text-sm text-white/70">Set up alerts and notifications</p>
-                  </div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold mb-1">Notifications</h2>
+                      <p className="text-sm text-white/70">Set up alerts and notifications</p>
+                    </div>
 
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.emailEnabled}
-                      onChange={(e) => { setNotificationSettings({ ...notificationSettings, emailEnabled: e.target.checked }); markChanged(); }}
-                      className="w-4 h-4 accent-cyan-500"
-                    />
-                    <span className="text-sm text-white/80">Enable Email Notifications</span>
-                  </label>
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.emailEnabled}
+                        onChange={(e) => {
+                          setNotificationSettings({
+                            ...notificationSettings,
+                            emailEnabled: e.target.checked,
+                          });
+                          markChanged();
+                        }}
+                        className="w-4 h-4 accent-cyan-500"
+                      />
+                      <span className="text-sm text-white/80">Enable</span>
+                    </label>
+                  </div>
 
                   {notificationSettings.emailEnabled && (
-                    <div>
-                      <label className="block text-sm text-white/80 mb-1">Recipients (comma separated)</label>
-                      <input
-                        type="text"
-                        value={notificationSettings.emailRecipients.join(', ')}
-                        onChange={(e) => { setNotificationSettings({ ...notificationSettings, emailRecipients: e.target.value.split(',').map(x => x.trim()) }); markChanged(); }}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20"
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="block text-sm text-white/80 mb-1">Recipients (comma separated)</label>
+                        <input
+                          type="text"
+                          value={notificationSettings.emailRecipients.join(', ')}
+                          onChange={(e) => { setNotificationSettings({ ...notificationSettings, emailRecipients: e.target.value.split(',').map(x => x.trim()) }); markChanged(); }}
+                          className="w-full px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20"
+                        />
+
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { key: 'notifyOnLateOrders', label: 'On Late Orders' },
+                          { key: 'notifyOnLowInventory', label: 'On Low Inventory' },
+                        ].map((n) => (
+                          <label key={n.key} className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings[n.key as keyof NotificationSettings] as boolean}
+                              onChange={(e) => { setNotificationSettings({ ...notificationSettings, [n.key]: e.target.checked }); markChanged(); }}
+                              className="w-4 h-4 accent-cyan-500"
+                            />
+                            <span className="text-sm text-white/80">{n.label}</span>
+                            {/* <div className="pt-2">
+                              <button
+                                onClick={handleSendTestEmail}
+                                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm"
+                              >
+                                Send Test Email
+                              </button>
+                            </div> */}
+                          </label>
+                        ))}
+                      </div>
+                    </>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { key: 'notifyOnPlanComplete', label: 'On Plan Completion' },
-                      { key: 'notifyOnConflicts', label: 'On Conflicts Detected' },
-                      { key: 'notifyOnLateOrders', label: 'On Late Orders' },
-                      { key: 'notifyOnMaintenance', label: 'On Maintenance Required' },
-                      { key: 'notifyOnLowInventory', label: 'On Low Inventory' },
-                    ].map((n) => (
-                      <label key={n.key} className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={notificationSettings[n.key as keyof NotificationSettings] as boolean}
-                          onChange={(e) => { setNotificationSettings({ ...notificationSettings, [n.key]: e.target.checked }); markChanged(); }}
-                          className="w-4 h-4 accent-cyan-500"
-                        />
-                        <span className="text-sm text-white/80">{n.label}</span>
-                      </label>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>

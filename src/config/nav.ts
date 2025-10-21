@@ -43,7 +43,7 @@ export const NAV: Group[] = [
         icon: Package,
         sub: [
           { label: "Products", href: "/masters/product", code: "MAS001" },
-          { label: "BOM", href: "/masters/bom", code: "MAS002" },
+          // { label: "BOM", href: "/masters/bom", code: "MAS002" },
           { label: "Routing / Process Plan", href: "/masters/routing", code: "MAS003" },
           { label: "Machines", href: "/masters/machines", code: "MAS004" },
           { label: "Work Centers", href: "/masters/work-centers", code: "MAS005" },

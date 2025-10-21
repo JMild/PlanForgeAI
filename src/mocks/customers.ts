@@ -37,7 +37,6 @@ export type CustomerDetail = CustomerListItem & {
     onTimeDelivery: number;
     lastOrderDate?: string;
   };
-  preferences: { preferredShipping: ShippingOption; discountPercent: number; specialInstructions?: string };
   notes?: string;
 };
 
@@ -81,7 +80,6 @@ const DETAILS: Record<string, CustomerDetail> = {
     address: { street: "123 Business St", city: "Bangkok", state: "BK", country: "TH", postalCode: "10110" },
     financial: { paymentTerms: "Net 30", currency: "THB", creditLimit: 800000, taxId: "0105550123456" },
     stats: { ...LIST[0].stats, totalRevenue: 12500000, avgOrderValue: 82000, onTimeDelivery: 95, lastOrderDate: "2025-09-20" },
-    preferences: { preferredShipping: "Ground", discountPercent: 5, specialInstructions: "Deliver weekdays only" },
     notes: "Key account. Wants quarterly business reviews.",
   },
   "CUST-002": {
@@ -92,7 +90,6 @@ const DETAILS: Record<string, CustomerDetail> = {
     address: { street: "88 Market Rd", city: "Chiang Mai", state: "CM", country: "TH", postalCode: "50000" },
     financial: { paymentTerms: "Net 15", currency: "THB", creditLimit: 200000, taxId: "0505550654321" },
     stats: { ...LIST[1].stats, totalRevenue: 2500000, avgOrderValue: 42000, onTimeDelivery: 90, lastOrderDate: "2025-08-02" },
-    preferences: { preferredShipping: "Sea", discountPercent: 0 },
   },
   "CUST-003": {
     ...LIST[2],
@@ -102,7 +99,6 @@ const DETAILS: Record<string, CustomerDetail> = {
     address: { street: "55 Warehouse Ave", city: "Rayong", state: "RY", country: "TH", postalCode: "21000" },
     financial: { paymentTerms: "COD", currency: "THB", creditLimit: 0, taxId: "0205550099999" },
     stats: { ...LIST[2].stats, totalRevenue: 3700000, avgOrderValue: 31000, onTimeDelivery: 83, lastOrderDate: "2025-06-10" },
-    preferences: { preferredShipping: "Air", discountPercent: 2 },
     notes: "曾มีเคสคืนสินค้า กรุณาตรวจเข้ม.",
   },
 };

@@ -272,9 +272,12 @@ const Maintenance = () => {
   const maintenancePlanColumns = [
     {
       key: "machineCode",
-      label: "Machine Code",
+      label: "Machine",
       render: (plan: MaintenancePlan) => (
-        <span className="text-sm text-white/80">{plan.machineCode}</span>
+        <>
+          <div className="text-sm">{plan.machineName}</div>
+          <div className="text-xs text-white/60">{plan.machineCode}</div>
+        </>
       ),
     },
     {
@@ -348,7 +351,6 @@ const Maintenance = () => {
     },
   ] as const;
 
-
   return (
     <div>
       {/* Header */}
@@ -359,7 +361,7 @@ const Maintenance = () => {
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 Maintenance Machines Management
               </h1>
-              <p className="text-sm text-white/70 mt-1">Master Data Management (MAS012)</p>
+              {/* <p className="text-sm text-white/70 mt-1">Master Data Management (MAS012)</p> */}
             </div>
           </div>
         }

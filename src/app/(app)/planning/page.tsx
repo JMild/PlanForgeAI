@@ -545,7 +545,7 @@ const ProductionPlannerBoard: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
+      
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
@@ -595,8 +595,7 @@ const ProductionPlannerBoard: React.FC = () => {
       }
 
       if (data.result?.kpis?.makespan_min != null) {
-        alert(`✅ AI Plan loaded
-Makespan: ${data.result.kpis.makespan_min} min`);
+        alert(`✅ AI Plan loaded Makespan: ${data.result.kpis.makespan_min} min`);
       } else {
         alert(`✅ AI Plan loaded`);
       }
@@ -926,7 +925,7 @@ Makespan: ${data.result.kpis.makespan_min} min`);
                 <select
                   value={viewScale}
                   onChange={(e) => setViewScale(e.target.value as ViewScale)}
-                  className="glass-input"
+                  className="glass-input w-32"
                   aria-label="View scale"
                 >
                   <option className="select option" value="day">Day</option>
@@ -937,7 +936,7 @@ Makespan: ${data.result.kpis.makespan_min} min`);
                 <select
                   value={filterWC}
                   onChange={(e) => setFilterWC(e.target.value as never)}
-                  className="glass-input"
+                  className="glass-input w-44"
                   aria-label="Filter work center"
                 >
                   <option className="select option" value="all">All Work Centers</option>
@@ -985,7 +984,7 @@ Makespan: ${data.result.kpis.makespan_min} min`);
                           {isOrderExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                           <span className="font-semibold text-sm text-white">{order.orderNo}</span>
                         </div>
-                        <span
+                        {/* <span
                           className={[
                             "text-xs px-2 py-1 rounded border",
                             order.priority === 1
@@ -996,7 +995,7 @@ Makespan: ${data.result.kpis.makespan_min} min`);
                           ].join(" ")}
                         >
                           P{order.priority}
-                        </span>
+                        </span> */}
                       </div>
                       <div className="text-xs text-white/80 space-y-1">
                         <div className="flex items-center gap-1">

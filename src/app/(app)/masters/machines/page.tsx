@@ -337,8 +337,8 @@ const MachinesMasterData = () => {
   type MachineRow = typeof filteredMachines[number];
 
   const machineColumns = [
-    { key: "machineCode", label: "Code" },
-    { key: "machineName", label: "Name" },
+    { key: "machineCode", label: "Machine Code" },
+    { key: "machineName", label: "Machine Name" },
     {
       key: "workcenter",
       label: "Work Center",

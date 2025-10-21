@@ -2,9 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/src/components/layout/PageHeader";
-import { Upload, Download, Plus, Search, Eye, Edit, Trash2, Building2, User, Mail, Phone, Calendar, CreditCard, DollarSign, TrendingUp, FileText, Save, Star } from "lucide-react";
+import { Upload, Download, Plus, Search, Eye, Edit, Trash2, Building2, User, Mail, DollarSign, TrendingUp, Save, Star } from "lucide-react";
 import Modal from "@/src/components/shared/Modal";
-import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 import toast from "react-hot-toast";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 
@@ -18,8 +17,8 @@ import {
   type Industry,
   type PaymentTerm,
   type Currency,
-  type ShippingOption,
 } from "@/src/mocks/customers";
+import { DataTable } from "@/src/components/shared/table/Table";
 
 /* --------- helpers --------- */
 const formatCurrency = (v: number, c: Currency = "USD") =>
@@ -33,13 +32,10 @@ const statusBadge = (s: CustomerStatus) =>
 /* --------- constants for form --------- */
 const CUSTOMER_TYPES: CustomerType[] = ["Distributor", "OEM", "Retail", "Wholesaler"];
 const INDUSTRIES: Industry[] = ["Automotive", "Electronics", "Aerospace", "Medical", "Food & Beverage"];
-const PAYMENT_TERMS: PaymentTerm[] = ["COD", "Net 15", "Net 30", "Net 45", "Net 60"];
-const CURRENCIES: Currency[] = ["USD", "EUR", "THB", "JPY"];
-const SHIPPING_OPTIONS: ShippingOption[] = ["Ground", "Air", "Sea"];
 
 /* --------- UI state types --------- */
 type ModalMode = "view" | "edit" | "create";
-type TabKey = "basic" | "contact" | "financial" | "stats" | "preferences";
+type TabKey = "basic" | "contact" | "financial" | "stats";
 
 /* ============================================
    Component
@@ -72,17 +68,12 @@ const CustomersPage: React.FC = () => {
     shortName: "",
     status: "Active",
     type: "Distributor",
-    // contact: { contactPerson: "", email: "" },
-    // stats: { totalOrders: 0, activeOrders: 0 },
-
-    // ส่วนที่นอกตาราง
     industry: "Automotive",
     rating: 3,
     contact: { contactPerson: "", email: "", title: "", phone: "", mobile: "" },
     address: { street: "", city: "", state: "", country: "", postalCode: "" },
     financial: { paymentTerms: "Net 30", currency: "USD", creditLimit: 0, taxId: "" },
     stats: { totalOrders: 0, activeOrders: 0, totalRevenue: 0, avgOrderValue: 0, onTimeDelivery: 0 },
-    preferences: { preferredShipping: "Ground", discountPercent: 0, specialInstructions: "" },
     notes: "",
   };
   const [formData, setFormData] = useState<CustomerDetail>(emptyDetail);
@@ -118,10 +109,6 @@ const CustomersPage: React.FC = () => {
       return matchQ && matchType && matchStatus;
     });
   }, [list, searchTerm, filterType, filterStatus]);
-
-  // summary จาก list (ไม่ต้องละเอียด)
-  const totalCustomers = list.length;
-  const activeCount = list.filter((c) => c.status === "Active").length;
 
   /* ---------- lazy load detail ---------- */
   const ensureDetail = async (code: string): Promise<CustomerDetail | null> => {
@@ -247,43 +234,6 @@ const CustomersPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const currencyFor: Currency = (selected?.financial.currency || "USD") as Currency;
-
-  const OrderProgress = ({ active, total }: { active: number; total: number }) => {
-    return (
-      <div className=" border-white/10">
-        <div className="text-xs text-white/60 pb-1">
-          {`${active} of ${total} items`}
-        </div>
-
-        <div className="flex items-center gap-1">
-          {/* <FileText className="w-3 h-3 text-white/50" /> */}
-          <div className="flex-1 bg-white/10 rounded-full h-1.5">
-            <div
-              className="bg-sky-500 h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${(active/total) * 100}%`}}
-            />
-          </div>
-        </div>
-      </div>
-
-      // <div className="w-full">
-      //   <div className="flex justify-between items-center text-sm text-white/80 font-medium mb-1">
-      //     <span>Active Orders</span>
-      //     <span className="text-white/60">
-      //       {active} / {total} ({Math.round(percentage)}%)
-      //     </span>
-      //   </div>
-      //   <div className="w-full bg-white/10 rounded-full h-1.5">
-      //     <div
-      //       className="bg-sky-500 h-1.5 rounded-full transition-all duration-300"
-      //       style={{ width: `${percentage}%` }}
-      //     />
-      //   </div>
-      // </div>
-    );
-  };
-
   return (
     <div className="text-white">
       <PageHeader
@@ -309,72 +259,52 @@ const CustomersPage: React.FC = () => {
           </div>
         }
         tabs={
-          <>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Total Customers</div>
-                <div className="text-2xl font-bold text-sky-300">{totalCustomers}</div>
-              </div>
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Active</div>
-                <div className="text-2xl font-bold text-emerald-300">{activeCount}</div>
-              </div>
-              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
-                <div className="text-xs text-white/70 mb-1">Currency (selected)</div>
-                <div className="text-2xl font-bold text-indigo-300">{currencyFor}</div>
-              </div>
+          <div className="flex gap-4 mt-0.5 mb-1 mx-0.5">
+            <div className="flex-1 relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search customers..."
+                className="glass-input w-full !pl-10 pr-4"
+              />
             </div>
-
-            <div className="flex gap-4 mt-4 mb-1 mx-0.5">
-              <div className="flex-1 relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search customers..."
-                  className="glass-input w-full !pl-10 pr-4"
-                />
-              </div>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType((e.target.value as CustomerType) || "all")}
-                className="glass-input"
-              >
-                <option value="all" className="select option">All Types</option>
-                {CUSTOMER_TYPES.map((t) => <option key={t} value={t} className="select option">{t}</option>)}
-              </select>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus((e.target.value as CustomerStatus) || "all")}
-                className="glass-input"
-              >
-                <option value="all" className="select option">All Status</option>
-                <option value="Active" className="select option">Active</option>
-                <option value="Inactive" className="select option">Inactive</option>
-                <option value="On Hold" className="select option">On Hold</option>
-                <option value="Blacklisted" className="select option">Blacklisted</option>
-              </select>
-            </div>
-          </>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType((e.target.value as CustomerType) || "all")}
+              className="glass-input w-36"
+            >
+              <option value="all" className="select option">All Types</option>
+              {CUSTOMER_TYPES.map((t) => <option key={t} value={t} className="select option">{t}</option>)}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus((e.target.value as CustomerStatus) || "all")}
+              className="glass-input w-36"
+            >
+              <option value="all" className="select option">All Status</option>
+              <option value="Active" className="select option">Active</option>
+              <option value="Inactive" className="select option">Inactive</option>
+              <option value="On Hold" className="select option">On Hold</option>
+              <option value="Blacklisted" className="select option">Blacklisted</option>
+            </select>
+          </div>
         }
       />
 
-      {/* TABLE (ดูเฉพาะฟิลด์เบา ๆ) */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <ExpandableDataTable<CustomerListItem>
+        <DataTable
           columns={[
             {
               key: "name",
               label: "Customer",
               render: (c) => (
-                <div className="items-center">
-                  <div className="flex gap-2">
-                    <Building2 size={16} className="text-white/50" />
-                    <span className="text-sm font-medium">{c.name}</span>
-                  </div>
-                  {c.shortName && <div className="text-xs text-white/60">{c.shortName}</div>}
+                <div>
+                  <div className="text-sm font-medium">{c.name}</div>
+                  {c.shortName && (<div className="text-xs text-white/60">{c.shortName}</div>)}
                 </div>
+
               ),
             },
             {
@@ -382,15 +312,8 @@ const CustomersPage: React.FC = () => {
               label: "Contact",
               render: (c) => (
                 <div>
-                  <div className="flex items-center gap-1 text-sm">
-                    <User size={14} /> {c.contact.contactPerson}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-white/70">
-                    <Mail size={12} />
-                    <a href={`mailto:${c.contact.email}`} className="text-sky-300 hover:underline">
-                      {c.contact.email}
-                    </a>
-                  </div>
+                  <div className="flex items-center gap-1"><User size={12} /> {c.contact.contactPerson}</div>
+                  <div className="flex items-center gap-1"><Mail size={12} /> {c.contact.email}</div>
                 </div>
               ),
             },
@@ -399,14 +322,26 @@ const CustomersPage: React.FC = () => {
               label: "Orders",
               align: "center",
               render: (c) => (
-                <OrderProgress active={c.stats.activeOrders} total={c.stats.totalOrders} />
+                <div className="flex flex-col items-center">
+                  <div className="text-xs text-white/70 mb-1">
+                    {`${c.stats.activeOrders} / ${c.stats.totalOrders}`}
+                  </div>
+                </div>
               ),
             },
             {
               key: "status",
               label: "Status",
               align: "center",
-              render: (c) => <span className={`chip items-center justify-center ${statusBadge(c.status)}`}>{c.status}</span>,
+              render: (c) => (
+                <span
+                  className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-xs font-medium ${statusBadge(
+                    c.status
+                  )}`}
+                >
+                  {c.status}
+                </span>
+              ),
             },
             {
               key: "actions",
@@ -414,14 +349,26 @@ const CustomersPage: React.FC = () => {
               align: "center",
               render: (c) => (
                 <div className="flex items-center justify-center gap-2">
-                  <button onClick={() => openModal("view", c)} className="p-1 hover:bg-white/10 rounded" title="View">
-                    <Eye size={16} className="text-white/70" />
+                  <button
+                    onClick={() => openModal("view", c)}
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                    title="View"
+                  >
+                    <Eye size={16} className="text-white/70 hover:text-white" />
                   </button>
-                  <button onClick={() => openModal("edit", c)} className="p-1 hover:bg-white/10 rounded" title="Edit">
-                    <Edit size={16} className="text-sky-300" />
+                  <button
+                    onClick={() => openModal("edit", c)}
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                    title="Edit"
+                  >
+                    <Edit size={16} className="text-sky-300 hover:text-sky-400" />
                   </button>
-                  <button onClick={() => handleDelete(c.code)} className="p-1 hover:bg-white/10 rounded" title="Delete">
-                    <Trash2 size={16} className="text-rose-300" />
+                  <button
+                    onClick={() => handleDelete(c.code)}
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} className="text-rose-300 hover:text-rose-400" />
                   </button>
                 </div>
               ),
@@ -429,27 +376,6 @@ const CustomersPage: React.FC = () => {
           ]}
           data={filtered}
           rowKey={(c) => c.code}
-          renderExpandedRow={(c) => (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <div className="text-white/60 text-xs mb-1">Contact</div>
-                  <div className="flex items-center gap-1"><User size={12} /> {c.contact.contactPerson}</div>
-                  <div className="flex items-center gap-1"><Mail size={12} /> {c.contact.email}</div>
-                </div>
-                <div>
-                  <div className="text-white/60 text-xs mb-1">Orders</div>
-                  <div>Total: {c.stats.totalOrders}</div>
-                  <div>Active: {c.stats.activeOrders}</div>
-                </div>
-                <div>
-                  <div className="text-white/60 text-xs mb-1">Type & Status</div>
-                  <div>{c.type}</div>
-                  <div><span className={`chip ${statusBadge(c.status)}`}>{c.status}</span></div>
-                </div>
-              </div>
-            </div>
-          )}
           isLoading={loading}
         />
       </div>
@@ -485,7 +411,6 @@ const CustomersPage: React.FC = () => {
             { id: "contact", label: "Contact", icon: User },
             { id: "financial", label: "Financial", icon: DollarSign },
             { id: "stats", label: "Statistics", icon: TrendingUp },
-            { id: "preferences", label: "Preferences", icon: FileText },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -747,66 +672,32 @@ const CustomersPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-6">
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">Total Orders</div>
-                <div className="text-3xl font-bold text-sky-300">{selected.stats.totalOrders}</div>
+                <div className="text-2xl font-medium text-sky-300">{selected.stats.totalOrders}</div>
               </div>
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">Active Orders</div>
-                <div className="text-3xl font-bold text-emerald-300">{selected.stats.activeOrders}</div>
+                <div className="text-2xl font-medium text-emerald-300">{selected.stats.activeOrders}</div>
               </div>
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">Total Revenue</div>
-                <div className="text-3xl font-bold text-violet-300">
+                <div className="text-2xl font-medium text-violet-300">
                   {formatCurrency(selected.stats.totalRevenue || 0, selected.financial.currency)}
                 </div>
               </div>
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">Avg Order Value</div>
-                <div className="text-3xl font-bold text-amber-300">
+                <div className="text-2xl font-medium text-amber-300">
                   {formatCurrency(selected.stats.avgOrderValue || 0, selected.financial.currency)}
                 </div>
               </div>
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">On-Time Delivery</div>
-                <div className="text-3xl font-bold text-indigo-300">{selected.stats.onTimeDelivery || 0}%</div>
+                <div className="text-2xl font-medium text-indigo-300">{selected.stats.onTimeDelivery || 0}%</div>
               </div>
               <div className="p-4 rounded-lg border border-white/10 bg-white/5">
                 <div className="text-sm text-white/70 mb-1">Last Order Date</div>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-medium text-white">
                   {selected.stats.lastOrderDate ? new Date(selected.stats.lastOrderDate).toLocaleDateString() : "N/A"}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "preferences" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Preferred Shipping</label>
-                  <select
-                    value={formData.preferences.preferredShipping}
-                    onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, preferredShipping: e.target.value as ShippingOption } })}
-                    disabled={modalMode === "view"} className="w-full glass-input"
-                  >
-                    {SHIPPING_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white/80 mb-2">Discount (%)</label>
-                  <input
-                    type="number"
-                    value={formData.preferences.discountPercent}
-                    onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, discountPercent: Number(e.target.value) || 0 } })}
-                    disabled={modalMode === "view"} className="w-full glass-input" min={0} max={100} step={0.1}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-white/80 mb-2">Special Instructions</label>
-                  <textarea
-                    value={formData.preferences.specialInstructions || ""}
-                    onChange={(e) => setFormData({ ...formData, preferences: { ...formData.preferences, specialInstructions: e.target.value } })}
-                    disabled={modalMode === "view"} className="w-full glass-input" rows={4}
-                  />
                 </div>
               </div>
             </div>
