@@ -494,89 +494,101 @@ export default function IntegrationsLocked() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active.id, active.status, active.config?.apiUrl]);
 
-  /* ---- Fuzzy auto-map (with force) ---- */
+  const mockData = {
+    ok: true,
+    mappedData: [
+      { external: "id", internal: "id", confidence: 0.98 },
+      { external: "machineCode", internal: "machine_code", confidence: 0.95 },
+      { external: "machineName", internal: "asset_name", confidence: 0.9 },
+      { external: "planType", internal: "type", confidence: 0.88 },
+      { external: "priority", internal: "priority", confidence: 0.93 },
+      { external: "status", internal: "status", confidence: 0.97 },
+      { external: "nextDue", internal: "schedule_date", confidence: 0.92 },
+
+      // fields ที่ไม่เจอ match ชัดเจน
+      { external: "assignedTo", internal: "__user_choose__", confidence: 0.5 },
+      { external: "description", internal: "__user_choose__", confidence: 0.4 },
+      { external: "createdAt", internal: "__user_choose__", confidence: 0.3 },
+      { external: "workCenter", internal: "__user_choose__", confidence: 0.45 },
+      { external: "checklist.completed", internal: "__user_choose__", confidence: 0.35 },
+      { external: "checklist.id", internal: "__user_choose__", confidence: 0.35 },
+      { external: "checklist.task", internal: "__user_choose__", confidence: 0.35 },
+      { external: "durationMinutes", internal: "__user_choose__", confidence: 0.5 },
+      { external: "frequency", internal: "__user_choose__", confidence: 0.4 },
+      { external: "frequencyValue", internal: "__user_choose__", confidence: 0.4 },
+      { external: "lastExecuted", internal: "__user_choose__", confidence: 0.5 },
+      { external: "title", internal: "__user_choose__", confidence: 0.6 },
+    ],
+  };
+
+
   const runAutoMap = useCallback(
-    (opts?: { force?: boolean }) => {
+    async (opts?: { force?: boolean }) => {
       if (isInactive || !preview) return;
 
       const resSpec = getResourcesFor(active.type)[resourceKey];
-      const candidateSource = preview ?? resSpec?.exampleResponse ?? {};
-      const flatPreview = flatten(candidateSource);
-      const candidates = externalOptions.length ? externalOptions : Object.keys(flatPreview).sort();
+      if (!resSpec) return;
 
-      if (!resSpec || candidates.length === 0) return;
-
-      // --- similarity functions ---
-      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      const levenshtein = (a: string, b: string) => {
-        const m = a.length, n = b.length;
-        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-        for (let i = 0; i <= m; i++) dp[i][0] = i;
-        for (let j = 0; j <= n; j++) dp[0][j] = j;
-        for (let i = 1; i <= m; i++) {
-          for (let j = 1; j <= n; j++) {
-            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-          }
-        }
-        return dp[m][n];
-      };
-      const sim = (a: string, b: string) => {
-        if (!a || !b) return 0;
-        if (a === b) return 1;
-        const na = norm(a), nb = norm(b);
-        const maxLen = Math.max(na.length, nb.length) || 1;
-        const lev = levenshtein(na, nb);
-        const levScore = 1 - lev / maxLen;
-        const ta = new Set(na.split(" ").filter(Boolean));
-        const tb = new Set(nb.split(" ").filter(Boolean));
-        const inter = [...ta].filter((x) => tb.has(x)).length;
-        const union = new Set([...ta, ...tb]).size || 1;
-        const jac = inter / union;
-        const lastA = a.split(".").pop() || a;
-        const lastB = b.split(".").pop() || b;
-        const lastBoost = lastA.toLowerCase() === lastB.toLowerCase() ? 0.15 : 0;
-        return Math.max(0, Math.min(1, 0.7 * levScore + 0.3 * jac + lastBoost));
+      const payload = {
+        internalData: mapping.map((m) => m.local),
+        externalFields: externalOptions.length
+          ? externalOptions
+          : Object.keys(flatten(preview ?? resSpec.exampleResponse ?? {})),
       };
 
-      const pick = (local: string): { ext: string; score: number } => {
-        let best = { ext: "", score: 0 };
-        for (const e of candidates) {
-          const s = Math.max(sim(local, e), sim(local.split(".").pop() || local, e.split(".").pop() || e));
-          if (s > best.score) best = { ext: e, score: s };
-        }
-        return best;
-      };
+      console.log('payload', payload);
 
-      // --- update mapping ---
-      setMapping((prev) =>
-        prev.map((m) => {
-          if (m.locked || m.source === "manual") return m; // เคารพค่าที่ผู้ใช้เลือกเอง
+      try {
+        // const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/map_fields`, {
+        //   method: "POST",
+        //   headers: { "Content-Type": "application/json" },
+        //   body: JSON.stringify(payload),
+        // });
 
-          const match = pick(m.local);
-          const conf = Math.round(match.score * 100) / 100;
+        // if (!response.ok) throw new Error("Mapping API failed");
 
-          // ถ้า force: เขียนทับทุกแถว (ที่ไม่ manual/locked) ตาม threshold ล่าสุด
-          if (opts?.force) {
-            if (conf >= matchThreshold) {
-              return { ...m, external: match.ext, confidence: conf, source: "auto" };
+        // const data: { ok: boolean; mappedData: { external: string; internal: string; confidence: number }[] } =
+        //   await response.json();
+
+        // if (!data.ok) throw new Error("Mapping API returned error");
+
+        const data = mockData;
+        
+        setMapping((prev) =>
+          prev.map((m) => {
+            if (m.locked || m.source === "manual") return m;
+
+            const match = data.mappedData.find((d) => d.external === m.local) ?? {
+              internal: "__user_choose__",
+              confidence: 0,
+            };
+
+            const conf = Math.round(match.confidence * 100) / 100;
+
+            if (opts?.force) {
+              return { ...m, external: match.internal, confidence: conf, source: "auto" };
             }
-            // ต่ำกว่า threshold: เคลียร์ค่า เพื่อให้ผู้ใช้เห็นว่ายังไม่มั่นใจ
-            return { ...m, external: "", confidence: conf, source: "auto" };
-          }
 
-          // เดิม: อัปเดตเฉพาะกรณีคะแนนใหม่ดีกว่าเดิม
-          if (conf >= matchThreshold && conf > (m.confidence ?? 0)) {
-            return { ...m, external: match.ext, confidence: conf, source: "auto" };
-          }
-          // ไม่ถึง threshold หรือไม่ดีกว่าเดิม → อัปเดต confidence เพื่อสะท้อนผลล่าสุด
-          return { ...m, confidence: conf };
-        })
-      );
+            if (conf >= matchThreshold && conf > (m.confidence ?? 0)) {
+              return { ...m, external: match.internal, confidence: conf, source: "auto" };
+            }
 
-      setFetchErr?.(null);
+            // confidence ต่ำ → ให้ user เลือกเอง
+            if (conf < matchThreshold) {
+              return { ...m, external: "__user_choose__", confidence: conf, source: "auto" };
+            }
+
+            return { ...m, confidence: conf };
+          })
+        );
+
+        setFetchErr?.(null);
+      } catch (err: any) {
+        console.error(err);
+        setFetchErr?.(err.message || "Unknown error");
+      }
     },
-    [active.type, resourceKey, preview, externalOptions, matchThreshold, isInactive]
+    [active.type, resourceKey, preview, externalOptions, matchThreshold, isInactive, mapping]
   );
 
   // Auto-run when preview ready & active

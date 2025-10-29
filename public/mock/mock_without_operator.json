@@ -1,0 +1,74 @@
+{
+  "schema_version": "2.0.0",
+  "timezone": "Asia/Bangkok",
+
+  "calendar": {
+    "holidays": [],
+    "machine_maintenances": [
+      { "machine_id": "M_MILL_1", "start": "2025-10-16T10:00:00", "end": "2025-10-16T12:00:00" }
+    ],
+    "shifts": [
+      { "start": "08:00", "end": "12:00" },
+      { "start": "13:00", "end": "17:00" }
+    ]
+  },
+
+  "orders": [
+    { "order_id": "ORD001", "release_date": "2025-10-15T08:00:00", "due_date": "2025-10-17T17:00:00",
+      "priority": 1, "lines": [{ "product_id": "P_A", "quantity": 60 }] },
+    { "order_id": "ORD002", "release_date": "2025-10-15T08:00:00", "due_date": "2025-10-18T17:00:00",
+      "priority": 2, "lines": [{ "product_id": "P_B", "quantity": 50 }] }
+  ],
+
+  "products": [
+    { "product_id": "P_A", "name": "Widget A", "routing_id": "R_A", "lot_size": 20 },
+    { "product_id": "P_B", "name": "Widget B", "routing_id": "R_B", "lot_size": 25 }
+  ],
+
+  "work_centers": [
+    { "work_center_id": "WC_CUT",  "name": "Cutting",   "parallel_machines": ["M_CUT_1"] },
+    { "work_center_id": "WC_MILL", "name": "Milling",   "parallel_machines": ["M_MILL_1"] },
+    { "work_center_id": "WC_PAINT","name": "Painting",  "parallel_machines": ["M_PAINT_1"] }
+  ],
+
+  "machines": [
+    { "machine_id": "M_CUT_1",  "work_center_id": "WC_CUT"  },
+    { "machine_id": "M_MILL_1", "work_center_id": "WC_MILL" },
+    { "machine_id": "M_PAINT_1","work_center_id": "WC_PAINT"}
+  ],
+
+  "routings": [
+    {
+      "routing_id": "R_A",
+      "operations": [
+        { "op_no": 1, "name": "Cutting", "work_center_id": "WC_CUT",
+          "proc_time_per_unit_min": 6, "setup_time_fixed_min": 5, "preemptable": false },
+        { "op_no": 2, "name": "Painting", "work_center_id": "WC_PAINT",
+          "proc_time_per_unit_min": 12, "setup_time_fixed_min": 8,
+          "preemptable": true, "min_chunk_min": 45, "max_splits": 2, "preemption_overhead_min": 10 }
+      ]
+    },
+    {
+      "routing_id": "R_B",
+      "operations": [
+        { "op_no": 1, "name": "Cutting", "work_center_id": "WC_CUT",
+          "proc_time_per_unit_min": 7, "setup_time_fixed_min": 5, "preemptable": false },
+        { "op_no": 2, "name": "Milling", "work_center_id": "WC_MILL",
+          "proc_time_per_unit_min": 5, "setup_time_fixed_min": 6, "preemptable": false }
+      ]
+    }
+  ],
+
+  "preference_settings": {
+    "allow_job_preemption": true
+  },
+
+  "settings": {
+    "time_unit": "minutes",
+    "objective_weights": {
+      "makespan": 1.0,
+      "tardiness": 10.0,
+      "preemption_cost": 20.0
+    }
+  }
+}

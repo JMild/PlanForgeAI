@@ -242,7 +242,6 @@ const SHIFTS: Shift[] = [
 /** BREAKS */
 const BREAKS: BreakRule[] = [
   ...[1, 2, 3, 4, 5].flatMap((dow) => ([
-    { dayOfWeek: dow as 1 | 2 | 3 | 4 | 5, start: "10:00", end: "10:15", appliesTo: "attended-only" as const },
     { dayOfWeek: dow as 1 | 2 | 3 | 4 | 5, start: "12:00", end: "13:00", appliesTo: "attended-only" as const },
     { dayOfWeek: dow as 1 | 2 | 3 | 4 | 5, start: "15:00", end: "15:15", appliesTo: "attended-only" as const },
   ])),
@@ -308,6 +307,21 @@ const isOverlappingBreakOnDay = (
   });
 };
 
+/** ชนเวลาพักเฉพาะ "ช่วง Setup" หรือไม่ (สำหรับ setup-attended) */
+function jobSetupHitsBreak(job: Job, machine: Machine, viewStart: Date, viewDays: number): boolean {
+  if (machine.attendance !== "setup-attended") return false;
+  const js = new Date(job.start);
+  const setupEnd = new Date(js.getTime() + (job.setupMin || 0) * 60000);
+  if (setupEnd <= js) return false; // ไม่มี setup หรือ setup = 0
+
+  // ใช้ตัวตรวจ overlap ต่อวัน เหมือน jobHitsBreak แต่จำกัดแค่ช่วง setup
+  for (let d = 0; d < viewDays; d++) {
+    const day = addDays(viewStart, d);
+    if (isOverlappingBreakOnDay(js, setupEnd, day, machine)) return true;
+  }
+  return false;
+}
+
 /** ตรวจทั้งช่วง job ว่าชนพักอย่างน้อย 1 วันไหม */
 const jobHitsBreak = (job: Job, machine: Machine, viewStart: Date, viewDays: number) => {
   const js = new Date(job.start);
@@ -322,7 +336,6 @@ const jobHitsBreak = (job: Job, machine: Machine, viewStart: Date, viewDays: num
 /* ======== NEW: ตรวจ OT ======== */
 /** window ทำงานในแต่ละวันจาก SHIFTS */
 const workingWindowsForDay = (): Array<[number, number]> => {
-  // ใช้ SHIFTS ร่วมกันทุกวัน (ถ้าต้องแยก weekday/holiday สามารถปรับตรงนี้)
   return SHIFTS.map(s => [s.start, s.end]);
 };
 
@@ -331,7 +344,6 @@ const overtimeMinutesOnDay = (jobStart: Date, jobEnd: Date, day: Date): number =
   const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart.getTime() + MS_PER_DAY - 1);
 
-  // ตัดช่วงให้เหลือเฉพาะของวันนี้
   const s = new Date(Math.max(jobStart.getTime(), dayStart.getTime()));
   const e = new Date(Math.min(jobEnd.getTime(), dayEnd.getTime()));
   if (e <= s) return 0;
@@ -339,10 +351,8 @@ const overtimeMinutesOnDay = (jobStart: Date, jobEnd: Date, day: Date): number =
   const sH = toHourFloat(s);
   const eH = toHourFloat(e);
 
-  // รวมช่วงทำงานทั้งหมดในวันนั้น
   const windows = workingWindowsForDay();
 
-  // รวมความยาวทั้งหมดที่ "อยู่ในช่วงทำงาน"
   let insideMin = 0;
   for (const [wS, wE] of windows) {
     const interStart = Math.max(sH, wS);
@@ -356,14 +366,12 @@ const overtimeMinutesOnDay = (jobStart: Date, jobEnd: Date, day: Date): number =
 };
 
 /** รวม OT ของทั้งช่วงงาน (หลายวัน) — นับเฉพาะเครื่องที่ต้องมีคนเฝ้า */
-const getOvertimeMinutes = (job: Job, machine: Machine, viewStart: Date, viewDays: number): number => {
+const getOvertimeMinutes = (job: Job, machine: Machine, _viewStart: Date, _viewDays: number): number => {
   if (!(machine.attendance === "attended" || machine.attendance === "setup-attended")) return 0;
   const js = new Date(job.start);
   const je = new Date(job.end);
   let minutes = 0;
 
-  // วนทุกวันในมุมมอง (หรือจะวนจริงๆ ตามช่วงงานก็ได้)
-  // เพื่อความถูกต้อง ให้วนตั้งแต่ startOfDay(js) ถึง startOfDay(je)
   const startDay = startOfDay(js);
   const endDay = startOfDay(je);
   for (let d = 0, cur = new Date(startDay); cur <= endDay; d++, cur = addDays(startDay, d)) {
@@ -524,17 +532,19 @@ const ProductionPlannerBoard: React.FC = () => {
     isPointerMovingRef.current = true;
 
     const dx = e.clientX - dragging.startClientX;
-    const deltaMinRaw = (dx / pxPerHour) * 60;
-    const deltaMin = snapMinutes(deltaMinRaw);
+    theDelta: {
+      const deltaMinRaw = (dx / pxPerHour) * 60;
+      const deltaMin = snapMinutes(deltaMinRaw);
 
-    setJobs((prev) =>
-      prev.map((j) => {
-        if (j.jobId !== dragging.jobId) return j;
-        const newStart = new Date(dragging.origStart.getTime() + deltaMin * 60000);
-        const newEnd = new Date(dragging.origEnd.getTime() + deltaMin * 60000);
-        return { ...j, start: newStart.toISOString(), end: newEnd.toISOString() };
-      })
-    );
+      setJobs((prev) =>
+        prev.map((j) => {
+          if (j.jobId !== dragging.jobId) return j;
+          const newStart = new Date(dragging.origStart.getTime() + deltaMin * 60000);
+          const newEnd = new Date(dragging.origEnd.getTime() + deltaMin * 60000);
+          return { ...j, start: newStart.toISOString(), end: newEnd.toISOString() };
+        })
+      );
+    }
   };
 
   const endDragJob = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -683,8 +693,13 @@ const ProductionPlannerBoard: React.FC = () => {
       }
 
       // Break (เฉพาะเครื่องที่ต้องหยุดพักตามกฎ)
-      if (machine && jobHitsBreak(job, machine, viewStart, viewDays)) {
-        detected.push({ type: "break", jobId: job.jobId, detail: "Overlaps break time" });
+      if (machine) {
+        const breakFlag = machine.attendance === "setup-attended"
+          ? jobSetupHitsBreak(job, machine, viewStart, viewDays)   // นับเฉพาะช่วง Setup
+          : jobHitsBreak(job, machine, viewStart, viewDays);       // เครื่องอื่นๆ นับทั้งช่วงงาน
+        if (breakFlag) {
+          detected.push({ type: "break", jobId: job.jobId, detail: "Overlaps break time" });
+        }
       }
 
       // NEW: OT — เกินช่วงเวลาทำงาน
@@ -756,7 +771,7 @@ const ProductionPlannerBoard: React.FC = () => {
         "0": [],
         "6": []
       },
-      breaks: [["10:00", "10:15"], ["12:00", "13:00"], ["15:00", "15:15"]],
+      breaks: [["12:00", "13:00"], ["15:00", "15:15"]],
       holidays: [],
       treat_weekend_as_off: true
     };
@@ -764,52 +779,183 @@ const ProductionPlannerBoard: React.FC = () => {
     return { process_defs, product_defs, machines, setup_sd: [], speed: [], orders: ordersPayload, orders_multiline: [], calendar };
   };
 
-  /* ===== เรียก AI แบบ “วางทั้งหมด” ===== */
+  /* ===== Helpers: extract + parse schedule from console ===== */
+  function extractFinalScheduleCsv(consoleText: string): string | null {
+    const lines = consoleText.split(/\r?\n/);
+    const title = "=== FINAL SCHEDULE (console only) ===";
+
+    const startIdx = lines.findIndex(l => l.trim().startsWith(title));
+    if (startIdx === -1) return null;
+
+    const headerLine =
+      "batch_id,order_id,product_id,routing_id,operation,qty,machine,start,finish,setup_min,proc_min,splits";
+
+    let headerIdx = -1;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+      const s = lines[i].trim();
+      if (!s) continue;
+      if (s === headerLine) { headerIdx = i; break; }
+    }
+    if (headerIdx === -1) return null;
+
+    const rows: string[] = [];
+    for (let i = headerIdx; i < lines.length; i++) {
+      const s = lines[i].trim();
+      if (!s || s.startsWith("===")) break;
+      rows.push(s);
+    }
+    return rows.length ? rows.join("\n") : null;
+  }
+
+  function parseFinalScheduleCsvToJobs(csv: string, orders: Order[]): Job[] {
+    const PRODUCT_ID_TO_NAME: Record<string, string> = {
+      P_A: "Widget A", P_B: "Widget B", P_C: "Widget C", P_D: "Widget D",
+    };
+    const PNAME_TO_CODE: Record<string, ProcessCode> = {
+      Machining: "MACH", Drilling: "DRILL", Assembly: "ASSY",
+      Pressing: "PRESS", Painting: "PAINT", Packaging: "PACK",
+    };
+
+    const buildSeqIndex = () => {
+      const idx = new Map<string, Map<string, number>>();
+      for (const o of orders) for (const it of o.items) {
+        const m = idx.get(it.product) ?? new Map<string, number>();
+        for (const st of it.routing) m.set(st.processName, st.seq);
+        idx.set(it.product, m);
+      }
+      return idx;
+    };
+
+    const findItemNoByProduct = (orderNo: string, productName: string) => {
+      const o = orders.find(x => x.orderNo === orderNo);
+      const it = o?.items.find(i => i.product === productName);
+      return it?.itemNo ?? 1;
+    };
+
+    const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return [];
+
+    const header = lines.shift()!.split(",");
+    const col = (n: string) => header.indexOf(n);
+
+    const iOrder = col("order_id");
+    const iProd = col("product_id");
+    const iOp = col("operation");
+    const iMac = col("machine");
+    const iStart = col("start");
+    const iEnd = col("finish");
+    const iSetup = col("setup_min");
+    const iProc = col("proc_min");
+    const iQty = col("qty");
+
+    const seqIndex = buildSeqIndex();
+
+    return lines.map((ln, row) => {
+      const t = ln.split(",");
+      const orderNo = t[iOrder]?.trim();
+      const productId = t[iProd]?.trim();
+      const productName = PRODUCT_ID_TO_NAME[productId] ?? productId;
+
+      const processName = t[iOp]?.trim();
+      const process = (PNAME_TO_CODE[processName] ?? "MACH") as ProcessCode;
+
+      const machine = t[iMac]?.trim();
+      const startIso = new Date(t[iStart].trim().replace(" ", "T")).toISOString();
+      const endIso = new Date(t[iEnd].trim().replace(" ", "T")).toISOString();
+      const setupMin = parseFloat(t[iSetup] || "0");
+      const runMin = parseFloat(t[iProc] || "0");
+      const qty = parseInt(t[iQty] || "1", 10) || 1;
+
+      const itemNo = findItemNoByProduct(orderNo, productName);
+      const seqFromRouting = seqIndex.get(productName)?.get(processName);
+      const seqFallback = 1 + ["Machining", "Drilling", "Pressing", "Painting", "Packaging", "Assembly"].indexOf(processName);
+      const seq = seqFromRouting ?? (seqFallback > 0 ? seqFallback : 1);
+
+      return {
+        jobId: `JOB-${orderNo}-${itemNo}-${seq}-${machine}-${row}`,
+        orderNo,
+        itemNo,
+        seq,
+        process,
+        processName,
+        machineCode: machine,
+        start: startIso,
+        end: endIso,
+        setupMin,
+        runMin,
+        product: productName,
+        qty,
+      };
+    });
+  }
+
+  /* ===== เรียก AI / MOCK แล้ววางแผน ===== */
   const handleAutoPlaceAI = async () => {
     setAiLoading(true);
     setAiKpis(null);
+
     try {
       const payload = buildAiPayload();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/plan?day0=${anchorDate}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!data.ok || !data.result?.schedule_csv) throw new Error("No schedule data received");
+      let consoleText = "";
 
-      const csv = data.result.schedule_csv.trim();
-      const lines = csv.split(/\r?\n/).filter(Boolean);
-      const header = lines.shift()!.split(",");
-      const idx = (name: string) => header.indexOf(name);
+      // ✅ Mock engine path (เปิดด้วย NEXT_PUBLIC_USE_MOCK_ENGINE=1)
+      if (process.env.NEXT_PUBLIC_USE_MOCK_ENGINE === "1") {
+        console.log("⚙️ Using MOCK ENGINE mode");
 
-      const jobsParsed: Job[] = lines.map((line: string) => {
-        const cols = line.split(",");
-        const get = (name: string) => cols[idx(name)];
-        const startIso = new Date(get("start_ts").trim().replace(" ", "T")).toISOString();
-        const endIso = new Date(get("end_ts").trim().replace(" ", "T")).toISOString();
-        return {
-          jobId: `JOB-${get("task_id")}`,
-          orderNo: (get("order_id") || "").split("-I")[0] || get("order_id"),
-          itemNo: parseInt((get("order_id") || "").split("-I")[1] || "1", 10) || 1,
-          seq: parseInt(get("task_id"), 10),
-          process: get("process") as ProcessCode,
-          processName: get("process"),
-          machineCode: get("machine"),
-          start: startIso,
-          end: endIso,
-          setupMin: parseFloat(get("setup_min") || "0"),
-          runMin: Math.max(0, (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000 - parseFloat(get("setup_min") || "0")),
-          product: get("product"),
-          qty: parseInt(get("qty") || "1", 10) || 1,
-        };
-      });
+        consoleText = `=== FINAL SCHEDULE (console only) ===
+          batch_id,order_id,product_id,routing_id,operation,qty,machine,start,finish,setup_min,proc_min,splits
+          B0010101,ORD001,P_A,R_A,Machining,100,M001,2025-10-01 08:00,2025-10-01 10:30,30.0,120.0,0
+          B0010101,ORD001,P_A,R_A,Drilling,100,M001,2025-10-01 10:30,2025-10-01 11:50,20.0,60.0,0
+          B0010101,ORD001,P_A,R_A,Assembly,100,M003,2025-10-01 13:05,2025-10-01 14:50,15.0,90.0,0
+          B0020101,ORD002,P_C,R_C,Machining,75,M002,2025-10-01 08:00,2025-10-01 10:09,30.0,100.0,0
+          B0020101,ORD002,P_C,R_C,Painting,75,M005,2025-10-01 10:09,2025-10-01 11:39,30.0,60.0,0
+          B0020101,ORD002,P_C,R_C,Packaging,75,M003,2025-10-01 15:20,2025-10-01 16:09,10.0,40.0,0
+          B0030101,ORD003,P_D,R_D,Pressing,200,M004,2025-10-01 08:00,2025-10-01 10:55,25.0,150.0,0
+          B0030101,ORD003,P_D,R_D,Drilling,200,M002,2025-10-01 10:55,2025-10-01 13:15,20.0,120.0,0
+          B0030101,ORD003,P_D,R_D,Painting,200,M005,2025-10-01 13:15,2025-10-01 15:55,30.0,130.0,0
+          B0030101,ORD003,P_D,R_D,Assembly,200,M003,2025-10-01 16:10,2025-10-01 18:05,15.0,100.0,0
+          B0010201,ORD001,P_B,R_B,Pressing,50,M004,2025-10-01 13:10,2025-10-01 14:55,25.0,80.0,0
+          B0010201,ORD001,P_B,R_B,Painting,50,M005,2025-10-01 15:55,2025-10-01 17:35,30.0,70.0,0
+          B0010201,ORD001,P_B,R_B,Assembly,50,M003,2025-10-01 18:05,2025-10-01 19:10,15.0,50.0,0
+        `;
+      } else {
+        // ✅ API path
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/plan?day0=${anchorDate}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
+        const ct = res.headers.get("content-type") || "";
+
+        if (ct.includes("application/json")) {
+          const data = await res.json();
+
+          if (data?.result?.console_text) {
+            consoleText = String(data.result.console_text);
+            setAiKpis(data?.result?.kpis || null);
+          } else if (data?.result?.schedule_csv) {
+            const csv = String(data.result.schedule_csv).trim();
+            consoleText = `=== FINAL SCHEDULE (console only) ===\n${csv}\n`;
+            setAiKpis(data?.result?.kpis || null);
+          } else {
+            throw new Error("No console_text / schedule_csv in response");
+          }
+        } else {
+          consoleText = await res.text();
+        }
+      }
+
+      // Extract CSV
+      const csv = extractFinalScheduleCsv(consoleText);
+      if (!csv) throw new Error("Cannot extract FINAL SCHEDULE CSV from console output");
+
+      // Parse → jobs
+      const jobsParsed = parseFinalScheduleCsvToJobs(csv, orders);
       setJobs(jobsParsed);
-      setAiKpis(data.result.kpis || null);
 
+      // ตั้ง anchorDate จากงานแรก
       if (jobsParsed.length > 0) {
         const firstStart = new Date(
           jobsParsed.reduce((min, j) => (new Date(j.start) < new Date(min) ? j.start : min), jobsParsed[0].start)
@@ -820,12 +966,12 @@ const ProductionPlannerBoard: React.FC = () => {
         setAnchorDate(`${y}-${m}-${d}`);
       }
 
-      alert(data.result?.kpis?.makespan_min != null ? `✅ AI Auto-Place done · Makespan ${data.result.kpis.makespan_min} min` : "✅ AI Auto-Place done");
+      alert("✅ Planned by engine (console format)");
     } catch (err) {
       console.error(err);
       const fallback = greedyAutoPlace(orders, MACHINES, anchorDate);
       setJobs(fallback);
-      // alert("⚠️ AI backend unavailable — used Greedy fallback auto-place instead.");
+      alert("⚠️ AI engine unavailable — used Greedy fallback.");
     } finally {
       setAiLoading(false);
     }
@@ -1490,7 +1636,7 @@ const ProductionPlannerBoard: React.FC = () => {
                               </div>
                             ))}
 
-                          {/* BREAKS — สีขึ้นกับโหมดเครื่อง (ต้องหยุด = แดงอ่อน, ไม่บังคับ = เหลืองอ่อน) */}
+                          {/* BREAKS — สีขึ้นกับโหมดเครื่อง */}
                           {Array.from({ length: viewDays }, (_, d) => {
                             const day = addDays(viewStart, d);
                             const dow = day.getDay() as BreakRule["dayOfWeek"];
@@ -1537,16 +1683,18 @@ const ProductionPlannerBoard: React.FC = () => {
                                 (s.getHours() + s.getMinutes() / 60 - DAY_START) * 90;
                               const width = ((e.getTime() - s.getTime()) / 3600000) * 90;
 
-                              // สี/ป้ายตามกฎ Break, Maintenance, OT
-                              const hitsBreak = jobHitsBreak(job, machine, viewStart, viewDays);
+                              const setupHitsBreak = jobSetupHitsBreak(job, machine, viewStart, viewDays);
+                              const hitsBreakAny = jobHitsBreak(job, machine, viewStart, viewDays);
+                              const hitsBreak = machine.attendance === "setup-attended" ? setupHitsBreak : hitsBreakAny;
+
                               const otMin = getOvertimeMinutes(job, machine, viewStart, viewDays);
                               const isPmLane = machine.status === "PM";
 
                               const jobTone =
-                                hitsBreak
-                                  ? "bg-rose-500/90 border-rose-300/70"
-                                  : isPmLane
-                                    ? "bg-fuchsia-600/80 border-fuchsia-300/70"
+                                isPmLane
+                                  ? "bg-fuchsia-600/80 border-fuchsia-300/70"
+                                  : hitsBreak                           // 🔴 แดงเฉพาะเงื่อนไขที่กำหนด
+                                    ? "bg-rose-500/90 border-rose-300/70"
                                     : otMin > 0
                                       ? "bg-orange-500/90 border-orange-300/70"
                                       : "bg-cyan-500/80 border-cyan-300/60";
@@ -1554,12 +1702,15 @@ const ProductionPlannerBoard: React.FC = () => {
                               const types = conflicts.filter((c) => c.jobId === job.jobId).map((c) => c.type);
                               const hasConflict = types.length > 0 || hitsBreak || otMin > 0;
 
+                              const isCompact = width < 100;
+                              const hideBadges = width < 80;
+
                               return (
                                 <div
                                   key={job.jobId}
                                   style={{ left: startX, width, top: 4, height: laneBoxH - 8 }}
                                   className={[
-                                    "absolute rounded shadow-md cursor-pointer group border z-30",
+                                    "absolute rounded shadow-md cursor-pointer group border z-30 transition-all",
                                     jobTone,
                                   ].join(" ")}
                                   onClick={() => {
@@ -1568,54 +1719,87 @@ const ProductionPlannerBoard: React.FC = () => {
                                     setJobModalOpen(true);
                                   }}
                                   onPointerDown={(e) => startDragJob(e, job)}
-                                  title={hasConflict ? `Conflicts: ${[...types, ...(hitsBreak ? ["break"] : []), ...(otMin > 0 ? ["ot"] : [])].join(", ")}` : "Click to view"}
+                                  title={
+                                    hasConflict
+                                      ? `Conflicts: ${[
+                                        ...types,
+                                        ...(hitsBreak ? ["break"] : []),
+                                        ...(otMin > 0 ? ["ot"] : []),
+                                      ].join(", ")}`
+                                      : "Click to view"
+                                  }
                                 >
-                                  {/* Badges มุมขวาบน */}
-                                  <div className="absolute top-1.5 right-1.5 flex gap-1">
-                                    {isPmLane && (
-                                      <span className="px-1.5 py-0.5 rounded border border-fuchsia-300/50 bg-fuchsia-600/30 text-[10px]">
-                                        PM
-                                      </span>
-                                    )}
-                                    {hitsBreak && (
-                                      <span className="px-1.5 py-0.5 rounded border border-rose-300/60 bg-rose-600/40 text-[10px]">
-                                        BREAK
-                                      </span>
-                                    )}
-                                    {otMin > 0 && (
-                                      <span className="px-1.5 py-0.5 rounded border border-orange-300/60 bg-orange-600/40 text-[10px]">
-                                        OT
-                                      </span>
-                                    )}
-                                    {!hitsBreak && otMin === 0 && types.length > 0 && (
-                                      <span className="px-1.5 py-0.5 rounded border border-amber-300/60 bg-amber-600/30 text-[10px]">
-                                        {types[0].toUpperCase()}
-                                      </span>
+                                  {/* Remove */}
+                                  <button
+                                    type="button"
+                                    className
+                                    ={`absolute top-1 right-1 w-6 h-6 rounded-full grid place-items-center text-xs border ${editMode
+                                      ? "bg-black/30 hover:bg-black/50 border-white/30"
+                                      : "bg-black/20 border-transparent pointer-events-none opacity-0"
+                                      }`}
+                                    title="Remove"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (editMode) removeJob(job.jobId);
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+
+                                  {/* Badges — แสดงเฉพาะเมื่อกล่องกว้างพอ */}
+                                  {!hideBadges && (
+                                    <div className="absolute top-1.5 right-8 flex gap-1">
+                                      {isPmLane && (
+                                        <span className="px-1.5 py-0.5 rounded border border-fuchsia-300/50 bg-fuchsia-600/30 text-[10px]">
+                                          PM
+                                        </span>
+                                      )}
+                                      {hitsBreak && (
+                                        <span className="px-1.5 py-0.5 rounded border border-rose-300/60 bg-rose-600/40 text-[10px]">
+                                          BREAK
+                                        </span>
+                                      )}
+
+                                      {otMin > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded border border-orange-300/60 bg-orange-600/40 text-[10px]">
+                                          OT
+                                        </span>
+                                      )}
+                                      {!hitsBreak && otMin === 0 && types.length > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded border border-amber-300/60 bg-amber-600/30 text-[10px]">
+                                          {types[0].toUpperCase()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* เนื้อหา */}
+                                  <div className="p-2 text-white text-[11px] h-full flex flex-col justify-between">
+                                    {!isCompact && (
+                                      <>
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <div className="font-semibold truncate">
+                                              {job.orderNo}-{job.itemNo}
+                                            </div>
+                                            <div className="opacity-90 truncate">Step {job.seq}: {job.processName}</div>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center justify-between opacity-90">
+                                          <span className="truncate">{job.product}</span>
+                                          <span className="opacity-90">Run {job.runMin}m</span>
+                                        </div>
+                                      </>
                                     )}
                                   </div>
 
-                                  <div className="p-2 text-white text-[11px] h-full flex flex-col justify-between">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <div className="font-semibold truncate">{job.orderNo}-{job.itemNo}</div>
-                                        <div className="opacity-90 truncate">Step {job.seq}: {job.processName}</div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center justify-between opacity-90">
-                                      <span className="truncate">{job.product}</span>
-                                      <span className="opacity-90">Run {job.runMin}m</span>
-                                    </div>
-                                  </div>
+                                  {/* Hover overlay */}
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded" />
-                                  <button
-                                    type="button"
-                                    className={`absolute top-1 right-1 w-6 h-6 rounded-full grid place-items-center text-xs border ${editMode ? 'bg-black/30 hover:bg-black/50 border-white/30' : 'bg-black/20 border-transparent pointer-events-none opacity-0'}`}
-                                    title="Remove"
-                                    onClick={(e) => { e.stopPropagation(); if (editMode) removeJob(job.jobId); }}
-                                  >×</button>
                                 </div>
                               );
                             })}
+
+
                         </div>
                       </div>
                     ))}
