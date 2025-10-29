@@ -610,7 +610,7 @@ const ShiftsCalendarsMaster = () => {
       />
 
       {/* ===== Table ===== */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <ExpandableDataTable
           data={list}
           rowKey={(c) => c.id}

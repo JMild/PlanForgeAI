@@ -10,15 +10,12 @@ import {
   Download,
   Upload,
   ArrowRight,
-  Clock,
   AlertCircle,
   Save,
   GitBranch,
 } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
 import Modal from "@/src/components/shared/Modal";
-import { getProcesses, getRoutings, getWorkCenterDropdown } from "@/src/services/master";
-import { ERROR_MESSAGES } from "@/src/config/messages";
 import toast from "react-hot-toast";
 import { ExpandableDataTable } from "@/src/components/shared/table/ExpandableDataTable";
 
@@ -46,11 +43,11 @@ type TableCol<T> = {
 
 /** Final routing step (มี processName ที่ derive แล้ว) */
 interface RoutingStep {
-  seq: number;
-  processCode: string;
-  processName?: string;
-  workCenterCode: string;
-  machineList: string[];
+  seq: number;                 // 10, 20, 30 ...
+  processCode: string;         // MACH, DRILL, ...
+  processName?: string;        // Machining, Drilling (เติมจาก map)
+  workCenterCode: string;      // WC-MACH, WC-ASSY, ...
+  machineList: string[];       // ["M001","M002"]
   setupMin: number;
   runMinPerUnit: number;
   batchSize: number;
@@ -63,21 +60,101 @@ interface RoutingStep {
 /** Form routing step (ยังไม่มี processName) */
 type RoutingStepFormData = Omit<RoutingStep, "processName">;
 
-/** Final routing (มี productName) */
+/** Final routing */
 interface Routing {
+  routing_id: string;          // RT001
+  routing_name: string;        // Standard1
+  status: Status;
+  description: string;
+  steps: RoutingStep[];
+  step_count: number;          // derive
+  total_minutes: number;       // derive (เช่นที่ qty=100)
+}
+
+/** Form routing */
+interface RoutingFormData extends Omit<Routing, "steps"> {
+  steps: RoutingStepFormData[];
+}
+
+/* ===================== MOCK DATA ===================== */
+/** process master */
+const MOCK_PROCESSES: Process[] = [
+  { process_code: "MACH",  process_name: "Machining" },
+  { process_code: "DRILL", process_name: "Drilling" },
+  { process_code: "ASSY",  process_name: "Assembly" },
+  { process_code: "PRESS", process_name: "Pressing" },
+  { process_code: "PAINT", process_name: "Painting" },
+];
+
+/** work center + machines */
+const MOCK_WORK_CENTERS: WorkCenter[] = [
+  { code: "WC-MACH",  name: "Machining Center", machines: ["M001", "M002"] },
+  { code: "WC-ASSY",  name: "Assembly Line",    machines: ["M003"] },
+  { code: "WC-PRESS", name: "Press Station",    machines: ["M004"] },
+  { code: "WC-PAINT", name: "Painting Booth",   machines: ["M005"] },
+];
+
+/** สร้าง routing จากตัวอย่างในคำถาม */
+const MOCK_ROUTINGS_RAW: Array<{
   routing_id: string;
   routing_name: string;
   status: Status;
   description: string;
-  steps: RoutingStep[];
-  step_count: number;
-  total_minutes: number;
-}
-
-/** Form routing (ไม่มี productName และใช้ steps แบบของฟอร์ม) */
-interface RoutingFormData extends Omit<Routing, "steps"> {
-  steps: RoutingStepFormData[];
-}
+  steps: Omit<RoutingStep, "processName" | "machineList">[];
+}> = [
+  {
+    routing_id: "RT001",
+    routing_name: "Standard1",
+    status: "Active",
+    description: "Standard routing for Widget A",
+    steps: [
+      {
+        seq: 10, processCode: "MACH", workCenterCode: "WC-MACH",
+        setupMin: 30, runMinPerUnit: 1.2, batchSize: 50,
+        changeoverFamily: "METAL-A", queueTimeMin: 0, moveTimeMin: 5,
+        notes: "Use carbide tooling"
+      },
+      {
+        seq: 20, processCode: "DRILL", workCenterCode: "WC-MACH",
+        setupMin: 20, runMinPerUnit: 0.6, batchSize: 50,
+        changeoverFamily: "METAL-A", queueTimeMin: 30, moveTimeMin: 5,
+        notes: "4 holes per unit"
+      },
+      {
+        seq: 30, processCode: "ASSY", workCenterCode: "WC-ASSY",
+        setupMin: 15, runMinPerUnit: 0.9, batchSize: 100,
+        changeoverFamily: null, queueTimeMin: 60, moveTimeMin: 10,
+        notes: "Include fasteners"
+      },
+    ],
+  },
+  {
+    routing_id: "RT002",
+    routing_name: "Standard2",
+    status: "Active",
+    description: "Standard routing for Widget B",
+    steps: [
+      {
+        seq: 10, processCode: "PRESS", workCenterCode: "WC-PRESS",
+        setupMin: 25, runMinPerUnit: 1.6, batchSize: 20,
+        changeoverFamily: "PRESS-STD", queueTimeMin: 0, moveTimeMin: 5,
+        notes: "Use die #12"
+      },
+      {
+        seq: 20, processCode: "PAINT", workCenterCode: "WC-PAINT",
+        setupMin: 30, runMinPerUnit: 1.4, batchSize: 30,
+        changeoverFamily: "PAINT-BLUE", queueTimeMin: 120, moveTimeMin: 10,
+        notes: "Dry time 2 hours"
+      },
+      {
+        seq: 30, processCode: "ASSY", workCenterCode: "WC-ASSY",
+        setupMin: 15, runMinPerUnit: 1.0, batchSize: 100,
+        changeoverFamily: null, queueTimeMin: 0, moveTimeMin: 5,
+        notes: ""
+      },
+    ],
+  },
+];
 
 /* ===================== Component ===================== */
 const RoutingMasterData = () => {
@@ -103,39 +180,12 @@ const RoutingMasterData = () => {
   };
   const [formData, setFormData] = useState<RoutingFormData>(emptyFormData);
 
-  /* ============ Loads ============ */
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const res = await getRoutings();
-        const resProcesses = await getProcesses();
-        const resWorkCenters = await getWorkCenterDropdown();
-
-        // Set state
-        console.log('res', res)
-        setRoutings(res);
-        setProcesses(resProcesses);
-        setWorkCenters(resWorkCenters);
-
-      } catch (error) {
-        console.error("❌ Fetch data failed:", error);
-        toast.error(ERROR_MESSAGES.fetchFailed);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  /* ============ Memos / Maps ============ */
+  /* ============ Helpers ============ */
   const processMap = useMemo(
     () => new Map(processes.map((p) => [p.process_code, p.process_name] as const)),
     [processes]
   );
 
-  /* ============ Helpers ============ */
   const getStatusColor = (status: Status): string => {
     const colors: Record<Status, string> = {
       Active: "status-success",
@@ -144,9 +194,9 @@ const RoutingMasterData = () => {
     };
     return colors[status];
   };
-
   const getRoutingStatusClass = (s: Status) => getStatusColor(s);
 
+  /** คำนวณเวลารวม (เช่นที่ qty=100) */
   const calculateTotalTime = (
     steps: (RoutingStep | RoutingStepFormData)[] = [],
     qty: number = 100
@@ -159,13 +209,72 @@ const RoutingMasterData = () => {
       const moveTimeMin = step.moveTimeMin ?? 0;
       if (batchSize <= 0) return total;
 
-      // จำนวน batch ที่ต้องผลิตจาก qty
       const batches = Math.ceil(qty / batchSize);
-      // เวลา 1 batch = setup + (run * batchSize)
       const batchTime = setupMin + batchSize * runMinPerUnit;
-
       return total + batches * batchTime + queueTimeMin + moveTimeMin;
     }, 0);
+
+  const attachStepMeta = useCallback(
+    (raw: RoutingStepFormData): RoutingStep => {
+      const wc = workCenters.find((w) => w.code === raw.workCenterCode);
+      return {
+        ...raw,
+        processName: processMap.get(raw.processCode) || raw.processCode,
+        machineList: raw.machineList?.length ? raw.machineList : (wc?.machines ?? []),
+      };
+    },
+    [processMap, workCenters]
+  );
+
+  const withRoutingMeta = useCallback(
+    (r: Omit<Routing, "step_count" | "total_minutes">): Routing => {
+      const stepsSorted = [...r.steps].sort((a, b) => a.seq - b.seq);
+      const total = Math.round(calculateTotalTime(stepsSorted, 100));
+      return {
+        ...r,
+        steps: stepsSorted,
+        step_count: stepsSorted.length,
+        total_minutes: total,
+      };
+    },
+    [] // calculateTotalTime bound
+  );
+
+  /* ============ Loads (MOCK) ============ */
+  useEffect(() => {
+    try {
+      setLoading(true);
+
+      // load mock masters
+      setProcesses(MOCK_PROCESSES);
+      setWorkCenters(MOCK_WORK_CENTERS);
+
+      // build routings from mock
+      const routingBuilt: Routing[] = MOCK_ROUTINGS_RAW.map((rx) => {
+        const steps: RoutingStep[] = rx.steps.map((s) =>
+          attachStepMeta({
+            ...s,
+            machineList: [], // จะถูกเติมจาก work center
+          })
+        );
+        return withRoutingMeta({
+          routing_id: rx.routing_id,
+          routing_name: rx.routing_name,
+          status: rx.status,
+          description: rx.description,
+          steps,
+        });
+      });
+
+      setRoutings(routingBuilt);
+    } catch (err) {
+      console.error("❌ Load mock failed:", err);
+      toast.error("Failed to load mock data");
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ============ Filters ============ */
   const filteredRoutings = useMemo(() => {
@@ -222,6 +331,7 @@ const RoutingMasterData = () => {
     const formSteps: RoutingStepFormData[] = steps
       .slice()
       .sort((a, b) => a.seq - b.seq)
+      .map(({ processName: _p, ...s }) => ({ ...s }));
     setFormData({ ...rest, steps: formSteps });
     setEditingRouting(routing);
     setViewMode("edit");
@@ -243,7 +353,7 @@ const RoutingMasterData = () => {
   const handleSaveRouting = () => {
     // validation เบื้องต้น
     if (!formData.routing_name || formData.steps.length === 0) {
-      alert("Please fill in product and at least one step");
+      toast.error("Please fill routing name and at least one step");
       return;
     }
     if (
@@ -256,7 +366,7 @@ const RoutingMasterData = () => {
           s.batchSize <= 0
       )
     ) {
-      alert("Please complete all step details with valid values");
+      toast.error("Please complete all step details with valid values");
       return;
     }
 
@@ -264,33 +374,33 @@ const RoutingMasterData = () => {
     if (!editingRouting) {
       const dup = routings.some((r) => r.routing_id === formData.routing_id);
       if (dup) {
-        alert(`Routing ID ${formData.routing_id} already exists`);
+        toast.error(`Routing ID ${formData.routing_id} already exists`);
         return;
       }
     }
 
-    const newRouting: Routing = {
+    // เติม meta (processName, machines) + คำนวณ summary
+    const finalizedSteps: RoutingStep[] = formData.steps
+      .slice()
+      .sort((a, b) => a.seq - b.seq)
+      .map((s) => attachStepMeta(s));
+
+    const newRouting = withRoutingMeta({
       routing_id: formData.routing_id,
       routing_name: formData.routing_name,
       status: formData.status,
       description: formData.description,
-      steps: formData.steps
-        .slice()
-        .sort((a, b) => a.seq - b.seq)
-        .map((step) => ({
-          ...step,
-          processName: processMap.get(step.processCode) || "",
-        })),
-      step_count: 0,
-      total_minutes: 0
-    };
+      steps: finalizedSteps,
+    });
 
     if (editingRouting) {
       setRoutings((prev) =>
         prev.map((r) => (r.routing_id === editingRouting.routing_id ? newRouting : r))
       );
+      toast.success("Routing updated");
     } else {
       setRoutings((prev) => [...prev, newRouting]);
+      toast.success("Routing created");
     }
     closeModal();
   };
@@ -298,6 +408,7 @@ const RoutingMasterData = () => {
   const handleDeleteRouting = (id: string) => {
     if (confirm(`Are you sure you want to delete routing ${id}?`)) {
       setRoutings((prev) => prev.filter((r) => r.routing_id !== id));
+      toast.success("Routing deleted");
     }
   };
 
@@ -326,7 +437,7 @@ const RoutingMasterData = () => {
 
   const removeStep = (seq: number) => {
     if (formData.steps.length === 1) {
-      alert("Routing must have at least one step");
+      toast.error("Routing must have at least one step");
       return;
     }
     setFormData((prev) => ({ ...prev, steps: prev.steps.filter((s) => s.seq !== seq) }));
@@ -393,7 +504,7 @@ const RoutingMasterData = () => {
       render: (r: RoutingRow) => (
         <div className="flex items-center justify-center gap-1 text-sm text-white/80">
           <GitBranch size={14} className="text-white/50" />
-          <span>{r?.step_count ?? 0} steps</span>
+          <span>{r.step_count} steps</span>
         </div>
       ),
     },
@@ -403,8 +514,7 @@ const RoutingMasterData = () => {
       align: "center" as const,
       render: (r: RoutingRow) => (
         <div className="flex items-center justify-center gap-1 text-sm text-white/80">
-          {/* <Clock size={14} className="text-white/50" /> */}
-          <span>{r?.total_minutes ?? 0}</span>
+          <span>{r.total_minutes}</span>
         </div>
       ),
     },
@@ -570,11 +680,11 @@ const RoutingMasterData = () => {
         }
         actions={
           <div className="flex gap-3">
-            <button className="btn btn-outline">
+            <button className="btn btn-outline" disabled>
               <Upload size={18} />
               Import
             </button>
-            <button className="btn btn-outline">
+            <button className="btn btn-outline" disabled>
               <Download size={18} />
               Export
             </button>
@@ -587,7 +697,7 @@ const RoutingMasterData = () => {
       />
 
       {/* Routings List */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <ExpandableDataTable<Routing>
           columns={routingColumns}
           data={filteredRoutings}
@@ -609,7 +719,6 @@ const RoutingMasterData = () => {
         }
         footer={
           <>
-
             {viewMode === "view" ? (
               <div className="flex items-center justify-end gap-3 w-full">
                 <button onClick={closeModal} className="btn btn-outline">
@@ -619,7 +728,8 @@ const RoutingMasterData = () => {
                   onClick={() => {
                     if (editingRouting) {
                       const { steps, ...rest } = editingRouting;
-                      const formSteps: RoutingStepFormData[] = steps.map(({ processName: _p, ...s }) => s);
+                      const formSteps: RoutingStepFormData[] =
+                        steps.map(({ processName: _p, ...s }) => s);
                       setFormData({ ...rest, steps: formSteps });
                     }
                     setViewMode("edit");
@@ -660,7 +770,7 @@ const RoutingMasterData = () => {
               </div>
               <div>
                 <label className="text-sm text-white/70">Total Steps</label>
-                <p className="mt-1">{editingRouting?.step_count ?? 0}</p>
+                <p className="mt-1">{editingRouting.step_count}</p>
               </div>
             </div>
 
@@ -674,7 +784,7 @@ const RoutingMasterData = () => {
             <div>
               <label className="text-sm text-white/70 mb-3 block">Process Steps</label>
               <div className="space-y-3">
-                {(editingRouting?.steps ?? [])
+                {editingRouting.steps
                   .sort((a, b) => a.seq - b.seq)
                   .map((step, idx) => (
                     <div key={step.seq} className="border border-white/10 rounded-lg p-4 bg-white/5">
@@ -729,14 +839,23 @@ const RoutingMasterData = () => {
             {/* Routing Header */}
             <div className="grid grid-cols-3 gap-6">
               <div>
-                <label className="text-sm text-white/80 block mb-2">Routing Name</label>
+                <label className="text-sm text-white/80 block mb-2">Routing ID</label>
                 <input
                   type="text"
-                  value={formData.routing_name}
+                  value={formData.routing_id}
                   readOnly
                   className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-white"
                 />
-              </div>              
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm text-white/80 block mb-2">Routing Name *</label>
+                <input
+                  type="text"
+                  value={formData.routing_name}
+                  onChange={(e) => setFormData({ ...formData, routing_name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-white"
+                />
+              </div>
               <div>
                 <label className="text-sm text-white/80 block mb-2">Status *</label>
                 <select

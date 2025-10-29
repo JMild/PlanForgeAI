@@ -203,8 +203,8 @@ export default function WorkCenterPage() {
 
   /* ================= Columns ================= */
   const columns = [
-    { key: "work_center_code", label: "Code" },
-    { key: "work_center_name", label: "Name" },
+    { key: "work_center_code", label: "Work Center Code" },
+    { key: "work_center_name", label: "Work Center Name" },
     { key: "department", label: "Department" },
     {
       key: "machine_count",
@@ -341,7 +341,7 @@ export default function WorkCenterPage() {
         }
       />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <DataTable
           columns={columns}
           data={filtered}

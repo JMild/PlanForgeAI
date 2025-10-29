@@ -14,6 +14,8 @@ import {
   Pencil,
   Loader2,
   Trash2,
+  Lock,
+  Filter
 } from "lucide-react";
 import PageHeader from "@/src/components/layout/PageHeader";
 
@@ -43,8 +45,8 @@ type Machine = {
 
   /** Master Data ใหม่ */
   attendance: AttendanceMode;
-  unattendedFrom?: number; // ชั่วโมงเริ่มที่อนุญาตให้รันเอง (เช่น 18 = 18:00)
-  unattendedTo?: number;   // ชั่วโมงสิ้นสุด
+  unattendedFrom?: number;
+  unattendedTo?: number;
   requiresSetupOperator?: boolean;
 };
 
@@ -55,7 +57,7 @@ type RoutingStep = {
   setupMin: number;
   runMin: number;
   machineGroup: string[];
-  /** กรณีต้องการ override โหมดการดูแลเครื่องรายขั้นตอน */
+  /** เดิมมี attendanceOverride — เอาออกจาก UI ฝั่งซ้ายตาม requirement */
   attendanceOverride?: AttendanceMode;
 };
 
@@ -70,7 +72,7 @@ type OrderItem = {
 type Order = {
   orderNo: string;
   customer: string;
-  dueDate: string; // ISO
+  dueDate: string; // ISO (yyyy-mm-dd)
   priority: 1 | 2 | 3;
   items: OrderItem[];
 };
@@ -93,7 +95,7 @@ type Job = {
   qty: number;
 };
 
-type ConflictType = "overlap" | "sequence" | "pm" | "capability";
+type ConflictType = "overlap" | "sequence" | "pm" | "capability" | "break" | "ot";
 type Conflict = { type: ConflictType; jobId: string; detail: string };
 
 type ProcessWithStatus = RoutingStep & {
@@ -107,9 +109,9 @@ type ProcessWithStatus = RoutingStep & {
 type DraggedPayload = { order: Order; item: OrderItem; routingStep: RoutingStep };
 
 type ViewScale = "day" | "week" | "month";
+type LeftListFilter = "all" | "unplanned";
 
 /* =============== Sample Data =============== */
-/** เครื่อง + Attendance mock */
 const MACHINES: Machine[] = [
   {
     code: "M001",
@@ -126,7 +128,7 @@ const MACHINES: Machine[] = [
     workCenter: "Machining",
     status: "Run",
     processes: ["MACH", "DRILL"],
-    attendance: "setup-attended", // ต้องมีคนเฉพาะช่วง setup ช่วง run วิ่งเองได้
+    attendance: "setup-attended",
     unattendedFrom: 18,
     unattendedTo: 24,
     requiresSetupOperator: true,
@@ -153,13 +155,12 @@ const MACHINES: Machine[] = [
     workCenter: "Finishing",
     status: "Idle",
     processes: ["PAINT"],
-    attendance: "unattended", // ทำงานค้างคืนได้
+    attendance: "unattended",
     unattendedFrom: 0,
     unattendedTo: 24,
   },
 ];
 
-/** Routing + ตัวอย่าง attendanceOverride mock */
 const INITIAL_ORDERS: Order[] = [
   {
     orderNo: "ORD001",
@@ -232,15 +233,14 @@ const INITIAL_ORDERS: Order[] = [
   },
 ];
 
-/** เวลากะ (ยังคงไว้เพื่อแรเงาพื้นหลังทั้งวันทำงาน) */
+/** เวลากะ */
 const SHIFTS: Shift[] = [
   { name: "Day Shift", start: 8, end: 16 },
   { name: "Night Shift", start: 16, end: 24 },
 ];
 
-/** BREAKS (mock) – ส่วนใหญ่ใช้กับงานที่ “มีคนดูแล” */
+/** BREAKS */
 const BREAKS: BreakRule[] = [
-  // จ–ศ: 10:00–10:15, 12:00–13:00, 15:00–15:15
   ...[1, 2, 3, 4, 5].flatMap((dow) => ([
     { dayOfWeek: dow as 1 | 2 | 3 | 4 | 5, start: "10:00", end: "10:15", appliesTo: "attended-only" as const },
     { dayOfWeek: dow as 1 | 2 | 3 | 4 | 5, start: "12:00", end: "13:00", appliesTo: "attended-only" as const },
@@ -248,9 +248,9 @@ const BREAKS: BreakRule[] = [
   ])),
 ];
 
-/* =============== Time helpers (multi-day) =============== */
-const DAY_START = 8;  // 08:00
-const DAY_END = 24;   // 24:00
+/* =============== Time helpers =============== */
+const DAY_START = 8;
+const DAY_END = 24;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const startOfDay = (d: Date) => { const nd = new Date(d); nd.setHours(0, 0, 0, 0); return nd; };
@@ -263,6 +263,114 @@ const getWeekStartMonday = (d: Date) => {
 };
 const getMonthStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const getDaysInMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+/** แปลง Date → ชั่วโมงทศนิยม (ภายในวัน) */
+const toHourFloat = (d: Date) => d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+
+/** ตรวจว่า machine โหมดใด “ต้องหยุดตามพัก” */
+const machineUsesBreaks = (m: Machine) =>
+  m.attendance === "attended" || m.attendance === "setup-attended";
+
+/** job นี้ชนเวลาพักของ “วันนั้น” ไหม (คำนวณรายวัน) */
+const isOverlappingBreakOnDay = (
+  jobStart: Date,
+  jobEnd: Date,
+  day: Date,
+  machine: Machine
+) => {
+  if (!machineUsesBreaks(machine)) return false;
+
+  const dow = day.getDay() as BreakRule["dayOfWeek"];
+  const rules = BREAKS.filter((b) => b.dayOfWeek === dow);
+  if (!rules.length) return false;
+
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart.getTime() + MS_PER_DAY - 1);
+
+  const s = new Date(Math.max(jobStart.getTime(), dayStart.getTime()));
+  const e = new Date(Math.min(jobEnd.getTime(), dayEnd.getTime()));
+  if (e <= s) return false;
+
+  const sH = toHourFloat(s);
+  const eH = toHourFloat(e);
+
+  return rules.some((b) => {
+    const applies =
+      b.appliesTo === "all" ||
+      machine.attendance === "attended" ||
+      machine.attendance === "setup-attended";
+
+    if (!applies) return false;
+    const bS = hhmmToHour(b.start);
+    const bE = hhmmToHour(b.end);
+    return Math.max(sH, bS) < Math.min(eH, bE);
+  });
+};
+
+/** ตรวจทั้งช่วง job ว่าชนพักอย่างน้อย 1 วันไหม */
+const jobHitsBreak = (job: Job, machine: Machine, viewStart: Date, viewDays: number) => {
+  const js = new Date(job.start);
+  const je = new Date(job.end);
+  for (let d = 0; d < viewDays; d++) {
+    const day = addDays(viewStart, d);
+    if (isOverlappingBreakOnDay(js, je, day, machine)) return true;
+  }
+  return false;
+};
+
+/* ======== NEW: ตรวจ OT ======== */
+/** window ทำงานในแต่ละวันจาก SHIFTS */
+const workingWindowsForDay = (): Array<[number, number]> => {
+  // ใช้ SHIFTS ร่วมกันทุกวัน (ถ้าต้องแยก weekday/holiday สามารถปรับตรงนี้)
+  return SHIFTS.map(s => [s.start, s.end]);
+};
+
+/** นาทีที่อยู่นอกช่วงเวลาทำงานของวันนั้น */
+const overtimeMinutesOnDay = (jobStart: Date, jobEnd: Date, day: Date): number => {
+  const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart.getTime() + MS_PER_DAY - 1);
+
+  // ตัดช่วงให้เหลือเฉพาะของวันนี้
+  const s = new Date(Math.max(jobStart.getTime(), dayStart.getTime()));
+  const e = new Date(Math.min(jobEnd.getTime(), dayEnd.getTime()));
+  if (e <= s) return 0;
+
+  const sH = toHourFloat(s);
+  const eH = toHourFloat(e);
+
+  // รวมช่วงทำงานทั้งหมดในวันนั้น
+  const windows = workingWindowsForDay();
+
+  // รวมความยาวทั้งหมดที่ "อยู่ในช่วงทำงาน"
+  let insideMin = 0;
+  for (const [wS, wE] of windows) {
+    const interStart = Math.max(sH, wS);
+    const interEnd = Math.min(eH, wE);
+    if (interEnd > interStart) insideMin += (interEnd - interStart) * 60;
+  }
+
+  const totalMin = (e.getTime() - s.getTime()) / 60000;
+  const ot = Math.max(0, Math.round(totalMin - insideMin));
+  return ot;
+};
+
+/** รวม OT ของทั้งช่วงงาน (หลายวัน) — นับเฉพาะเครื่องที่ต้องมีคนเฝ้า */
+const getOvertimeMinutes = (job: Job, machine: Machine, viewStart: Date, viewDays: number): number => {
+  if (!(machine.attendance === "attended" || machine.attendance === "setup-attended")) return 0;
+  const js = new Date(job.start);
+  const je = new Date(job.end);
+  let minutes = 0;
+
+  // วนทุกวันในมุมมอง (หรือจะวนจริงๆ ตามช่วงงานก็ได้)
+  // เพื่อความถูกต้อง ให้วนตั้งแต่ startOfDay(js) ถึง startOfDay(je)
+  const startDay = startOfDay(js);
+  const endDay = startOfDay(je);
+  for (let d = 0, cur = new Date(startDay); cur <= endDay; d++, cur = addDays(startDay, d)) {
+    minutes += overtimeMinutesOnDay(js, je, cur);
+  }
+  return minutes;
+};
 
 /* =============== Extras for header/labels =============== */
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
@@ -289,9 +397,63 @@ const hhmmToHour = (s: string) => {
   return hh + (mm || 0) / 60;
 };
 
-/** ความสูง lane เฉพาะกล่องแผนงาน และความสูงแถวชื่อด้านซ้ายให้เท่ากัน */
-const laneBoxH = 80; // px (≈ h-20)
-const laneRowH = laneBoxH + 16; // เผื่อ padding แนวตั้งของฝั่งขวา (px-2/py-2)
+const laneBoxH = 80;
+const laneRowH = laneBoxH + 16;
+
+/* ===== Greedy fallback ===== */
+function greedyAutoPlace(orders: Order[], machines: Machine[], anchorDateISO: string): Job[] {
+  const jobs: Job[] = [];
+  const machineNextFree: Record<string, number> = {};
+  const anchorStart = new Date(anchorDateISO + "T00:00:00");
+  const day0 = new Date(anchorStart);
+  day0.setHours(DAY_START, 0, 0, 0);
+  machines.forEach(m => (machineNextFree[m.code] = day0.getTime()));
+
+  const pushJob = (machineCode: string, order: Order, item: OrderItem, step: RoutingStep, earliestStartMs: number) => {
+    const startMs = Math.max(machineNextFree[machineCode], earliestStartMs);
+    const setupEnd = startMs + step.setupMin * 60000;
+    const runEnd = setupEnd + step.runMin * 60000;
+    machineNextFree[machineCode] = runEnd;
+    const sIso = new Date(startMs).toISOString();
+    const eIso = new Date(runEnd).toISOString();
+    const job: Job = {
+      jobId: `JOB-${order.orderNo}-${item.itemNo}-${step.seq}-${machineCode}-${startMs}`,
+      orderNo: order.orderNo,
+      itemNo: item.itemNo,
+      seq: step.seq,
+      process: step.process,
+      processName: step.processName,
+      machineCode,
+      start: sIso,
+      end: eIso,
+      setupMin: step.setupMin,
+      runMin: step.runMin,
+      product: item.product,
+      qty: item.qty
+    };
+    jobs.push(job);
+    return job;
+  };
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      let prevEnd: number | null = null;
+      for (const step of item.routing.sort((a, b) => a.seq - b.seq)) {
+        let bestMachine: string | null = null;
+        let bestStart = Number.POSITIVE_INFINITY;
+        for (const mc of step.machineGroup) {
+          const available = machineNextFree[mc] ?? day0.getTime();
+          const earliest = Math.max(available, prevEnd ?? day0.getTime());
+          if (earliest < bestStart) { bestStart = earliest; bestMachine = mc; }
+        }
+        if (!bestMachine) continue;
+        const job = pushJob(bestMachine, order, item, step, prevEnd ?? day0.getTime());
+        prevEnd = new Date(job.end).getTime();
+      }
+    }
+  }
+  return jobs;
+}
 
 const ProductionPlannerBoard: React.FC = () => {
   const [orders] = useState<Order[]>(INITIAL_ORDERS);
@@ -317,26 +479,37 @@ const ProductionPlannerBoard: React.FC = () => {
   const [viewScale, setViewScale] = useState<ViewScale>("day");
   const [anchorDate, setAnchorDate] = useState<string>("2025-10-01");
 
+  // NEW: filter ซ้าย
+  const [leftListFilter, setLeftListFilter] = useState<LeftListFilter>("unplanned");
+
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const timeHeaderRef = useRef<HTMLDivElement | null>(null);
   const [timeHeaderH, setTimeHeaderH] = useState<number>(40);
 
+  useEffect(() => {
+    const initOrders: Record<string, boolean> = {};
+    orders.forEach(o => { initOrders[o.orderNo] = true; });
+    setExpandedOrders(initOrders);
+  }, [orders]);
+
   // === Drag-move existing job ===
   const [dragging, setDragging] = useState<{
     jobId: string;
-    startClientX: number;   // ตำแหน่งเมาส์ตอนเริ่ม
-    origStart: Date;        // เวลาเริ่มเดิมของงาน
-    origEnd: Date;          // เวลาจบเดิมของงาน
+    startClientX: number;
+    origStart: Date;
+    origEnd: Date;
   } | null>(null);
 
-  // snap เป็นนาที (เช่น 15 = ทุก 15 นาที)
+  const clickGuardRef = useRef(false);
+  const isPointerMovingRef = useRef(false);
+
   const SNAP_MIN = 15;
   const snapMinutes = (min: number) => Math.round(min / SNAP_MIN) * SNAP_MIN;
 
   const startDragJob = (e: React.PointerEvent<HTMLDivElement>, job: Job) => {
     if (!editMode) return;
-    // เพื่อไม่ให้มี text selection ระหว่างลาก
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    isPointerMovingRef.current = false;
     setDragging({
       jobId: job.jobId,
       startClientX: e.clientX,
@@ -348,9 +521,9 @@ const ProductionPlannerBoard: React.FC = () => {
   const onLanePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragging) return;
     e.preventDefault();
+    isPointerMovingRef.current = true;
 
     const dx = e.clientX - dragging.startClientX;
-    // แปลง px -> นาที
     const deltaMinRaw = (dx / pxPerHour) * 60;
     const deltaMin = snapMinutes(deltaMinRaw);
 
@@ -368,6 +541,11 @@ const ProductionPlannerBoard: React.FC = () => {
     if (!dragging) return;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
     setDragging(null);
+    if (isPointerMovingRef.current) {
+      clickGuardRef.current = true;
+      setTimeout(() => { clickGuardRef.current = false; }, 120);
+    }
+    isPointerMovingRef.current = false;
   };
 
   // View range
@@ -384,7 +562,7 @@ const ProductionPlannerBoard: React.FC = () => {
     return getDaysInMonth(new Date(anchorDate + "T00:00:00"));
   }, [anchorDate, viewScale]);
 
-  // sync header height (ซ้ายให้เท่ากับขวา)
+  // sync header height
   useEffect(() => {
     const el = timeHeaderRef.current;
     if (!el) return;
@@ -400,7 +578,7 @@ const ProductionPlannerBoard: React.FC = () => {
   }, [viewScale, viewDays]);
 
   // Geometry
-  const dayWidthPx = (DAY_END - DAY_START) * 90; // pxPerHour (fixed)
+  const dayWidthPx = (DAY_END - DAY_START) * 90;
   const laneWidthPx = viewDays * dayWidthPx;
 
   // ====== Data helpers ======
@@ -445,19 +623,28 @@ const ProductionPlannerBoard: React.FC = () => {
       0
     );
     const scheduledProcesses = jobs.length;
+
+    // NEW: รวม OT ทั้งหมด (เฉพาะ attended / setup-attended)
+    const totalOTMin = jobs.reduce((acc, j) => {
+      const m = MACHINES.find(mm => mm.code === j.machineCode);
+      if (!m) return acc;
+      return acc + getOvertimeMinutes(j, m, viewStart, viewDays);
+    }, 0);
+
     return {
       onTimePercent: totalJobs > 0 ? Math.round((onTimeJobs / totalJobs) * 100) : 100,
       utilization: Math.round(avgUtilization),
       scheduledProcesses,
       unscheduledProcesses: totalProcesses - scheduledProcesses,
+      totalOTMin
     };
-  }, [jobs, orders]);
+  }, [jobs, orders, viewStart, viewDays]);
 
-  // Conflicts
+  // Conflicts (UI highlight)
   const conflicts = useMemo<Conflict[]>(() => {
     const detected: Conflict[] = [];
     jobs.forEach((job, idx) => {
-      // overlap (same machine)
+      // overlap
       jobs.forEach((other, otherIdx) => {
         if (idx !== otherIdx && job.machineCode === other.machineCode) {
           const jobStart = new Date(job.start).getTime();
@@ -486,6 +673,7 @@ const ProductionPlannerBoard: React.FC = () => {
       // PM
       const machine = MACHINES.find((m) => m.code === job.machineCode);
       if (machine?.status === "PM") detected.push({ type: "pm", jobId: job.jobId, detail: `${job.machineCode} under maintenance` });
+
       // Capability
       const order = orders.find((o) => o.orderNo === job.orderNo);
       const item = order?.items.find((i) => i.itemNo === job.itemNo);
@@ -493,65 +681,104 @@ const ProductionPlannerBoard: React.FC = () => {
       if (routingStep && !routingStep.machineGroup.includes(job.machineCode)) {
         detected.push({ type: "capability", jobId: job.jobId, detail: `${job.machineCode} cannot perform ${job.processName}` });
       }
+
+      // Break (เฉพาะเครื่องที่ต้องหยุดพักตามกฎ)
+      if (machine && jobHitsBreak(job, machine, viewStart, viewDays)) {
+        detected.push({ type: "break", jobId: job.jobId, detail: "Overlaps break time" });
+      }
+
+      // NEW: OT — เกินช่วงเวลาทำงาน
+      if (machine) {
+        const otMin = getOvertimeMinutes(job, machine, viewStart, viewDays);
+        if (otMin > 0) {
+          detected.push({ type: "ot", jobId: job.jobId, detail: `Overtime ${otMin} min` });
+        }
+      }
     });
     return detected;
-  }, [jobs, orders]);
+  }, [jobs, orders, viewStart, viewDays]);
 
-  // ====== เรียก AI Plan จริงจาก Backend ======
-  const handleAIPlan = async () => {
-    try {
-      setAiLoading(true);
-      setAiKpis(null);
-
-      const payload = {
-        process_defs: [
-          { name: "MACH", base_duration_min: 75, compatible_machines: ["M001", "M002"] },
-          { name: "DRILL", base_duration_min: 36, compatible_machines: ["M001", "M002"] },
-          { name: "ASSY", base_duration_min: 48, compatible_machines: ["M003"] },
-        ],
-        product_defs: [
-          { name: "WDGT-A", process_plan: ["MACH", "DRILL", "ASSY"], bom: [] },
-        ],
-        machines: [
-          { name: "M001" },
-          { name: "M002" },
-          { name: "M003" },
-        ],
-        setup_sd: [],
-        speed: [],
-        orders: [
-          { order_id: "ORD-100", product: "WDGT-A", qty: 10, due_date: "2025-09-23T17:00:00" },
-        ],
-        orders_multiline: [],
-        calendar: {
-          weekday_blocks: {
-            "1": [["06:00", "14:00"], ["14:00", "22:00"]],
-            "2": [["06:00", "14:00"], ["14:00", "22:00"]],
-            "3": [["06:00", "14:00"], ["14:00", "22:00"]],
-            "4": [["06:00", "14:00"], ["14:00", "22:00"]],
-            "5": [["06:00", "14:00"], ["14:00", "22:00"]],
-            "0": [],
-            "6": []
-          },
-          breaks: [["10:00", "10:15"], ["12:00", "13:00"], ["15:00", "15:15"]],
-          holidays: [],
-          treat_weekend_as_off: true
+  /* ===== Build AI payload ===== */
+  const buildAiPayload = () => {
+    const processMap = new Map<string, { name: string; base: number; machines: string[] }>();
+    for (const o of orders) {
+      for (const it of o.items) {
+        for (const r of it.routing) {
+          const k = r.process;
+          if (!processMap.has(k)) {
+            processMap.set(k, { name: r.process, base: r.runMin, machines: [...r.machineGroup] });
+          } else {
+            const cur = processMap.get(k)!;
+            cur.base = Math.round((cur.base + r.runMin) / 2);
+            cur.machines = Array.from(new Set([...cur.machines, ...r.machineGroup]));
+          }
         }
-      };
+      }
+    }
+    const process_defs = Array.from(processMap.values()).map(x => ({
+      name: x.name,
+      base_duration_min: x.base,
+      compatible_machines: x.machines
+    }));
 
-      // ใช้ day0 แบบ "naive" ให้ตรงกับ due_date ที่ไม่มี timezone (หลีกเลี่ยง offset error)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/plan?day0=2025-09-22`, {
+    const productSet = new Map<string, string[]>();
+    for (const o of orders) {
+      for (const it of o.items) {
+        const key = it.product;
+        const seqPlan = [...it.routing].sort((a, b) => a.seq - b.seq).map(r => r.process);
+        if (!productSet.has(key)) productSet.set(key, seqPlan);
+      }
+    }
+    const product_defs = Array.from(productSet.entries()).map(([name, plan]) => ({
+      name,
+      process_plan: plan,
+      bom: []
+    }));
+
+    const machines = MACHINES.map(m => ({ name: m.code }));
+
+    const ordersPayload = orders.flatMap(o =>
+      o.items.map(it => ({
+        order_id: `${o.orderNo}-I${it.itemNo}`,
+        product: it.product,
+        qty: it.qty,
+        due_date: `${o.dueDate}T17:00:00`
+      }))
+    );
+
+    const calendar = {
+      weekday_blocks: {
+        "1": [["06:00", "14:00"], ["14:00", "22:00"]],
+        "2": [["06:00", "14:00"], ["14:00", "22:00"]],
+        "3": [["06:00", "14:00"], ["14:00", "22:00"]],
+        "4": [["06:00", "14:00"], ["14:00", "22:00"]],
+        "5": [["06:00", "14:00"], ["14:00", "22:00"]],
+        "0": [],
+        "6": []
+      },
+      breaks: [["10:00", "10:15"], ["12:00", "13:00"], ["15:00", "15:15"]],
+      holidays: [],
+      treat_weekend_as_off: true
+    };
+
+    return { process_defs, product_defs, machines, setup_sd: [], speed: [], orders: ordersPayload, orders_multiline: [], calendar };
+  };
+
+  /* ===== เรียก AI แบบ “วางทั้งหมด” ===== */
+  const handleAutoPlaceAI = async () => {
+    setAiLoading(true);
+    setAiKpis(null);
+    try {
+      const payload = buildAiPayload();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/ai/plan?day0=${anchorDate}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-
-      if (!data.ok || !data.result?.schedule_csv) {
-        throw new Error("No schedule data received");
-      }
+      if (!data.ok || !data.result?.schedule_csv) throw new Error("No schedule data received");
 
       const csv = data.result.schedule_csv.trim();
       const lines = csv.split(/\r?\n/).filter(Boolean);
@@ -565,25 +792,24 @@ const ProductionPlannerBoard: React.FC = () => {
         const endIso = new Date(get("end_ts").trim().replace(" ", "T")).toISOString();
         return {
           jobId: `JOB-${get("task_id")}`,
-          orderNo: get("order_id"),
-          itemNo: 1,
+          orderNo: (get("order_id") || "").split("-I")[0] || get("order_id"),
+          itemNo: parseInt((get("order_id") || "").split("-I")[1] || "1", 10) || 1,
           seq: parseInt(get("task_id"), 10),
           process: get("process") as ProcessCode,
           processName: get("process"),
           machineCode: get("machine"),
           start: startIso,
           end: endIso,
-          setupMin: parseFloat(get("setup_min")),
-          runMin: parseFloat(get("end_min")) - parseFloat(get("start_min")),
+          setupMin: parseFloat(get("setup_min") || "0"),
+          runMin: Math.max(0, (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000 - parseFloat(get("setup_min") || "0")),
           product: get("product"),
-          qty: 10,
+          qty: parseInt(get("qty") || "1", 10) || 1,
         };
       });
 
       setJobs(jobsParsed);
       setAiKpis(data.result.kpis || null);
 
-      // ปรับ anchorDate ให้เลื่อนไปวันแรกที่มีงาน เพื่อเห็นงานทันที
       if (jobsParsed.length > 0) {
         const firstStart = new Date(
           jobsParsed.reduce((min, j) => (new Date(j.start) < new Date(min) ? j.start : min), jobsParsed[0].start)
@@ -594,27 +820,25 @@ const ProductionPlannerBoard: React.FC = () => {
         setAnchorDate(`${y}-${m}-${d}`);
       }
 
-      if (data.result?.kpis?.makespan_min != null) {
-        alert(`✅ AI Plan loaded Makespan: ${data.result.kpis.makespan_min} min`);
-      } else {
-        alert(`✅ AI Plan loaded`);
-      }
+      alert(data.result?.kpis?.makespan_min != null ? `✅ AI Auto-Place done · Makespan ${data.result.kpis.makespan_min} min` : "✅ AI Auto-Place done");
     } catch (err) {
       console.error(err);
-      alert("AI Plan failed: " + (err as Error).message);
+      const fallback = greedyAutoPlace(orders, MACHINES, anchorDate);
+      setJobs(fallback);
+      // alert("⚠️ AI backend unavailable — used Greedy fallback auto-place instead.");
     } finally {
       setAiLoading(false);
     }
   };
 
-  // DnD
+  // DnD — drag from left to lanes
   const handleDragStart = (
     e: React.DragEvent<HTMLDivElement>,
     order: Order,
     item: OrderItem,
     routingStep: RoutingStep
   ): void => {
-    if (!editMode) return; // ต้องเข้าโหมดแก้ไขก่อนลาก
+    if (!editMode) return;
     e.dataTransfer.effectAllowed = "move";
     setDraggedProcess({ order, item, routingStep });
   };
@@ -646,7 +870,6 @@ const ProductionPlannerBoard: React.FC = () => {
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
 
-    // คำนวณวัน/ชั่วโมงจากตำแหน่ง x
     const dayIdx = Math.max(0, Math.min(viewDays - 1, Math.floor(x / dayWidthPx)));
     const xInDay = x - dayIdx * dayWidthPx;
 
@@ -658,7 +881,6 @@ const ProductionPlannerBoard: React.FC = () => {
     let startTime = addDays(new Date(viewStart), dayIdx);
     startTime.setHours(hour, 0, 0, 0);
 
-    // เคารพงานก่อนหน้าให้เสร็จก่อน
     if (routingStep.seq > 1) {
       const prevJob = jobs.find(
         (j) => j.orderNo === order.orderNo && j.itemNo === item.itemNo && j.seq === routingStep.seq - 1
@@ -730,7 +952,7 @@ const ProductionPlannerBoard: React.FC = () => {
 
   // Header render
   const renderTimeHeader = () => {
-    const pxPerHour = 90; // fixed matching lane calc
+    const pxPerHour = 90;
     if (viewScale === "day") {
       return (
         <div className="relative" style={{ width: laneWidthPx }}>
@@ -808,7 +1030,6 @@ const ProductionPlannerBoard: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="min-w-0">
                 <h1 className="text-2xl font-bold text-white">Production Planner Board</h1>
-                <p className="text-sm text-white/70">เพิ่ม Master Data (Attendance) + Breaks mock</p>
               </div>
             </div>
           </div>
@@ -833,20 +1054,20 @@ const ProductionPlannerBoard: React.FC = () => {
               <span className="whitespace-nowrap">{editMode ? "Done" : "Edit"}</span>
             </button>
 
-            {/* AI Plan */}
+            {/* Auto-Place (AI) */}
             <button
               type="button"
-              onClick={handleAIPlan}
+              onClick={handleAutoPlaceAI}
               className={[
                 "btn btn-primary flex items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
               ].join(" ")}
-              disabled={aiLoading || jobs.length === 0}
+              disabled={!editMode || aiLoading}
               aria-busy={aiLoading}
-              title={jobs.length === 0 ? "No jobs to plan" : "Let AI plan the schedule"}
+              title="Let AI place all orders automatically"
             >
               {aiLoading ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
-              <span className="whitespace-nowrap">{aiLoading ? "Planning..." : "AI Plan"}</span>
+              <span className="whitespace-nowrap">{aiLoading ? "AI plan..." : "AI plan"}</span>
             </button>
 
             {/* Clear All */}
@@ -861,7 +1082,7 @@ const ProductionPlannerBoard: React.FC = () => {
                 "btn btn-outline flex items-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
               ].join(" ")}
-              disabled={aiLoading || jobs.length === 0}
+              disabled={!editMode || aiLoading || jobs.length === 0}
               title={jobs.length === 0 ? "No jobs to clear" : "Clear all scheduled jobs"}
             >
               <Trash2 size={18} />
@@ -873,12 +1094,13 @@ const ProductionPlannerBoard: React.FC = () => {
         tabs={
           <>
             {/* KPI (local UI calc) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {[
                 { label: "On-Time %", val: `${kpis.onTimePercent}%`, tone: "text-emerald-300" },
                 { label: "Utilization", val: `${kpis.utilization}%`, tone: "text-cyan-300" },
                 { label: "Scheduled", val: kpis.scheduledProcesses, tone: "text-sky-300" },
                 { label: "Unscheduled", val: kpis.unscheduledProcesses, tone: "text-amber-300" },
+                { label: "Total OT (min)", val: kpis.totalOTMin, tone: "text-orange-300" },
               ].map((k, i) => (
                 <div key={i} className="glass-card glass-card-default-padding">
                   <div className="text-xs font-medium text-white/80">{k.label}</div>
@@ -946,6 +1168,26 @@ const ProductionPlannerBoard: React.FC = () => {
                   <option className="select option" value="Finishing">Finishing</option>
                 </select>
               </div>
+
+              {/* NEW: filter left list */}
+              <div className="flex items-center gap-3">
+                <Filter size={16} className="text-white/70" />
+                <div className="inline-flex rounded-lg overflow-hidden border border-white/15">
+                  <button
+                    className={`w-20 px-2 py-2 ${leftListFilter === "all" ? "bg-cyan-600/30 text-white" : "bg-white/5 text-white/70 hover:text-white"}`}
+                    onClick={() => setLeftListFilter("all")}
+                  >
+                    All
+                  </button>
+                  <button
+                    className={`w-36 px-2 py-2 ${leftListFilter === "unplanned" ? "bg-cyan-600/30 text-white" : "bg-white/5 text-white/70 hover:text-white"}`}
+                    onClick={() => setLeftListFilter("unplanned")}
+                    title="Show items with 0 scheduled steps"
+                  >
+                    Unplanned only
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         }
@@ -953,7 +1195,7 @@ const ProductionPlannerBoard: React.FC = () => {
 
       {/* === 2-column Layout === */}
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
           {/* LEFT: Orders & Routing */}
           <div className="rounded-xl border border-white/15 bg-white/10 backdrop-blur overflow-hidden">
             <div className="p-4 border-b border-white/10 bg-white/5">
@@ -961,7 +1203,9 @@ const ProductionPlannerBoard: React.FC = () => {
                 <GitBranch size={18} className="text-cyan-300" />
                 Process Routing
               </h2>
-              <p className="text-xs text-white/70 mt-1">Drag processes in sequence order</p>
+              <p className="text-xs text-white/70 mt-1">
+                Drag processes in sequence order
+              </p>
               <div className="mt-1 grid grid-cols-[minmax(90px,auto)_minmax(120px,auto)_1fr] gap-2">
                 <div className="tag status-success truncate">Follow Seq</div>
                 <div className="tag status-info truncate">Predecessor Req</div>
@@ -972,6 +1216,21 @@ const ProductionPlannerBoard: React.FC = () => {
             <div className="p-3 space-y-2 max-h-[70vh] overflow-y-auto">
               {orders.map((order) => {
                 const isOrderExpanded = !!expandedOrders[order.orderNo];
+
+                // สรุป qty ทั้ง order
+                const orderQty = order.items.reduce((s, it) => s + it.qty, 0);
+
+                // กรอง item ตาม leftListFilter
+                const itemsForRender = order.items.filter((it) => {
+                  if (leftListFilter === "all") return true;
+                  const status = getItemStatus(order.orderNo, it.itemNo);
+                  return status === "unplanned";
+                });
+
+                if (itemsForRender.length === 0 && leftListFilter === "unplanned") {
+                  return null;
+                }
+
                 return (
                   <div key={order.orderNo} className="border-2 border-white/10 rounded-lg overflow-hidden bg-white/5">
                     {/* Order Header */}
@@ -984,18 +1243,9 @@ const ProductionPlannerBoard: React.FC = () => {
                           {isOrderExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                           <span className="font-semibold text-sm text-white">{order.orderNo}</span>
                         </div>
-                        {/* <span
-                          className={[
-                            "text-xs px-2 py-1 rounded border",
-                            order.priority === 1
-                              ? "bg-rose-500/15 text-rose-200 border-rose-400/30"
-                              : order.priority === 2
-                                ? "bg-amber-500/15 text-amber-200 border-amber-400/30"
-                                : "bg-emerald-500/15 text-emerald-200 border-emerald-400/30",
-                          ].join(" ")}
-                        >
-                          P{order.priority}
-                        </span> */}
+                        <div className="text-[11px] px-2 py-0.5 rounded border border-white/15 bg-white/10 text-white/90">
+                          Total Qty: <span className="font-semibold text-white">{orderQty}</span>
+                        </div>
                       </div>
                       <div className="text-xs text-white/80 space-y-1">
                         <div className="flex items-center gap-1">
@@ -1012,14 +1262,16 @@ const ProductionPlannerBoard: React.FC = () => {
                     {/* Items */}
                     {isOrderExpanded && (
                       <div className="bg-white/5">
-                        {order.items.map((item) => {
+                        {itemsForRender.map((item) => {
                           const itemKey = `${order.orderNo}-${item.itemNo}`;
                           const isItemExpanded = !!expandedItems[itemKey];
                           const itemStatus = getItemStatus(order.orderNo, item.itemNo);
                           const processes = getItemProcesses(order.orderNo, item.itemNo);
+                          const plannedCount = processes.filter((p) => p.status === "scheduled").length;
 
                           return (
                             <div key={itemKey} className="border-t border-white/10">
+                              {/* Item Header */}
                               <div
                                 className="p-2 bg-white/5 cursor-pointer hover:bg-white/10 flex items-center justify-between"
                                 onClick={() => toggleItemExpand(itemKey)}
@@ -1027,21 +1279,30 @@ const ProductionPlannerBoard: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                   {isItemExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                   <span className="text-xs font-medium text-white">
-                                    Item {item.itemNo}: {item.product}
+                                    {item.itemNo}. {item.product}
                                   </span>
                                 </div>
-                                <span
-                                  className={[
-                                    "text-xs px-2 py-0.5 rounded border",
-                                    itemStatus === "complete"
-                                      ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/30"
-                                      : itemStatus === "partial"
-                                        ? "bg-cyan-500/15 text-cyan-200 border-cyan-400/30"
-                                        : "bg-white/10 text-white/80 border-white/15",
-                                  ].join(" ")}
-                                >
-                                  {processes.filter((p) => p.status === "scheduled").length}/{processes.length}
-                                </span>
+
+                                <div className="flex items-center gap-2">
+                                  {/* Qty badge */}
+                                  <span className="text-[11px] px-2 py-0.5 rounded border border-cyan-400/30 bg-cyan-500/10 text-cyan-100">
+                                    Qty: <span className="font-semibold text-white">{item.qty}</span>
+                                  </span>
+
+                                  {/* Progress badge */}
+                                  <span
+                                    className={[
+                                      "text-xs px-2 py-0.5 rounded border",
+                                      itemStatus === "complete"
+                                        ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/30"
+                                        : itemStatus === "partial"
+                                          ? "bg-cyan-500/15 text-cyan-200 border-cyan-400/30"
+                                          : "bg-white/10 text-white/80 border-white/15",
+                                    ].join(" ")}
+                                  >
+                                    {plannedCount}/{processes.length}
+                                  </span>
+                                </div>
                               </div>
 
                               {/* Steps */}
@@ -1051,13 +1312,18 @@ const ProductionPlannerBoard: React.FC = () => {
                                     const processInfo = processes.find((p) => p.seq === step.seq);
                                     const isScheduled = processInfo?.status === "scheduled";
                                     const canSchedule = canScheduleProcess(order.orderNo, item.itemNo, step.seq);
-                                    const isBlocked = !canSchedule && !isScheduled;
+
+                                    // ✅ เงื่อนไข "ล็อก"
+                                    const isBlocked = !editMode || (!canSchedule && !isScheduled);
 
                                     return (
                                       <div key={step.seq} className="flex items-start gap-1">
+                                        {/* Step number bubble */}
                                         <div className="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-500/15 text-cyan-200 border border-cyan-400/30 text-xs grid place-items-center font-medium mt-1">
                                           {step.seq}
                                         </div>
+
+                                        {/* Step card */}
                                         <div
                                           draggable={editMode && canSchedule && !isScheduled}
                                           onDragStart={(e) =>
@@ -1075,18 +1341,24 @@ const ProductionPlannerBoard: React.FC = () => {
                                           <div className="flex items-center justify-between mb-1">
                                             <span className="font-medium text-white">{step.processName}</span>
                                             {isScheduled && <CheckCircle size={12} className="text-emerald-300" />}
-                                            {isBlocked && <span className="text-white/50 text-xs">🔒</span>}
-                                          </div>
-                                          <div className="text-white/80 space-y-0.5">
-                                            <div>Setup: {step.setupMin}m, Run: {step.runMin}m</div>
-                                            <div className="text-white/70">Machines: {step.machineGroup.join(", ")}</div>
-                                            {step.attendanceOverride && (
-                                              <div className="text-[11px]">
-                                                Attendance: <span className={`px-1.5 py-0.5 rounded border ${attendanceClass(step.attendanceOverride)}`}>
-                                                  {attendanceLabel(step.attendanceOverride)}
-                                                </span>
-                                              </div>
+                                            {isBlocked && (
+                                              <span className="text-white/50 text-xs">
+                                                <Lock size={16} />
+                                              </span>
                                             )}
+                                          </div>
+
+                                          {/* Step details */}
+                                          <div className="text-white/80 space-y-0.5">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-white/70">Machines:</span>
+                                              <span className="text-white/90">{step.machineGroup.join(", ")}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-white/70">Run:</span>
+                                              <span className="text-white/90">{step.runMin} min</span>
+                                            </div>
+
                                             {isScheduled && processInfo && (
                                               <div className="text-cyan-200 font-medium mt-1 truncate">
                                                 → {processInfo.machineCode} @{" "}
@@ -1100,6 +1372,7 @@ const ProductionPlannerBoard: React.FC = () => {
                                             )}
                                           </div>
                                         </div>
+
                                         {idx < item.routing.length - 1 && (
                                           <ArrowRight size={14} className="text-white/50 mt-3" />
                                         )}
@@ -1113,13 +1386,14 @@ const ProductionPlannerBoard: React.FC = () => {
                         })}
                       </div>
                     )}
+
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* CENTER: Gantt — แถวซ้าย/ขวาสูงเท่ากัน + header ขวา sticky */}
+          {/* CENTER: Gantt */}
           <div className="rounded-xl border border-white/15 bg-white/10 backdrop-blur p-0 overflow-hidden">
             <div className="max-h-[70vh] overflow-y-auto">
               <div className="flex">
@@ -1140,6 +1414,7 @@ const ProductionPlannerBoard: React.FC = () => {
                     >
                       <div className="font-medium text-sm text-white flex items-center gap-2">
                         {m.name}
+                        {/* Attendance tag */}
                         <span className={`tag ${attendanceClass(m.attendance)}`}>{attendanceLabel(m.attendance)}</span>
                       </div>
                       <div className="text-xs text-white/70">{m.workCenter}</div>
@@ -1148,7 +1423,7 @@ const ProductionPlannerBoard: React.FC = () => {
                   ))}
                 </div>
 
-                {/* ขวา: header + lanes ใช้สกรอลล์แนวนอนร่วมกัน */}
+                {/* ขวา: header + lanes */}
                 <div className="min-w-0 flex-1">
                   <div ref={timelineScrollRef} className="overflow-x-auto">
                     <div className="sticky top-0 z-20 bg-white/5 border-b border-white/10 px-2 py-2" ref={timeHeaderRef}>
@@ -1167,7 +1442,20 @@ const ProductionPlannerBoard: React.FC = () => {
                           onPointerUp={endDragJob}
                           onPointerCancel={endDragJob}
                         >
-                          {/* แรเงากะงาน (พื้นหลัง) */}
+                          {/* Maintenance lane overlay */}
+                          {machine.status === "PM" && (
+                            <>
+                              <div
+                                className="absolute inset-0 z-0 rounded bg-fuchsia-500/10 ring-1 ring-fuchsia-400/30"
+                                title="Machine under maintenance"
+                              />
+                              <div className="absolute top-1 left-1 z-10 text-[10px] px-1.5 py-0.5 rounded border border-fuchsia-400/40 bg-fuchsia-600/20 text-fuchsia-200">
+                                MAINTENANCE
+                              </div>
+                            </>
+                          )}
+
+                          {/* Shift shading */}
                           {Array.from({ length: viewDays }, (_, d) =>
                             SHIFTS.map((shift) => (
                               <div
@@ -1181,7 +1469,7 @@ const ProductionPlannerBoard: React.FC = () => {
                             ))
                           )}
 
-                          {/* เส้นแบ่งวัน/ชั่วโมง */}
+                          {/* Day/Hour lines */}
                           {Array.from({ length: viewDays + 1 }, (_, i) => (
                             <div
                               key={`dayline-${i}`}
@@ -1202,35 +1490,35 @@ const ProductionPlannerBoard: React.FC = () => {
                               </div>
                             ))}
 
-                          {/* BREAKS – แรเงาเฉพาะเครื่องที่ต้องมีคน/หรือกฎแบบ all */}
+                          {/* BREAKS — สีขึ้นกับโหมดเครื่อง (ต้องหยุด = แดงอ่อน, ไม่บังคับ = เหลืองอ่อน) */}
                           {Array.from({ length: viewDays }, (_, d) => {
                             const day = addDays(viewStart, d);
                             const dow = day.getDay() as BreakRule["dayOfWeek"];
                             const rules = BREAKS.filter((b) => b.dayOfWeek === dow);
+                            const requiresBreak = machineUsesBreaks(machine);
 
                             return rules.map((b, idx) => {
                               const startH = hhmmToHour(b.start);
                               const endH = hhmmToHour(b.end);
 
-                              // applies?
                               const applies =
                                 b.appliesTo === "all" ||
                                 machine.attendance === "attended" ||
                                 machine.attendance === "setup-attended";
                               if (!applies) return null;
 
-                              // clamp ให้อยู่ในช่วงมุมมอง
                               const from = Math.max(DAY_START, startH);
                               const to = Math.min(DAY_END, endH);
                               if (to <= from) return null;
 
                               return (
                                 <div
-                                  key={`break-${d}-${idx}`}   // <- แก้ตรงนี้ เอา ] ออก
-                                  className="absolute top-0 h-full bg-amber-400/15 z-20"
+                                  key={`break-${d}-${idx}`}
+                                  className={`absolute top-0 h-full z-20 ${requiresBreak ? "bg-rose-400/15" : "bg-amber-400/15"
+                                    }`}
                                   style={{
-                                    left: d * dayWidthPx + (from - DAY_START) * pxPerHour, // ใช้ pxPerHour
-                                    width: (to - from) * pxPerHour,                        // ใช้ pxPerHour
+                                    left: d * dayWidthPx + (from - DAY_START) * pxPerHour,
+                                    width: (to - from) * pxPerHour,
                                   }}
                                   title={`Break ${b.start}-${b.end}`}
                                 />
@@ -1249,8 +1537,22 @@ const ProductionPlannerBoard: React.FC = () => {
                                 (s.getHours() + s.getMinutes() / 60 - DAY_START) * 90;
                               const width = ((e.getTime() - s.getTime()) / 3600000) * 90;
 
+                              // สี/ป้ายตามกฎ Break, Maintenance, OT
+                              const hitsBreak = jobHitsBreak(job, machine, viewStart, viewDays);
+                              const otMin = getOvertimeMinutes(job, machine, viewStart, viewDays);
+                              const isPmLane = machine.status === "PM";
+
+                              const jobTone =
+                                hitsBreak
+                                  ? "bg-rose-500/90 border-rose-300/70"
+                                  : isPmLane
+                                    ? "bg-fuchsia-600/80 border-fuchsia-300/70"
+                                    : otMin > 0
+                                      ? "bg-orange-500/90 border-orange-300/70"
+                                      : "bg-cyan-500/80 border-cyan-300/60";
+
                               const types = conflicts.filter((c) => c.jobId === job.jobId).map((c) => c.type);
-                              const hasConflict = types.length > 0;
+                              const hasConflict = types.length > 0 || hitsBreak || otMin > 0;
 
                               return (
                                 <div
@@ -1258,22 +1560,50 @@ const ProductionPlannerBoard: React.FC = () => {
                                   style={{ left: startX, width, top: 4, height: laneBoxH - 8 }}
                                   className={[
                                     "absolute rounded shadow-md cursor-pointer group border z-30",
-                                    hasConflict
-                                      ? "bg-rose-500/80 border-rose-400/60"
-                                      : "bg-cyan-500/80 border-cyan-300/60",
+                                    jobTone,
                                   ].join(" ")}
-                                  onClick={() => { setSelectedJob(job); setJobModalOpen(true); }}
+                                  onClick={() => {
+                                    if (clickGuardRef.current) return;
+                                    setSelectedJob(job);
+                                    setJobModalOpen(true);
+                                  }}
                                   onPointerDown={(e) => startDragJob(e, job)}
-                                  title={hasConflict ? `Conflicts: ${types.join(", ")}` : "Click to view"}
+                                  title={hasConflict ? `Conflicts: ${[...types, ...(hitsBreak ? ["break"] : []), ...(otMin > 0 ? ["ot"] : [])].join(", ")}` : "Click to view"}
                                 >
+                                  {/* Badges มุมขวาบน */}
+                                  <div className="absolute top-1.5 right-1.5 flex gap-1">
+                                    {isPmLane && (
+                                      <span className="px-1.5 py-0.5 rounded border border-fuchsia-300/50 bg-fuchsia-600/30 text-[10px]">
+                                        PM
+                                      </span>
+                                    )}
+                                    {hitsBreak && (
+                                      <span className="px-1.5 py-0.5 rounded border border-rose-300/60 bg-rose-600/40 text-[10px]">
+                                        BREAK
+                                      </span>
+                                    )}
+                                    {otMin > 0 && (
+                                      <span className="px-1.5 py-0.5 rounded border border-orange-300/60 bg-orange-600/40 text-[10px]">
+                                        OT
+                                      </span>
+                                    )}
+                                    {!hitsBreak && otMin === 0 && types.length > 0 && (
+                                      <span className="px-1.5 py-0.5 rounded border border-amber-300/60 bg-amber-600/30 text-[10px]">
+                                        {types[0].toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+
                                   <div className="p-2 text-white text-[11px] h-full flex flex-col justify-between">
-                                    <div>
-                                      <div className="font-semibold truncate">{job.orderNo}-{job.itemNo}</div>
-                                      <div className="opacity-90 truncate">Step {job.seq}: {job.processName}</div>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="font-semibold truncate">{job.orderNo}-{job.itemNo}</div>
+                                        <div className="opacity-90 truncate">Step {job.seq}: {job.processName}</div>
+                                      </div>
                                     </div>
                                     <div className="flex items-center justify-between opacity-90">
                                       <span className="truncate">{job.product}</span>
-                                      <span className="opacity-80">{job.setupMin}m + {job.runMin}m</span>
+                                      <span className="opacity-90">Run {job.runMin}m</span>
                                     </div>
                                   </div>
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded" />
@@ -1295,7 +1625,7 @@ const ProductionPlannerBoard: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT: (ออปชัน) */}
+          {/* RIGHT: (optional panel) */}
         </div>
       </div>
 
@@ -1321,6 +1651,18 @@ const ProductionPlannerBoard: React.FC = () => {
                 <div className="flex justify-between"><span className="text-white/70">Run</span><span className="font-medium">{selectedJob.runMin} min</span></div>
                 <div className="flex justify-between"><span className="text-white/70">Start</span><span className="font-medium">{new Date(selectedJob.start).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-white/70">End</span><span className="font-medium">{new Date(selectedJob.end).toLocaleString()}</span></div>
+
+                {/* NEW: แสดง OT ถ้ามี */}
+                {(() => {
+                  const m = MACHINES.find(mm => mm.code === selectedJob.machineCode);
+                  const ot = m ? getOvertimeMinutes(selectedJob, m, viewStart, viewDays) : 0;
+                  return ot > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="text-white/70">Overtime</span>
+                      <span className="font-semibold text-orange-300">{ot} min</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <button

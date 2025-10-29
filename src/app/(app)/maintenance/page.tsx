@@ -487,7 +487,7 @@ const Maintenance = () => {
       />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         {/* Cards View */}
         {loading && viewMode === 'cards' && (
           <div className="overflow-x-auto rounded-lg border border-white/10 bg-white/5">
@@ -1019,7 +1019,7 @@ const Maintenance = () => {
 
       {/* Overdue Alert Panel */}
       {!isEditing && stats.overdue > 0 && (
-        <div className="max-w-7xl mx-auto px-4 pb-6">
+        <div className="px-4 pb-6">
           <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-rose-300 mt-0.5" />

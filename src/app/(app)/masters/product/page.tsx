@@ -526,7 +526,7 @@ const ProductMasterData = () => {
       />
 
       {/* Product List */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <DataTable
           columns={productColumns}
           data={filteredProducts}
@@ -968,7 +968,7 @@ const ProductMasterData = () => {
                                 updateBOMLine(index, "material", e.target.value)
                               }
                               disabled={modalMode === "view"}
-                              className="w-full px-2 py-1 rounded border border-white/20 bg-white/5 text-white text-sm focus:ring-2 focus:ring-sky-500/40 focus:border-transparent"
+                              className="glass-input w-full"
                             >
                               {materials.map((m) => (
                                 <option key={m.material_code} value={m.material_code} className="select option">
@@ -991,7 +991,7 @@ const ProductMasterData = () => {
                               disabled={modalMode === "view"}
                               min={0}
                               step={0.01}
-                              className="w-24 px-2 py-1 text-sm rounded border border-white/20 bg-white/5 text-right text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+                              className="glass-input w-28"
                             />
                           </td>
                           <td className="px-4 py-3">
@@ -1001,7 +1001,7 @@ const ProductMasterData = () => {
                                 updateBOMLine(index, "unit", e.target.value as string)
                               }
                               disabled={modalMode === "view"}
-                              className="w-20 px-2 py-1 text-sm rounded border border-white/20 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+                              className="glass-input w-32"
                             >
                               {unit.map((u) => (
                                 <option
@@ -1032,7 +1032,7 @@ const ProductMasterData = () => {
                               min={0}
                               max={100}
                               step={0.1}
-                              className="w-20 px-2 py-1 text-sm rounded border border-white/20 bg-white/5 text-right text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 disabled:bg-white/10"
+                              className="glass-input w-28"
                             />
                           </td>
                           {modalMode !== "view" && (

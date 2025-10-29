@@ -49,7 +49,8 @@ export default function PageHeader({
       )}
     >
       {(title || actions || description) && (
-        <div className="max-w-7xl mx-auto pl-4 pr-6 md:pl-6 md:pr-8 py-4">
+        // max-w-7xl mx-auto 
+        <div className="pl-4 pr-6 md:pl-6 md:pr-8 py-4"> 
           <div className="flex items-center justify-between gap-3 flex-wrap md:flex-nowrap">
             <div className="min-w-0">
               {typeof title === "string" ? (
@@ -77,7 +78,8 @@ export default function PageHeader({
       )}
 
       {tabs && (
-        <div className="max-w-7xl mx-auto px-4 md:px-6 pb-2">
+        // max-w-7xl mx-auto 
+        <div className="px-4 md:px-6 pb-2">
           <div className="overflow-x-auto">
             {/* แนะนำสไตล์แท็บให้เข้าโทน:
                - inactive: text-white/85 hover:bg-cyan-500/10

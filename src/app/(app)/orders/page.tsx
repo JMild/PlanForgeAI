@@ -18,8 +18,8 @@ import PageHeader from "@/src/components/layout/PageHeader";
 import {
   getCustomersDropdown,
   getOrders,
-  getOrderItems,            // <-- NEW: lazy fetch items
-  getOrderAttachments,      // <-- NEW: lazy fetch attachments
+  getOrderItems,            // lazy fetch items
+  getOrderAttachments,      // lazy fetch attachments
 } from "@/src/services/master";
 import { ERROR_MESSAGES } from "@/src/config/messages";
 import toast from "react-hot-toast";
@@ -110,8 +110,13 @@ const PRODUCT_CATALOG: ProductCatalogEntry[] = [
       { seq: 3, process: "ASSY", processName: "Assembly", setupMin: 15, runMinPerUnit: 1.0, machineGroup: ["M003"] },
     ],
   },
-  // … (ตัดทอน)
 ];
+
+/* ===================== Utils ===================== */
+const safeDateStr = (d: string | Date) => {
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? "-" : dt.toLocaleDateString();
+};
 
 /* ===================== Component ===================== */
 const OrderManagement = () => {
@@ -136,7 +141,7 @@ const OrderManagement = () => {
     items: [{ itemNo: 1, productCode: "", qty: 0, notes: "" }],
   });
 
-  // ===== Cache สำหรับ expanded details (ต่อออเดอร์) =====
+  // Cache สำหรับ expanded details (ต่อออเดอร์)
   const [detailsCache, setDetailsCache] = useState<
     Record<string, { items: OrderItem[]; attachments: string[] }>
   >({});
@@ -146,33 +151,38 @@ const OrderManagement = () => {
       try {
         setLoading(true);
 
-        // getOrders: เวอร์ชันที่ "ยังไม่ส่ง items, attachments" มา
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const resOrderRaw: any[] = await getOrders();
+        // getOrders: คืนออเดอร์แบบ summary (ยังไม่ส่ง items/attachments)
+        const resOrderRaw = (await getOrders()) as Array<{
+          order_no: string;
+          customer_name: string;
+          customer_code: string;
+          due_date?: string;
+          priority: 1 | 2 | 3;
+          status: Status;
+          created_date?: string;
+          item_count?: number;
+          attachment_count?: number;
+          notes?: string;
+        }>;
 
         const transformed: Order[] = resOrderRaw.map((order) => ({
           orderNo: order.order_no,
           customer: order.customer_name,
           customerCode: order.customer_code,
-          dueDate: (order.due_date || "").split(" ")[0],
-          priority: order.priority as 1 | 2 | 3,
-          status: order.status as Status,
-          createdDate: (order.created_date || "").split(" ")[0],
-
-          // ยังไม่โหลดรายการจริง
+          dueDate: (order.due_date || "").split(" ")[0] || "",
+          priority: order.priority,
+          status: order.status,
+          createdDate: (order.created_date || "").split(" ")[0] || "",
           items: undefined,
           attachments: undefined,
-
-          // รับเฉพาะ count มาก่อน
           itemCount: order.item_count ?? 0,
           attachmentCount: order.attachment_count ?? 0,
-
           notes: order.notes || "",
         }));
 
         setOrders(transformed);
 
-        const resCustomers = await getCustomersDropdown();
+        const resCustomers = (await getCustomersDropdown()) as Customer[];
         setCustomers(resCustomers);
       } catch (error) {
         console.error("Fetch data failed:", error);
@@ -205,6 +215,7 @@ const OrderManagement = () => {
   };
 
   const filteredOrders = useMemo(() => {
+    console.log('orders', orders)
     const term = searchTerm.trim().toLowerCase();
     return orders.filter((o) => {
       const matchesSearch =
@@ -283,20 +294,13 @@ const OrderManagement = () => {
       priority: formData.priority,
       status: editingOrder?.status || "Unplanned",
       createdDate: editingOrder?.createdDate || new Date().toISOString().split("T")[0],
-
-      // อันนี้จากฟอร์ม (ใช้เฉพาะตอนสร้าง/แก้ไขภายในหน้า)
       items: formData.items.map((item) => ({
         ...item,
         productName: PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.name || "",
       })),
-
-      // เมื่อสร้างเองในหน้า ก็ยังไม่มี attachments
       attachments: editingOrder?.attachments ?? [],
-
-      // คำนวณ count จากฟอร์ม
       itemCount: formData.items.length,
       attachmentCount: editingOrder?.attachmentCount ?? 0,
-
       notes: formData.notes,
     };
 
@@ -309,7 +313,7 @@ const OrderManagement = () => {
       return [...prev, newOrder];
     });
 
-    // อัปเดต cache ด้วย (กัน UI กระตุก)
+    // sync cache
     setDetailsCache((prev) => ({
       ...prev,
       [newOrder.orderNo]: {
@@ -400,17 +404,20 @@ const OrderManagement = () => {
     {
       key: "order",
       label: "Order",
-      render: (o: OrderRow) => (
-        <div>
-          <div className="font-medium">{o.orderNo}</div>
-          <div className="text-xs text-white/60">
-            {o.createdDate}
-            {(o.attachmentCount ?? o.attachments?.length ?? 0) > 0 && (
-              <> • {(o.attachmentCount ?? o.attachments?.length ?? 0)} file{o.attachmentCount === 1 ? "" : "s"}</>
-            )}
+      render: (o: OrderRow) => {
+        const attCount = (o.attachmentCount ?? o.attachments?.length ?? 0) || 0;
+        return (
+          <div>
+            <div className="font-medium">{o.orderNo}</div>
+            <div className="text-xs text-white/60">
+              {o.createdDate}
+              {attCount > 0 && (
+                <> • {attCount} file{attCount === 1 ? "" : "s"}</>
+              )}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "customer",
@@ -423,14 +430,14 @@ const OrderManagement = () => {
       render: (o: OrderRow) => (
         <div className="flex items-center gap-2 text-sm">
           <Calendar size={14} className="text-white/70" />
-          <span>{new Date(o.dueDate).toLocaleDateString()}</span>
+          <span>{safeDateStr(o.dueDate)}</span>
         </div>
       ),
     },
     {
       key: "priority",
       label: "Priority",
-      render: (o: OrderRow) => <span className={`chip ${getPriorityColor(o.priority)}`}>Priority {o.priority}</span>,
+      render: (o: OrderRow) => <span className={`text-xs px-3 py-1 rounded ${getPriorityColor(o.priority)}`}>Priority {o.priority}</span>,
     },
     {
       key: "status",
@@ -445,7 +452,7 @@ const OrderManagement = () => {
     {
       key: "actions",
       label: "Actions",
-      align: "center",
+      align: "center" as const,
       render: (o: OrderRow) => (
         <div className="flex items-center justify-center gap-2">
           <button onClick={() => openViewModal(o)} className="p-1 hover:bg-white/10 rounded" title="View">
@@ -470,18 +477,23 @@ const OrderManagement = () => {
     const [attachments, setAttachments] = useState<string[]>(cached?.attachments ?? []);
 
     useEffect(() => {
-      let active = true;
+      let ignore = false;
       const run = async () => {
-        if (cached) return;
+        if (cached) {
+          setLoadingDetail(false);
+          return;
+        }
         try {
           setLoadingDetail(true);
-          const [itsRaw, atts] = await Promise.all([
-            getOrderItems(order.orderNo),
-            getOrderAttachments(order.orderNo),
+
+          const [itsRaw, attsRaw] = await Promise.all([
+            getOrderItems(order.orderNo) as Promise<
+              Array<{ item_no: number; product_code: string; product_name: string; quantity: number; notes: string }>
+            >,
+            getOrderAttachments(order.orderNo) as Promise<Array<{ file_name: string } | string>>,
           ]);
 
-          
-          const its: OrderItem[] = (itsRaw ?? []).map((i: any) => ({
+          const its: OrderItem[] = (itsRaw ?? []).map((i) => ({
             itemNo: i.item_no,
             productCode: i.product_code,
             productName: i.product_name,
@@ -489,27 +501,29 @@ const OrderManagement = () => {
             notes: i.notes,
           }));
 
-          console.log('itsRaw', itsRaw)
-          console.log('its', its)
-          console.log('atts', atts)
+          const atts: string[] = (attsRaw ?? []).map((f) =>
+            typeof f === "string" ? f : f.file_name ?? "Unnamed File"
+          );
 
-          if (!active) return;
-          setItems(its ?? []);
-          setAttachments(atts ?? []);
-          // เก็บ cache และอัปเดต count ในตารางหลักสวย ๆ
+          if (ignore) return;
+
+          setItems(its);
+          setAttachments(atts);
+
+          // เก็บ cache และอัปเดต count ในตารางหลัก
           setDetailsCache((prev) => ({
             ...prev,
-            [order.orderNo]: { items: its ?? [], attachments: atts ?? [] },
+            [order.orderNo]: { items: its, attachments: atts },
           }));
           setOrders((prev) =>
             prev.map((o) =>
               o.orderNo === order.orderNo
                 ? {
                   ...o,
-                  items: its ?? [],
-                  attachments: atts ?? [],
-                  itemCount: its?.length ?? o.itemCount ?? 0,
-                  attachmentCount: atts?.length ?? o.attachmentCount ?? 0,
+                  items: its,
+                  attachments: atts,
+                  itemCount: its.length,
+                  attachmentCount: atts.length,
                 }
                 : o
             )
@@ -518,12 +532,12 @@ const OrderManagement = () => {
           console.error("load order details failed:", err);
           toast.error("Failed to load order details");
         } finally {
-          if (active) setLoadingDetail(false);
+          if (!ignore) setLoadingDetail(false);
         }
       };
       run();
       return () => {
-        active = false;
+        ignore = true;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [order.orderNo]);
@@ -541,46 +555,47 @@ const OrderManagement = () => {
     }
 
     return (
-      <div>
-      {/* <div className="rounded-lg border border-white/10 overflow-hidden"> */}
-        {/* <table className="w-full">
-          <thead className="bg-white/5">
-            <tr>
-              {["Item No", "Product Code", "Product Name", "Qty", "Est. Time (min)", "Notes"].map((h) => (
-                <th key={h} className="px-4 py-2 text-left text-xs font-medium uppercase text-white/60">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {rows.map((it) => {
-              const est = Math.round(calculateTotalProcessTime(it.productCode, it.qty));
-              return (
-                <tr key={it.itemNo} className="hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm font-medium">{it.itemNo}</td>
-                  <td className="px-4 py-3 text-sm">{it.productCode}</td>
-                  <td className="px-4 py-3 text-sm">{it.productName}</td>
-                  <td className="px-4 py-3 text-sm text-white/80">{it.qty}</td>
-                  <td className="px-4 py-3 text-sm text-white/80">{est}</td>
-                  <td className="px-4 py-3 text-sm text-white/80">{it.notes || "-"}</td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
+      <div className="p-4 space-y-4">
+        <div className="rounded-lg border border-white/10 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-white/5">
               <tr>
-                <td className="px-4 py-3 text-sm text-white/60" colSpan={6}>
-                  No items.
-                </td>
+                {["Item No", "Product Code", "Product Name", "Qty", "Est. Time (min)", "Notes"].map((h) => (
+                  <th key={h} className="px-4 py-2 text-left text-xs font-medium uppercase text-white/60">
+                    {h}
+                  </th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table> */}
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {rows.map((it) => {
+                const est = Math.round(calculateTotalProcessTime(it.productCode, it.qty));
+                return (
+                  <tr key={`${order.orderNo}-${it.itemNo}`} className="hover:bg-white/5">
+                    <td className="px-4 py-3 text-sm font-medium">{it.itemNo}</td>
+                    <td className="px-4 py-3 text-sm">{it.productCode}</td>
+                    <td className="px-4 py-3 text-sm">{it.productName}</td>
+                    <td className="px-4 py-3 text-sm text-white/80">{it.qty}</td>
+                    <td className="px-4 py-3 text-sm text-white/80">{est}</td>
+                    <td className="px-4 py-3 text-sm text-white/80">{it.notes || "-"}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td className="px-4 py-3 text-sm text-white/60 text-center" colSpan={6}>
+                    No items
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {(showNotes || showAtts) && (
-          <div className="p-4 bg-white/5 border-t border-white/10">
+          <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
             {showNotes && (
-              <div className="mt-1 p-3 bg-amber-500/10 border border-amber-400/30 rounded-lg">
+              <div className="mb-3 p-3 bg-amber-500/10 border border-amber-400/30 rounded-lg">
                 <div className="flex items-start gap-2">
                   <FileText size={16} className="text-amber-300 mt-0.5" />
                   <div>
@@ -591,35 +606,31 @@ const OrderManagement = () => {
               </div>
             )}
 
+            {showAtts && (
+              <div>
+                <div className="text-xs font-medium text-white/80 mb-2">Attachments</div>
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((fileName, idx) => (
+                    <div
+                      key={`${order.orderNo}-att-${idx}`}
+                      className="flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded-lg text-xs hover:bg-white/15 transition-colors"
+                      title={fileName}
+                    >
+                      <Paperclip size={12} className="text-white/70" />
+                      <span className="text-white/80 truncate max-w-[200px]">
+                        {fileName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-
-        {showAtts && attachments?.length > 0 && (
-          <>
-            {/* <div className="text-xs font-medium text-white/80 mb-2">Attachments:</div> */}
-            <div className="flex flex-wrap gap-2">
-              {attachments.map((file: any, idx: number) => {
-                const fileName = typeof file === "string" ? file : file.file_name ?? "Unnamed File";
-                return (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded-lg text-xs hover:bg-white/15 transition-colors"
-                  >
-                    <Paperclip size={12} className="text-white/70" />
-                    <span className="text-white/80 truncate max-w-[160px]" title={fileName}>
-                      {fileName}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </>
         )}
       </div>
     );
   };
 
-  // ตัวเดิม แต่เปลี่ยน renderExpandedRow ให้เรียกคอมโพเนนต์ข้างบน
   return (
     <div className="text-white">
       <PageHeader
@@ -685,7 +696,7 @@ const OrderManagement = () => {
         }
       />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <ExpandableDataTable
           columns={orderColumns}
           data={filteredOrders}
@@ -695,7 +706,7 @@ const OrderManagement = () => {
         />
       </div>
 
-      {/* ===== Modal เดิม ===== */}
+      {/* ===== Modal ===== */}
       <Modal
         open={isModalOpen}
         onClose={closeModal}
@@ -728,7 +739,7 @@ const OrderManagement = () => {
               <div>
                 <label className="text-sm text-white/80">Status</label>
                 <p className="mt-1">
-                  <span className={`text-sm px-3 py-1 rounded ${getStatusColor(editingOrder.status)}`}>{editingOrder.status}</span>
+                  <span className={`chip ${getStatusColor(editingOrder.status)}`}>{editingOrder.status}</span>
                 </p>
               </div>
               <div>
@@ -743,28 +754,57 @@ const OrderManagement = () => {
               </div>
               <div>
                 <label className="text-sm text-white/80">Created Date</label>
-                <p className="mt-1">{new Date(editingOrder.createdDate).toLocaleDateString()}</p>
+                <p className="mt-1">{safeDateStr(editingOrder.createdDate)}</p>
               </div>
               <div>
                 <label className="text-sm text-white/80">Due Date</label>
-                <p className="mt-1">{new Date(editingOrder.dueDate).toLocaleDateString()}</p>
+                <p className="mt-1">{safeDateStr(editingOrder.dueDate)}</p>
               </div>
             </div>
 
             <div>
               <label className="text-sm text-white/80 mb-3 block">Order Items</label>
-              <div className="space-y-3">
-                {(editingOrder.items ?? detailsCache[editingOrder.orderNo]?.items ?? []).map((item) => (
-                  <div key={item.itemNo} className="border border-white/10 rounded-lg p-4 bg-white/5">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium">Item {item.itemNo}: {item.productName}</span>
-                      <span className="text-sm text-white/60">{item.productCode}</span>
-                    </div>
-                    <p className="text-sm text-white/80">Quantity: {item.qty} units</p>
-                    {item.notes && <p className="text-sm text-cyan-300 mt-1">Note: {item.notes}</p>}
+
+              {(() => {
+                const items =
+                  editingOrder.items ??
+                  detailsCache[editingOrder.orderNo]?.items ??
+                  [];
+
+                return (
+                  <div className="space-y-3">
+                    {items.length > 0 ? (
+                      items.map((item) => (
+                        <div
+                          key={item.itemNo}
+                          className="border border-white/10 rounded-lg p-4 bg-white/5"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-medium">
+                              Item {item.itemNo}: {item.productName}
+                            </span>
+                            <span className="text-sm text-white/60">
+                              {item.productCode}
+                            </span>
+                          </div>
+                          <p className="text-sm text-white/80">
+                            Quantity: {item.qty} units
+                          </p>
+                          {item.notes && (
+                            <p className="text-sm text-cyan-300 mt-1">
+                              Note: {item.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="border border-white/10 rounded-lg p-4 bg-white/5 text-sm text-white/60 text-center">
+                        No items
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
 
             {editingOrder.notes && (

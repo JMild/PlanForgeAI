@@ -124,7 +124,7 @@ export const permissions: Permission[] = [
     can_delete: false,
   },
   {
-    permission_id: 1004,
+    permission_id: 1004, 
     group_id: 2,
     screen_code: "MAS001",
     can_view: true,

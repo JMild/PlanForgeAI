@@ -575,7 +575,7 @@ const ProductionDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="flex items-center text-lg font-semibold text-white space-x-2">
                 <Wrench size={20} className="text-white/80" />
-                <span>Maintenance</span>
+                <span>Maintenance Schedule</span>
               </h2>
 
               <button

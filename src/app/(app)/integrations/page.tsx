@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
   Database,
   Settings as Cog,
@@ -12,14 +12,16 @@ import {
   XCircle,
   Wand2,
   BookOpen,
-  Trash2,
   Check,
   Pencil,
   RefreshCw,
   Filter,
   Search,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Toggle from "@/src/components/shared/button/Toggle";
 
 /* ======================== Types ======================== */
 
@@ -79,6 +81,8 @@ interface MappingRow {
   external: string;
   dir: "in" | "out" | "bi";
   confidence?: number;
+  source?: "auto" | "manual";
+  locked?: boolean; // reserved
 }
 
 /* ======================== Provider + Resource Spec ======================== */
@@ -152,30 +156,14 @@ const PROVIDER_TYPES: Record<ProviderType, ProviderSpec> = {
     icon: Wrench,
     color: "text-yellow-300",
     fields: [
-      {
-        key: "apiUrl",
-        label: "API URL",
-        placeholder: "http://localhost:4000/api/maintenance",
-      },
+      { key: "apiUrl", label: "API URL", placeholder: "http://localhost:4000/api/maintenance" },
       { key: "apiKey", label: "API Key" },
-      // { key: "siteId", label: "Site ID" },
     ],
-    docs: {
-      overview: ""
-        // "Maintenance Machines Management",
-    },
-    localSchema: [
-      "id",
-      "machine_code",
-      "type",
-      "schedule_date",
-      "status",
-      "priority",
-    ],
+    docs: { overview: "Maintenance Machines Management (อ่าน WO, PM/CM Schedule)" },
+    localSchema: ["id", "machine_code", "type", "schedule_date", "status", "priority"],
   },
 };
 
-// CMMS: single endpoint = apiUrl (direct)
 const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
   ERP: {
     orders: {
@@ -225,10 +213,7 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
       ],
       exampleRequest: { method: "GET", url: "$BASE/webhook/erp/routings?product=WDGT-A" },
       exampleResponse: [
-        {
-          product_code: "WDGT-A",
-          step: { seq: 10, process: "MACH", work_center_code: "WC-MACH" },
-        },
+        { product_code: "WDGT-A", step: { seq: 10, process: "MACH", work_center_code: "WC-MACH" } },
       ],
     },
   },
@@ -254,19 +239,8 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
       method: "POST",
       path: "/mes/dispatch",
       defaultDir: "out",
-      localSchema: [
-        "job.id",
-        "job.operation",
-        "job.machine_code",
-        "job.start",
-        "job.end",
-        "job.qty_plan",
-      ],
-      exampleRequest: {
-        method: "POST",
-        url: "$BASE/webhook/mes/dispatch",
-        body: { jobs: [{ job_id: "J-001", machine_code: "M001" }] },
-      },
+      localSchema: ["job.id", "job.operation", "job.machine_code", "job.start", "job.end", "job.qty_plan"],
+      exampleRequest: { method: "POST", url: "$BASE/webhook/mes/dispatch", body: { jobs: [{ job_id: "J-001", machine_code: "M001" }] } },
       exampleResponse: { accepted: true, scheduled: 1 },
     },
   },
@@ -276,21 +250,9 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
       method: "GET",
       path: "/hr/employees",
       defaultDir: "in",
-      localSchema: [
-        "employee.emp_code",
-        "employee.full_name",
-        "employee.department",
-        "employee.status",
-      ],
+      localSchema: ["employee.emp_code", "employee.full_name", "employee.department", "employee.status"],
       exampleRequest: { method: "GET", url: "$BASE/webhook/hr/employees?limit=10" },
-      exampleResponse: [
-        {
-          emp_code: "EMP001",
-          full_name: "John Smith",
-          department: "Manufacturing",
-          status: "Active",
-        },
-      ],
+      exampleResponse: [{ emp_code: "EMP001", full_name: "John Smith", department: "Manufacturing", status: "Active" }],
     },
     leaves: {
       name: "Shifts & Calendars",
@@ -298,13 +260,8 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
       path: "/hr/shift-calendars",
       defaultDir: "in",
       localSchema: ["leave.emp_code", "leave.type", "leave.date", "leave.duration"],
-      exampleRequest: {
-        method: "GET",
-        url: "$BASE/webhook/hr/leaves?from=2025-10-01&to=2025-10-31",
-      },
-      exampleResponse: [
-        { emp_code: "EMP001", type: "Vacation", date: "2025-10-12", duration: 1 },
-      ],
+      exampleRequest: { method: "GET", url: "$BASE/webhook/hr/leaves?from=2025-10-01&to=2025-10-31" },
+      exampleResponse: [{ emp_code: "EMP001", type: "Vacation", date: "2025-10-12", duration: 1 }],
     },
   },
   CMMS: {
@@ -313,16 +270,8 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
       method: "GET",
       path: "(direct)",
       defaultDir: "in",
-      localSchema: [
-        "id",
-        "machine_code",
-        "type",
-        "schedule_date",
-        "status",
-        "priority",
-        "asset_name",
-      ],
-      exampleRequest: { method: "GET", url: "$BASE" }, // will be replaced by apiUrl
+      localSchema: ["id", "machine_code", "type", "schedule_date", "status", "priority", "asset_name"],
+      exampleRequest: { method: "GET", url: "$BASE" },
       exampleResponse: [
         {
           id: "WO-1001",
@@ -352,24 +301,15 @@ const RESOURCES: Record<ProviderType, Record<string, ResourceSpec>> = {
 /* ======================== Helpers ======================== */
 
 const toneByHealth = (h?: IntegrationItem["health"]) =>
-  h === "Healthy"
-    ? "text-emerald-300"
-    : h === "Warning"
-      ? "text-amber-300"
-      : h === "Error"
-        ? "text-rose-300"
-        : "text-sky-300";
+  h === "Healthy" ? "text-emerald-300" :
+    h === "Warning" ? "text-amber-300" :
+      h === "Error" ? "text-rose-300" : "text-sky-300";
 
 const HealthIcon = ({ h }: { h?: IntegrationItem["health"] }) =>
-  h === "Healthy" ? (
-    <CheckCircle2 size={16} className="inline align-[-2px] text-emerald-300" />
-  ) : h === "Warning" ? (
-    <AlertTriangle size={16} className="inline align-[-2px] text-amber-300" />
-  ) : h === "Error" ? (
-    <XCircle size={16} className="inline align-[-2px] text-rose-300" />
-  ) : (
-    <AlertTriangle size={16} className="inline align-[-2px] text-sky-300" />
-  );
+  h === "Healthy" ? <CheckCircle2 size={16} className="inline align-[-2px] text-emerald-300" /> :
+    h === "Warning" ? <AlertTriangle size={16} className="inline align-[-2px] text-amber-300" /> :
+      h === "Error" ? <XCircle size={16} className="inline align-[-2px] text-rose-300" /> :
+        <AlertTriangle size={16} className="inline align-[-2px] text-sky-300" />;
 
 function flatten(obj: unknown, prefix = ""): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -391,7 +331,6 @@ function flatten(obj: unknown, prefix = ""): Record<string, unknown> {
 }
 
 const getResourcesFor = (type: ProviderType) => RESOURCES[type] ?? {};
-
 const buildUrl = (u: string, base: string) => {
   if (!u) return "";
   if (u.startsWith("$BASE")) return u.replace("$BASE", base.replace(/\/+$/, ""));
@@ -404,326 +343,49 @@ const getAuthHeadersFromConfig = (cfg: IntegrationConfig) => {
   if (cfg.apiKey) headers["Authorization"] = `Bearer ${String(cfg.apiKey)}`;
   if ((cfg as any).apiToken) headers["Authorization"] = `Bearer ${String((cfg as any).apiToken)}`;
   if (cfg.username && cfg.password) {
-    const token =
-      typeof window !== "undefined" ? btoa(`${cfg.username}:${cfg.password}`) : "";
+    const token = typeof window !== "undefined" ? btoa(`${cfg.username}:${cfg.password}`) : "";
     headers["Authorization"] = `Basic ${token}`;
   }
   return headers;
 };
 
-const getByPath = (obj: unknown, path: string): unknown => {
-  try {
-    return String(path)
-      .split(".")
-      .reduce((acc: any, key) => (acc == null ? acc : acc[key]), obj as any);
-  } catch {
-    return undefined;
-  }
-};
-
-/* ======================== CMMS Live Preview (Prototype) ======================== */
-
-type WO = {
-  id: string;
-  machine_code?: string;
-  asset_code?: string;
-  asset_name?: string;
-  type?: string; // PM / CM / Cal / Insp
-  title?: string;
-  schedule_date?: string;
-  status?: string; // open / in_progress / done / hold
-  priority?: string; // Critical/High/Medium/Low
-};
-
-function badgeTone(status?: string) {
-  switch ((status || "").toLowerCase()) {
-    case "critical":
-      return "bg-rose-500/15 text-rose-300 border-rose-400/30";
-    case "high":
-      return "bg-amber-500/15 text-amber-300 border-amber-400/30";
-    case "medium":
-      return "bg-sky-500/15 text-sky-300 border-sky-400/30";
-    case "low":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
-    case "open":
-      return "bg-cyan-500/15 text-cyan-300 border-cyan-400/30";
-    case "in_progress":
-      return "bg-indigo-500/15 text-indigo-300 border-indigo-400/30";
-    case "done":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
-    case "hold":
-      return "bg-zinc-500/15 text-zinc-200 border-zinc-400/30";
-    default:
-      return "bg-white/5 text-white/70 border-white/15";
-  }
-}
-
-function toArray(data: any): WO[] {
-  if (!data) return [];
-  if (Array.isArray(data)) return data as WO[];
-  if (Array.isArray((data as any).items)) return (data as any).items as WO[];
-  if (Array.isArray((data as any).data)) return (data as any).data as WO[];
-  return [];
-}
-
-function daysFromToday(dateStr?: string) {
-  if (!dateStr) return 0;
-  const d = new Date(dateStr);
-  const today = new Date();
-  const diff = d.setHours(0, 0, 0, 0) - today.setHours(0, 0, 0, 0);
-  return Math.round(diff / (1000 * 60 * 60 * 24));
-}
-
-function MaintenancePreview({
-  raw,
-  onRefresh,
-}: {
-  raw: unknown;
-  onRefresh: () => void;
-}) {
-  const baseRows = useMemo(() => toArray(raw), [raw]);
-  const [rows, setRows] = useState<WO[]>([]);
-  useEffect(() => {
-    setRows(baseRows);
-  }, [baseRows]);
-
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<string>("all");
-  const [type, setType] = useState<string>("all");
-
-  const updateStatus = (id: string, next: string) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
-  };
-
-  const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      const s = status === "all" || (r.status || "").toLowerCase() === status;
-      const t = type === "all" || (r.type || "").toLowerCase() === type;
-      const qq =
-        !q ||
-        [r.id, r.machine_code, r.asset_code, r.asset_name, r.title].some((v) =>
-          (v || "").toLowerCase().includes(q.toLowerCase())
-        );
-      return s && t && qq;
-    });
-  }, [rows, q, status, type]);
-
-  const kpi = useMemo(() => {
-    const total = rows.length;
-    const open = rows.filter((r) => (r.status || "open").toLowerCase() !== "done").length;
-    const pm = rows.filter((r) => (r.type || "").toLowerCase() === "pm").length;
-    const cm = rows.filter((r) => (r.type || "").toLowerCase() === "cm").length;
-    const overdue = rows.filter(
-      (r) =>
-        daysFromToday(r.schedule_date) < 0 &&
-        (r.status || "open").toLowerCase() !== "done"
-    ).length;
-    return { total, open, pm, cm, overdue };
-  }, [rows]);
-
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/5">
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Wrench className="text-yellow-300" size={18} />
-          <h3 className="font-semibold">CMMS – Live Work Orders</h3>
-        </div>
-        <button
-          onClick={onRefresh}
-          className="px-2 py-1 rounded bg-white/10 border border-white/15 hover:bg-white/20 text-sm flex items-center gap-1"
-        >
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </div>
-
-      {/* KPIs */}
-      <div className="p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-          <div className="text-xs text-white/60">Total</div>
-          <div className="text-2xl font-bold">{kpi.total}</div>
-        </div>
-        <div className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-3">
-          <div className="text-xs text-cyan-200/80">Open</div>
-          <div className="text-2xl font-bold text-cyan-300">{kpi.open}</div>
-        </div>
-        <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3">
-          <div className="text-xs text-emerald-200/80">PM</div>
-          <div className="text-2xl font-bold text-emerald-300">{kpi.pm}</div>
-        </div>
-        <div className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 p-3">
-          <div className="text-xs text-indigo-200/80">CM</div>
-          <div className="text-2xl font-bold text-indigo-300">{kpi.cm}</div>
-        </div>
-        <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-3">
-          <div className="text-xs text-rose-200/80">Overdue</div>
-          <div className="text-2xl font-bold text-rose-300">{kpi.overdue}</div>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-white/50"
-            size={16}
-          />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search WO, machine, title..."
-            className="w-full pl-8 pr-3 py-2 rounded border border-white/15 bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-white/60" />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="px-2 py-2 rounded bg-white/10 border border-white/15"
-          >
-            {["all", "open", "in_progress", "done", "hold"].map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="px-2 py-2 rounded bg-white/10 border border-white/15"
-          >
-            {["all", "pm", "cm", "calibration", "inspection"].map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-auto">
-        <table className="min-w-[820px] w-full text-sm border-t border-white/10">
-          <thead>
-            <tr className="text-left bg-white/5 border-b border-white/10">
-              <th className="py-2 px-3">WO</th>
-              <th className="py-2 px-3">Asset / Machine</th>
-              <th className="py-2 px-3">Type</th>
-              <th className="py-2 px-3">Schedule</th>
-              <th className="py-2 px-3">Priority</th>
-              <th className="py-2 px-3">Status</th>
-              <th className="py-2 px-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => {
-              const d = daysFromToday(r.schedule_date);
-              const when = d === 0 ? "Today" : d < 0 ? `${Math.abs(d)}d overdue` : `in ${d}d`;
-              return (
-                <tr key={r.id} className="border-b border-white/5">
-                  <td className="py-2 px-3 font-mono">{r.id}</td>
-                  <td className="py-2 px-3">
-                    <div className="text-white/90">
-                      {r.asset_name || r.asset_code || r.machine_code}
-                    </div>
-                    <div className="text-xs text-white/60">{r.machine_code}</div>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span
-                      className={`px-2 py-0.5 rounded border ${badgeTone(
-                        (r.type || "").toLowerCase()
-                      )}`}
-                    >
-                      {(r.type || "").toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">
-                    <div className="text-white/90">{r.schedule_date || "-"}</div>
-                    <div className="text-xs text-white/60">{when}</div>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className={`px-2 py-0.5 rounded border ${badgeTone(r.priority)}`}>
-                      {r.priority || "-"}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className={`px-2 py-0.5 rounded border ${badgeTone(r.status)}`}>
-                      {(r.status || "open").replace("_", " ")}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 text-right">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button
-                        onClick={() => updateStatus(r.id, "in_progress")}
-                        className="px-2 py-1 rounded bg-cyan-600/20 border border-cyan-400/30 hover:bg-cyan-600/30 text-xs"
-                      >
-                        Acknowledge
-                      </button>
-                      <button
-                        onClick={() => updateStatus(r.id, "in_progress")}
-                        className="px-2 py-1 rounded bg-indigo-600/20 border border-indigo-400/30 hover:bg-indigo-600/30 text-xs"
-                      >
-                        Start
-                      </button>
-                      <button
-                        onClick={() => updateStatus(r.id, "done")}
-                        className="px-2 py-1 rounded bg-emerald-600/20 border border-emerald-400/30 hover:bg-emerald-600/30 text-xs disabled:opacity-50"
-                        disabled={(r.status || "") === "done"}
-                      >
-                        Complete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-white/60 text-sm">
-                  No work orders
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 /* ======================== Main ======================== */
+
 const INITIAL: IntegrationItem[] = [
-  { id: "INT-ERP", name: "ERP", type: "ERP", status: "Active", health: "Error", createdDate: "2024-01-15", config: { apiUrl: "https://your-n8n", username: "api_user", password: "***", companyId: "COMP001", apiKey: "" }, stats: { totalCalls: 8200, successRate: 98.5, avgResponseTime: 320 } },
-  { id: "INT-WMS", name: "WMS", type: "WMS", status: "Active", health: "Error", createdDate: "2024-02-01", config: { apiUrl: "https://your-n8n", apiKey: "", warehouseId: "WH-01" }, stats: { totalCalls: 5200, successRate: 99.0, avgResponseTime: 180 } },
-  { id: "INT-MES", name: "MES", type: "MES", status: "Active", health: "Error", createdDate: "2024-03-10", config: { apiUrl: "https://your-n8n", apiToken: "", plantCode: "PL-01" }, stats: { totalCalls: 12300, successRate: 99.2, avgResponseTime: 140 } },
+  { id: "INT-ERP", name: "ERP", type: "ERP", status: "Inactive", health: "Error", createdDate: "2024-01-15", config: { apiUrl: "https://your-n8n", username: "api_user", password: "***", companyId: "COMP001", apiKey: "" }, stats: { totalCalls: 8200, successRate: 98.5, avgResponseTime: 320 } },
+  { id: "INT-WMS", name: "WMS", type: "WMS", status: "Inactive", health: "Error", createdDate: "2024-02-01", config: { apiUrl: "https://your-n8n", apiKey: "", warehouseId: "WH-01" }, stats: { totalCalls: 5200, successRate: 99.0, avgResponseTime: 180 } },
+  { id: "INT-MES", name: "MES", type: "MES", status: "Active", health: "Warning", createdDate: "2024-03-10", config: { apiUrl: "https://your-n8n", apiToken: "", plantCode: "PL-01" }, stats: { totalCalls: 12300, successRate: 99.2, avgResponseTime: 140 } },
   { id: "INT-HR", name: "HR", type: "HR", status: "Active", health: "Warning", createdDate: "2024-04-20", config: { apiUrl: "https://your-n8n", apiKey: "", tenantId: "TEN-01" }, stats: { totalCalls: 2100, successRate: 99.1, avgResponseTime: 200 } },
-  { id: "INT-CMMS", name: "CMMS", type: "CMMS", status: "Active", health: "Healthy", createdDate: "2024-05-15", config: { apiUrl: "http://localhost:4000/api/maintenance", apiKey: "mock-api-key-123456", siteId: "SITE-A" }, stats: { totalCalls: 1100, successRate: 97.9, avgResponseTime: 260 } },
+  { id: "INT-CMMS", name: "CMMS", type: "CMMS", status: "Active", health: "Healthy", createdDate: "2024-05-15", config: { apiUrl: "http://localhost:4001/api/maintenance", apiKey: "mock-api-key-123456", siteId: "SITE-A" }, stats: { totalCalls: 1100, successRate: 97.9, avgResponseTime: 260 } },
 ];
 
 export default function IntegrationsLocked() {
   const [list, setList] = useState<IntegrationItem[]>(INITIAL);
-  const [activeId, setActiveId] = useState<string>(INITIAL[0].id);
+  const [activeId, setActiveId] = useState<string>("INT-CMMS");
   const active = useMemo(() => list.find((i) => i.id === activeId)!, [list, activeId]);
 
   const [editing, setEditing] = useState<boolean>(false);
-  // CMMS is single endpoint
-  const [resourceKey, setResourceKey] = useState<string>("maintenance");
+  const [resourceKey] = useState<string>("maintenance");
 
-  // Connection state (auto-test)
+  // connection state
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "success" | "failed">("idle");
-  const [testMsg, setTestMsg] = useState<string | null>(null);
 
-  // Preview cache/state
+  // preview state
   const [previewMap, setPreviewMap] = useState<Record<string, unknown>>({});
   const [preview, setPreview] = useState<unknown>(null);
   const [fetching, setFetching] = useState(false);
   const [fetchErr, setFetchErr] = useState<string | null>(null);
 
+  // abort in-flight fetch when switching
+  const abortRef = useRef<AbortController | null>(null);
+
   // Show cached preview on switch
   useEffect(() => {
     const cacheKey = `${active.id}:${resourceKey}`;
     setPreview(previewMap[cacheKey] ?? null);
+    setTestStatus("idle");
+    if (abortRef.current) abortRef.current.abort();
   }, [active.id, resourceKey, previewMap]);
 
   // Flattened external keys
@@ -731,19 +393,16 @@ export default function IntegrationsLocked() {
   const externalOptions = useMemo(() => Object.keys(flat).sort(), [flat]);
 
   // Mapping rows
-  const currentRes = useMemo(
-    () => getResourcesFor(active.type)[resourceKey],
-    [active.type, resourceKey]
-  );
+  const currentRes = useMemo(() => getResourcesFor(active.type)[resourceKey], [active.type, resourceKey]);
   const defaultDir: "in" | "out" | "bi" = currentRes?.defaultDir ?? "in";
   const [mapping, setMapping] = useState<MappingRow[]>([]);
   useEffect(() => {
     const local = currentRes?.localSchema ?? PROVIDER_TYPES[active.type].localSchema;
-    setMapping(local.map((l) => ({ id: l, local: l, external: "", dir: defaultDir })));
+    setMapping(local.map((l) => ({ id: l, local: l, external: "", dir: defaultDir, locked: false })));
   }, [active.type, resourceKey, currentRes?.localSchema, defaultDir]);
 
   // Threshold for fuzzy auto-match
-  const [matchThreshold, setMatchThreshold] = useState<number>(0.5);
+  const [matchThreshold] = useState<number>(0.5);
 
   const saveConfigPatch = (patch: Partial<IntegrationConfig>) => {
     setList((prev) => prev.map((i) => (i.id === active.id ? { ...i, config: { ...i.config, ...patch } } : i)));
@@ -751,35 +410,42 @@ export default function IntegrationsLocked() {
 
   const isSecretField = (k: string) => /key|token|password/i.test(k);
 
+  /* ---- UI helpers ---- */
+  const isInactive = active.status !== "Active";
+
   /* ---- Test connection ---- */
   const testConnection = useCallback(async () => {
+    if (isInactive) {
+      setTestStatus("idle");
+      return false;
+    }
     const base = String(active.config?.apiUrl || "").trim();
     if (!base) {
-      setTestMsg("กรุณากรอก API URL ก่อน");
       setTestStatus("failed");
       return false;
     }
     setTesting(true);
-    setTestMsg(null);
     setTestStatus("idle");
     try {
       const headers = getAuthHeadersFromConfig(active.config || {});
       const resp = await fetch(base, { method: "GET", headers });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setTestStatus("success");
-      setTestMsg("✅ Connected");
       return true;
     } catch (err: any) {
       setTestStatus("failed");
-      setTestMsg(`❌ Failed: ${err?.message || "Cannot connect"}`);
       return false;
     } finally {
       setTesting(false);
     }
-  }, [active.config]);
+  }, [active.config, isInactive]);
 
   /* ---- Fetch preview ---- */
   const doFetchPreview = useCallback(async () => {
+    if (isInactive) {
+      setFetchErr("อินทิเกรชันเป็น Inactive — เปิดใช้งานก่อน");
+      return;
+    }
     const resSpec = getResourcesFor(active.type)[resourceKey];
     if (!resSpec) return;
     const base = String(active.config?.apiUrl || "").trim();
@@ -787,8 +453,13 @@ export default function IntegrationsLocked() {
       setFetchErr("กรุณากรอก API URL ก่อน");
       return;
     }
-    const req = resSpec.exampleRequest; // { method, url: "$BASE" }
-    const url = buildUrl(req.url, base); // exact base for CMMS
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const req = resSpec.exampleRequest;
+    const url = buildUrl(req.url, base);
     const headers = getAuthHeadersFromConfig(active.config || {});
     setFetching(true);
     setFetchErr(null);
@@ -796,10 +467,8 @@ export default function IntegrationsLocked() {
       const r = await fetch(url, {
         method: req.method || resSpec.method,
         headers,
-        body:
-          (req.method || resSpec.method) === "POST"
-            ? JSON.stringify(req.body ?? {})
-            : undefined,
+        body: (req.method || resSpec.method) === "POST" ? JSON.stringify(req.body ?? {}) : undefined,
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
@@ -807,97 +476,127 @@ export default function IntegrationsLocked() {
       setPreviewMap((m) => ({ ...m, [cacheKey]: data }));
       setPreview(data);
     } catch (e: any) {
+      if (e?.name === "AbortError") return;
       setFetchErr(e?.message || "Fetch failed");
     } finally {
       setFetching(false);
     }
-  }, [active.id, active.type, active.config, resourceKey]);
+  }, [active.id, active.type, active.config, resourceKey, isInactive]);
 
-  /* ---- Auto test on load & on API URL change; then auto fetch ---- */
+  /* ---- Auto test/fetch: run only if Active & apiUrl present ---- */
   useEffect(() => {
     (async () => {
+      if (isInactive) return;
+      if (!active.config?.apiUrl) return;
       const ok = await testConnection();
       if (ok) void doFetchPreview();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active.config?.apiUrl]);
+  }, [active.id, active.status, active.config?.apiUrl]);
 
-  /* ---- Fuzzy auto-map (non-overwrite) ---- */
-  const runAutoMap = useCallback(() => {
-    // ใช้ preview ถ้ามี ไม่งั้น fallback ไปที่ exampleResponse
-    const resSpec = getResourcesFor(active.type)[resourceKey];
-    const candidateSource = preview ?? resSpec?.exampleResponse ?? {};
-    const flatPreview = flatten(candidateSource);
-    const candidates = externalOptions.length
-      ? externalOptions
-      : Object.keys(flatPreview).sort();
+  /* ---- Fuzzy auto-map (with force) ---- */
+  const runAutoMap = useCallback(
+    (opts?: { force?: boolean }) => {
+      if (isInactive || !preview) return;
 
-    if (!resSpec || candidates.length === 0) {
-      // ไม่มีอะไรให้เทียบ -> จบเงียบ ๆ
-      return;
-    }
+      const resSpec = getResourcesFor(active.type)[resourceKey];
+      const candidateSource = preview ?? resSpec?.exampleResponse ?? {};
+      const flatPreview = flatten(candidateSource);
+      const candidates = externalOptions.length ? externalOptions : Object.keys(flatPreview).sort();
 
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const levenshtein = (a: string, b: string) => {
-      const m = a.length, n = b.length;
-      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-      for (let i = 0; i <= m; i++) dp[i][0] = i;
-      for (let j = 0; j <= n; j++) dp[0][j] = j;
-      for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      if (!resSpec || candidates.length === 0) return;
+
+      // --- similarity functions ---
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const levenshtein = (a: string, b: string) => {
+        const m = a.length, n = b.length;
+        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++) {
+          for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+          }
         }
-      }
-      return dp[m][n];
-    };
-    const sim = (a: string, b: string) => {
-      if (!a || !b) return 0;
-      if (a === b) return 1;
-      const na = norm(a), nb = norm(b);
-      const maxLen = Math.max(na.length, nb.length) || 1;
-      const lev = levenshtein(na, nb);
-      const levScore = 1 - lev / maxLen;
-      const ta = new Set(na.split(" ").filter(Boolean));
-      const tb = new Set(nb.split(" ").filter(Boolean));
-      const inter = [...ta].filter(x => tb.has(x)).length;
-      const union = new Set([...ta, ...tb]).size || 1;
-      const jac = inter / union;
-      const lastA = a.split(".").pop() || a;
-      const lastB = b.split(".").pop() || b;
-      const lastBoost = lastA.toLowerCase() === lastB.toLowerCase() ? 0.15 : 0;
-      return Math.max(0, Math.min(1, 0.7 * levScore + 0.3 * jac + lastBoost));
-    };
-    const pick = (local: string): { ext: string; score: number } => {
-      let best = { ext: "", score: 0 };
-      for (const e of candidates) {
-        const s = Math.max(
-          sim(local, e),
-          sim(local.split(".").pop() || local, e.split(".").pop() || e)
-        );
-        if (s > best.score) best = { ext: e, score: s };
-      }
-      return best;
-    };
+        return dp[m][n];
+      };
+      const sim = (a: string, b: string) => {
+        if (!a || !b) return 0;
+        if (a === b) return 1;
+        const na = norm(a), nb = norm(b);
+        const maxLen = Math.max(na.length, nb.length) || 1;
+        const lev = levenshtein(na, nb);
+        const levScore = 1 - lev / maxLen;
+        const ta = new Set(na.split(" ").filter(Boolean));
+        const tb = new Set(nb.split(" ").filter(Boolean));
+        const inter = [...ta].filter((x) => tb.has(x)).length;
+        const union = new Set([...ta, ...tb]).size || 1;
+        const jac = inter / union;
+        const lastA = a.split(".").pop() || a;
+        const lastB = b.split(".").pop() || b;
+        const lastBoost = lastA.toLowerCase() === lastB.toLowerCase() ? 0.15 : 0;
+        return Math.max(0, Math.min(1, 0.7 * levScore + 0.3 * jac + lastBoost));
+      };
 
-    setMapping(prev =>
-      prev.map(m => {
-        const match = pick(m.local);
-        const conf = Math.round(match.score * 100) / 100;
-        // ไม่ทับค่าที่ผู้ใช้กรอกเอง
-        if (!m.external && conf >= matchThreshold) {
-          return { ...m, external: match.ext, confidence: conf };
+      const pick = (local: string): { ext: string; score: number } => {
+        let best = { ext: "", score: 0 };
+        for (const e of candidates) {
+          const s = Math.max(sim(local, e), sim(local.split(".").pop() || local, e.split(".").pop() || e));
+          if (s > best.score) best = { ext: e, score: s };
         }
-        return { ...m, confidence: conf };
-      })
-    );
-  }, [active.type, resourceKey, preview, externalOptions, matchThreshold, setMapping]);
+        return best;
+      };
 
-  // Auto-run when preview ready
+      // --- update mapping ---
+      setMapping((prev) =>
+        prev.map((m) => {
+          if (m.locked || m.source === "manual") return m; // เคารพค่าที่ผู้ใช้เลือกเอง
+
+          const match = pick(m.local);
+          const conf = Math.round(match.score * 100) / 100;
+
+          // ถ้า force: เขียนทับทุกแถว (ที่ไม่ manual/locked) ตาม threshold ล่าสุด
+          if (opts?.force) {
+            if (conf >= matchThreshold) {
+              return { ...m, external: match.ext, confidence: conf, source: "auto" };
+            }
+            // ต่ำกว่า threshold: เคลียร์ค่า เพื่อให้ผู้ใช้เห็นว่ายังไม่มั่นใจ
+            return { ...m, external: "", confidence: conf, source: "auto" };
+          }
+
+          // เดิม: อัปเดตเฉพาะกรณีคะแนนใหม่ดีกว่าเดิม
+          if (conf >= matchThreshold && conf > (m.confidence ?? 0)) {
+            return { ...m, external: match.ext, confidence: conf, source: "auto" };
+          }
+          // ไม่ถึง threshold หรือไม่ดีกว่าเดิม → อัปเดต confidence เพื่อสะท้อนผลล่าสุด
+          return { ...m, confidence: conf };
+        })
+      );
+
+      setFetchErr?.(null);
+    },
+    [active.type, resourceKey, preview, externalOptions, matchThreshold, isInactive]
+  );
+
+  // Auto-run when preview ready & active
   useEffect(() => {
-    if (preview) runAutoMap();
-  }, [preview, runAutoMap]);
+    if (!isInactive && preview) runAutoMap(); // ครั้งแรกแบบ non-force
+  }, [isInactive, preview, runAutoMap]);
 
+  // Toggle handler
+  const handleToggleActive = (nextOn: boolean) => {
+    const nextStatus: IntegrationStatus = nextOn ? "Active" : "Inactive";
+    setList((prev) => prev.map((i) => (i.id === active.id ? { ...i, status: nextStatus } : i)));
+    if (!nextOn) {
+      setTestStatus("idle");
+      setPreview(null);
+      setFetchErr(null);
+      if (abortRef.current) abortRef.current.abort();
+    }
+  };
+
+  /* ======================== UI ======================== */
   return (
     <div className="mx-auto max-w-7xl p-6 text-white">
       {/* Header */}
@@ -926,17 +625,16 @@ export default function IntegrationsLocked() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left List */}
-        <div className="lg:col-span-1 rounded-xl border border-white/10 bg-white/5">
+        <div className="lg:col-span-1 rounded-xl border border-white/10 bg-white/[0.04]">
           {list.map((item) => {
             const T = PROVIDER_TYPES[item.type];
             const Icon = T.icon;
-            const isActive = item.id === activeId;
+            const isActiveRow = item.id === activeId;
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveId(item.id)}
-                className={`w-full text-left px-4 py-3 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 ${isActive ? "bg-white/10" : ""
-                  }`}
+                className={`w-full text-left px-4 py-3 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 ${isActiveRow ? "bg-white/10" : ""}`}
               >
                 <div className="w-10 h-10 rounded-lg border border-white/10 grid place-items-center">
                   <Icon size={20} className={T.color} />
@@ -945,236 +643,208 @@ export default function IntegrationsLocked() {
                   <div className="font-medium">{item.name}</div>
                   <div className="text-xs text-white/60">{T.name}</div>
                 </div>
-                {item.health !== 'Error' && (
-                  <div className={`text-xs ${toneByHealth(item.health)}`}>
-                    <HealthIcon h={item.health} /> {item.health || "Unknown"}
-                  </div>
-                )}
+                <div className={`text-xs ${toneByHealth(item.health)}`}>
+                  <HealthIcon h={item.health} /> {item.health || "Unknown"}
+                </div>
               </button>
             );
           })}
         </div>
 
         {/* Right Details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Connection Card */}
-          <div className="rounded-xl border border-white/10 p-4 bg-white/5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-lg font-semibold">{active.name}</div>
+        <div className="lg:col-span-2 space-y-8">
+          {/* Section: Connection */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.04] shadow-sm">
+            <header className="flex items-center justify-between p-4 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Cog size={18} className="text-cyan-300" />
+                <h2 className="text-lg font-semibold">{active.name} Connection</h2>
+              </div>
+
               <div className="flex items-center gap-3">
-                {testStatus === "success" ? (
-                  <span className="inline-flex items-center gap-2 text-emerald-400 text-sm">
+                <Toggle
+                  isOn={active.status === "Active"}
+                  onToggle={(on: boolean) => handleToggleActive(on)}
+                />
+                <span className="text-sm text-white/60">Enable</span>
+                {testStatus === "success" && (
+                  <span className="inline-flex items-center gap-1 text-emerald-400 text-sm">
                     <CheckCircle2 size={16} /> Connected
                   </span>
-                ) : (
-                  <button
-                    onClick={testConnection}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={testing}
-                  >
-                    {testing ? "Testing..." : "Test Connection"}
-                  </button>
-                )}
-                {testStatus === "failed" && (
-                  <span className="text-sm font-medium text-rose-400">{testMsg}</span>
                 )}
               </div>
-            </div>
+            </header>
 
-            <div className="grid sm:grid-cols-2 gap-3">
-              {PROVIDER_TYPES[active.type].fields.map((f) => {
-                const value = (active.config?.[f.key] as Primitive) ?? f.default ?? "";
-                const typeAttr = isSecretField(f.key) ? "password" : "text";
-                const labelCls = `block mb-1 text-xs ${isSecretField(f.key) ? "font-semibold text-white/80" : "text-white/70"
-                  }`;
-                return (
-                  <div key={f.key}>
-                    <label className={labelCls}>{f.label}</label>
-                    <input
-                      type={typeAttr}
-                      className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 disabled:opacity-60 disabled:cursor-not-allowed"
-                      placeholder={f.placeholder}
-                      defaultValue={value as string}
-                      disabled={!editing}
-                      onBlur={(e) => editing && saveConfigPatch({ [f.key]: e.target.value })}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Mapping Card */}
-          <div className="rounded-xl border border-white/10 p-4 bg-white/5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <Wand2 size={18} className="text-fuchsia-300" />
-                <h3 className="font-semibold">Field Mapping</h3>
-
-                {/* Endpoint (locked) */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/70">Endpoint</span>
-                  <select
-                    value={resourceKey}
-                    onChange={(e) => setResourceKey(e.target.value)}
-                    className="px-4 pr-10 py-1 rounded bg-white/10 border border-white/15 text-sm"
-                    disabled
-                  >
-                    <option value="maintenance">GET (direct) — Maintenance</option>
-                  </select>
-                  {/* <span className="text-xs text-white/50">
-                    Dir: {currentRes?.defaultDir || "in"}
-                  </span> */}
+            <div className="p-4 space-y-5">
+              {/* Action Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-white/70">Status:</span>
+                  {testStatus === "success" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-400/30 bg-emerald-500/10 text-emerald-300">
+                      <CheckCircle2 size={14} /> Connected
+                    </span>
+                  )}
+                  {testStatus === "failed" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-rose-400/30 bg-rose-500/10 text-rose-300">
+                      <XCircle size={14} /> Failed
+                    </span>
+                  )}
+                  {testStatus === "idle" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-white/15 bg-white/5 text-white/70">
+                      Idle
+                    </span>
+                  )}
                 </div>
 
-                {/* Matching Controls */}
-                {/* <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/70">Threshold</span>
-                  <input
-                    type="range"
-                    min={0.3}
-                    max={0.95}
-                    step={0.05}
-                    value={matchThreshold}
-                    onChange={(e) => setMatchThreshold(parseFloat(e.target.value))}
-                    className="w-32"
-                  />
-                  <span className="text-xs text-white/70 w-8 text-right">
-                    {matchThreshold.toFixed(2)}
-                  </span>
-                </div> */}
+                <button
+                  onClick={testConnection}
+                  disabled={testing || isInactive || !String(active.config?.apiUrl || "").trim()}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  title={isInactive ? "Activate ก่อนจึงจะทดสอบได้" : "Test Connection"}
+                  aria-busy={testing}
+                >
+                  {testing ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      Testing…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} /> Test Connection
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Fields */}
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {PROVIDER_TYPES[active.type].fields.map((f) => {
+                  const value = (active.config?.[f.key] as Primitive) ?? f.default ?? "";
+                  const isUrlField =
+                    f.key.toLowerCase().includes("apiurl") || f.label.toLowerCase().includes("url");
+                  return (
+                    <FieldInput
+                      key={f.key}
+                      id={`fld-${f.key}`}
+                      label={f.label}
+                      placeholder={f.placeholder}
+                      value={String(value ?? "")}
+                      editable={editing}
+                      isSecret={isSecretField(f.key)}
+                      isUrl={isUrlField}
+                      onSave={(v) => saveConfigPatch({ [f.key]: v })}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* Section: Field Mapping */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.04] shadow-sm">
+            <header className="flex items-center justify-between p-4 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Wand2 size={18} className="text-fuchsia-300" />
+                <h2 className="text-semibold text-base">Field Mapping</h2>
               </div>
 
               <div className="flex items-center gap-2">
                 {fetchErr && <span className="text-xs text-rose-300">{fetchErr}</span>}
                 <button
-                  onClick={runAutoMap}
-                  className="px-2 py-1 rounded bg-fuchsia-600/20 border border-fuchsia-400/30 text-sm hover:bg-fuchsia-600/30"
+                  onClick={() => runAutoMap({ force: true })}
+                  disabled={isInactive || !preview}
+                  className="px-2 py-1 rounded bg-fuchsia-600/20 border border-fuchsia-400/30 text-sm hover:bg-fuchsia-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isInactive ? "Activate ก่อน" : (!preview ? "ยังไม่มี Preview" : "Auto-match (re-run)")}
                 >
                   Auto-match
                 </button>
-                {/* <button
-                  onClick={doFetchPreview}
-                  className="px-2 py-1 rounded bg-white/10 border border-white/15 text-sm hover:bg-white/20 disabled:opacity-60"
-                  disabled={fetching}
-                  title="ดึงตัวอย่าง response จาก API URL ที่ตั้งไว้"
-                >
-                  {fetching ? "Fetching..." : "Fetch Preview"}
-                </button> */}
               </div>
-            </div>
+            </header>
 
-            <div className="overflow-auto">
+            {/* Mapping Table */}
+            <div className="overflow-auto max-h-[400px]">
               <table className="w-full text-sm border-collapse min-w-[720px]">
                 <thead>
-                  <tr className="text-left border-b border-white/10">
-                    <th className="py-2 pr-3">Local Field</th>
-                    <th className="py-2 pr-3">External Field</th>
-                    {/* <th className="py-2 pr-3">Direction</th> */}
-                    {/* <th className="py-2 pr-3">Confidence</th>
-                    <th className="py-2 pr-3">Sample</th> */}
-                    {/* <th className="py-2 pr-3"></th> */}
+                  <tr className="bg-white/10 text-left border-b border-white/10">
+                    <th className="py-2 px-3 w-1/2">Local Field</th>
+                    <th className="py-2 px-3">External Field</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mapping.map((row) => {
-                    const low = (row.confidence ?? 0) < matchThreshold || !row.external;
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`border-b border-white/5 ${low ? "bg-rose-500/5" : ""}`}
-                      >
-                        <td className="py-2 pr-3 font-mono">{row.local}</td>
-                        <td className="py-2 pr-3">
-                          <select
-                            className={`w-full px-2 py-1 rounded border ${low
-                              ? "border-rose-400/50 bg-rose-500/10"
-                              // ? "border-white/15 bg-white/10"
-                              : "border-white/15 bg-white/10"
-                              }`}
-                            value={row.external}
-                            onChange={(e) =>
-                              setMapping((prev) =>
-                                prev.map((m) =>
-                                  m.id === row.id ? { ...m, external: e.target.value } : m
+                  {!fetching &&
+                    mapping.map((row) => {
+                      const noData = isInactive || !preview;
+                      const isEmpty = !row.external;
+                      const isSelectMode = !noData && isEmpty;
+                      const hasValue = !!row.external;
+
+                      return (
+                        <tr
+                          key={row.id}
+                          className={`border-b border-white/5 transition ${hasValue
+                            ? "hover:bg-white/[0.03]"
+                            : isSelectMode
+                              ? "hover:bg-amber-500/10"
+                              : "hover:bg-white/[0.03]"
+                            }`}
+                        >
+                          <td className="py-2 px-3 font-mono text-xs text-white/90">{row.local}</td>
+                          <td className="py-2 px-3">
+                            <select
+                              className={`w-full px-2 py-1 rounded border text-sm transition
+                                ${noData
+                                  ? "bg-white/[0.05] border-white/10 text-white/40"
+                                  : isEmpty
+                                    ? "bg-amber-500/10 border-amber-400/30 text-amber-300"
+                                    : "bg-white/10 border-white/15"
+                                }`}
+                              value={row.external ?? ""}
+                              disabled={noData}
+                              onChange={(e) =>
+                                setMapping((prev) =>
+                                  prev.map((m) =>
+                                    m.id === row.id
+                                      ? { ...m, external: e.target.value, source: "manual" }
+                                      : m
+                                  )
                                 )
-                              )
-                            }
-                          >
-                            <option value="">— Select from preview —</option>
-                            {externalOptions.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
+                              }
+                            >
+                              <option value="">
+                                {noData ? "No data" : "— Select —"}
                               </option>
-                            ))}
-                          </select>
-                        </td>
-                        {/* <td className="py-2 pr-3"> */}
-                        {/* <td className="py-2">
-                          <select
-                            className="px-6 py-1 rounded bg-white/10 border border-white/15"
-                            value={row.dir}
-                            onChange={(e) =>
-                              setMapping((prev) =>
-                                prev.map((m) =>
-                                  m.id === row.id
-                                    ? { ...m, dir: e.target.value as "in" | "out" | "bi" }
-                                    : m
-                                )
-                              )
-                            }
-                          >
-                            <option value="in">in</option>
-                            <option value="out">out</option>
-                            <option value="bi">bi</option>
-                          </select>
-                        </td> */}
-                        {/* <td className={`py-2 pr-3 ${low ? "text-rose-300 font-medium" : ""}`}>
-                          {row.confidence?.toFixed(2) ?? "-"}
-                        </td> 
-                        <td className="py-2 pr-3 text-xs text-white/70">
-                          {row.external
-                            ? (() => {
-                                const v = getByPath(preview ?? {}, row.external);
-                                return v === undefined ? "—" : JSON.stringify(v);
-                              })()
-                            : "—"}
-                        </td>*/}
-                        {/* <td className="py-2 pr-3 text-right">
-                          <button
-                            onClick={() =>
-                              setMapping((prev) => prev.filter((m) => m.id !== row.id))
-                            }
-                            className="p-1 rounded hover:bg-white/10"
-                            title="Remove row"
-                          >
-                            <Trash2 size={16} className="text-rose-300" />
-                          </button>
-                        </td> */}
-                      </tr>
-                    );
-                  })}
+                              {externalOptions.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {fetching && (
+                    <tr>
+                      <td colSpan={2} className="py-6 text-center text-white/60">
+                        Fetching sample...
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          {/* Live Maintenance Prototype */}
-          {/* {active.type === "CMMS" && resourceKey === "maintenance" && (
-            <MaintenancePreview
-              raw={preview || getResourcesFor("CMMS").maintenance.exampleResponse}
-              onRefresh={doFetchPreview}
-            />
-          )} */}
-
-          {/* Docs */}
-          <DocsPanel
-            type={active.type}
+          {/* Section: Docs with Tabs (Live/Sample) */}
+          <DocsTabsSection
+            active={active}
             resourceKey={resourceKey}
-            baseUrl={String(active.config?.apiUrl || "http://localhost:4000/api/maintenance")}
             preview={preview}
-            onSelectResource={setResourceKey}
-            disabled={!editing}
           />
         </div>
       </div>
@@ -1182,43 +852,175 @@ export default function IntegrationsLocked() {
   );
 }
 
-/* ======================== Docs Panel ======================== */
+/* ======================== FieldInput (standalone component) ======================== */
 
-function DocsPanel({
-  type,
-  resourceKey,
-  baseUrl,
-  preview,
-  onSelectResource,
-  disabled,
+function FieldInput({
+  id,
+  label,
+  placeholder,
+  value,
+  editable,
+  isSecret,
+  isUrl,
+  onSave,
 }: {
-  type: ProviderType;
-  resourceKey: string;
-  baseUrl: string;
-  preview: unknown;
-  onSelectResource: (key: string) => void;
-  disabled: boolean;
+  id: string;
+  label: string;
+  placeholder?: string;
+  value: string;
+  editable: boolean;
+  isSecret: boolean;
+  isUrl: boolean;
+  onSave: (v: string) => void;
 }) {
-  const provider = PROVIDER_TYPES[type];
-  const resSpec = getResourcesFor(type)[resourceKey];
-  const response: unknown =
-    preview && resSpec?.method === "GET" ? preview : resSpec?.exampleResponse ?? {};
+  const [local, setLocal] = useState<string>(value ?? "");
+  const [show, setShow] = useState<boolean>(false);
+  const missing = isUrl && !String(local || "").trim();
+
+  useEffect(() => {
+    setLocal(value ?? "");
+  }, [value]);
+
+  const typeAttr: React.HTMLInputTypeAttribute = isSecret && !show ? "password" : "text";
 
   return (
-    <div className="rounded-xl border border-white/10 p-4 bg-white/5">
-      <div className="flex items-center gap-2 mb-3">
-        <BookOpen className="text-sky-300" size={18} />
-        <h3 className="font-semibold">Docs – {provider.name}</h3>
+    <div className="group">
+      <label htmlFor={id} className="block mb-1 text-xs font-semibold text-white/70">
+        {label}
+      </label>
+
+      <div className="relative">
+        <input
+          id={id}
+          type={typeAttr}
+          inputMode={isUrl ? "url" : undefined}
+          className={[
+            "w-full px-3 py-2 rounded-lg bg-white/10 border focus:outline-none",
+            "focus:ring-2 focus:ring-cyan-500/40 disabled:opacity-60 disabled:cursor-not-allowed",
+            missing ? "border-rose-400/40" : "border-white/15",
+          ].join(" ")}
+          placeholder={placeholder}
+          value={local}
+          disabled={!editable}
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={() => editable && onSave(local)}
+          aria-invalid={missing || undefined}
+          aria-describedby={isUrl ? `${id}-hint` : undefined}
+        />
+
+        {isSecret && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-100/80 hover:text-white"
+            aria-label="Toggle password visibility"
+          >
+            {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        )}
       </div>
-      <p className="text-white/80 text-sm mb-3">{provider.docs.overview}</p>
-      <div className="text-sm mb-2 font-medium">Response (sample)</div>
-      <pre className="max-h-60 overflow-auto bg-black/40 border border-white/10 rounded p-2 text-xs whitespace-pre">
-        {JSON.stringify(response ?? {}, null, 2)}
-      </pre>
-      <div className="text-sm mt-4 mb-2 font-medium">Review Result:</div>
-      <pre className="max-h-60 overflow-auto bg-black/40 border border-white/10 rounded p-2 text-xs whitespace-pre">
-        {JSON.stringify(preview ?? {}, null, 2)}
-      </pre>
     </div>
+  );
+}
+
+/* ======================== Docs: Tabs + Panel ======================== */
+function JsonBlock({ value, maxH = 240 }: { value: unknown; maxH?: number }) {
+  return (
+    <pre
+      className="overflow-auto bg-black/40 border border-white/10 rounded p-2 text-xs whitespace-pre"
+      style={{ maxHeight: maxH }}
+    >
+      {JSON.stringify(value ?? {}, null, 2)}
+    </pre>
+  );
+}
+
+function DocsPanelCore({
+  response,
+}: {
+  type: ProviderType;
+  baseUrl: string;
+  response: unknown;
+  lastPreview: unknown;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <JsonBlock value={response} maxH={260} />
+      </div>
+    </div>
+  );
+}
+
+function DocsTabsSection({
+  active,
+  resourceKey,
+  preview,
+}: {
+  active: IntegrationItem;
+  resourceKey: string;
+  preview: unknown;
+}) {
+  const resSpec = getResourcesFor(active.type);
+  const sample =
+    resSpec?.[resourceKey]?.exampleResponse ||
+    getResourcesFor("CMMS")?.maintenance?.exampleResponse ||
+    {};
+  const hasLive = !!preview;
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-white/[0.04] shadow-sm overflow-hidden">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+        <div className="flex items-center gap-2">
+          <BookOpen size={18} className="text-amber-300" />
+          <h2 className="text-semibold text-base">Integration Docs</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasLive ? (
+            <span className="inline-flex items-center gap-1 text-emerald-400 text-xs">
+              <CheckCircle2 size={14} /> Live Connected
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-amber-300 text-xs">
+              <AlertTriangle size={14} /> Showing Sample Only
+            </span>
+          )}
+        </div>
+      </header>
+
+      <div className="p-4 space-y-6">
+        {/* Live Preview Section */}
+        {hasLive && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-emerald-400 font-medium text-sm">
+                Live Preview
+              </span>
+            </div>
+            <DocsPanelCore
+              type={active.type}
+              baseUrl={String(active.config?.apiUrl || "http://localhost:4000/api/maintenance")}
+              response={preview}
+              lastPreview={preview}
+            />
+          </div>
+        )}
+
+        {/* Sample Data Section */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-amber-300 font-medium text-sm">
+              Sample Data
+            </span>
+          </div>
+          <DocsPanelCore
+            type={active.type}
+            baseUrl={String(active.config?.apiUrl || "http://localhost:4000/api/maintenance")}
+            response={sample}
+            lastPreview={preview}
+          />
+        </div>
+      </div>
+    </section>
   );
 }

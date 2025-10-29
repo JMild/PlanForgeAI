@@ -552,7 +552,7 @@ const UserManagement = () => {
       />
 
       {/* Users List */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         {loading ? (
           <div className="glass-card h-48 grid place-items-center text-white/70">Loading users…</div>
         ) : filteredUsers.length === 0 ? (

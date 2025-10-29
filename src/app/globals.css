@@ -110,6 +110,23 @@
          focus:ring-2 focus:ring-sky-500/50 focus:border-transparent;
 }
 
+.glass-input:disabled,
+.glass-input[disabled] {
+  @apply bg-white/10 text-white/60 cursor-not-allowed;
+  appearance: none; 
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+select.glass-input:disabled {
+  @apply bg-white/15 text-white/80 cursor-not-allowed;
+  appearance: none; 
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-color:rgb(255 255 255 / 0.35);
+}
+
+
 .glass-modal {
   @apply bg-white/10 backdrop-blur-lg border border-white/15 
          rounded-lg shadow-xl;

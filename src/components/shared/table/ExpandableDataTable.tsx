@@ -39,6 +39,7 @@ export function ExpandableDataTable<T extends object>({
   };
 
   return (
+    // max-w-7xl mx-auto 
     <div className="rounded-xl border border-white/15 bg-white/10 backdrop-blur">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Cpu, BarChart3, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import GlassCard from "@/src/components/shared/card/GlassCard";
-
+ 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("demo@example.com");
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
+ 
   const handleLogin = () => {
     setError("");
     setIsLoading(true);
@@ -22,14 +22,14 @@ export default function LoginPage() {
       setIsLoading(false);
     }, 900);
   };
-
+ 
   useEffect(() => {
     const html = document.documentElement, body = document.body;
     const prevHtml = html.style.overflow, prevBody = body.style.overflow;
     html.style.overflow = "hidden"; body.style.overflow = "hidden";
     return () => { html.style.overflow = prevHtml; body.style.overflow = prevBody; };
   }, []);
-
+ 
   return (
     <div className="relative min-h-screen flex text-white">
       {/* ========== KEYFRAMES ========== */}
@@ -41,7 +41,7 @@ export default function LoginPage() {
         @keyframes glowPulse { 0%,100%{box-shadow:0 0 0 0 rgba(56, 189, 248, .25)} 50%{box-shadow:0 0 0 8px rgba(56, 189, 248, .08)} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
       `}</style>
-
+ 
       {/* ====== BACKGROUND (Teal/Azure HUD) ====== */}
       <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_75%_35%,rgba(0,229,255,.18),transparent_60%),radial-gradient(900px_500px_at_15%_65%,rgba(20,184,166,.18),transparent_60%)]" />
       <div className="absolute inset-0 bg-gradient-to-br from-[#03151c] via-[#0b2733] to-[#010b11]" />
@@ -58,35 +58,48 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -top-24 -left-16 h-80 w-80 rounded-full bg-cyan-400/30 blur-3xl" style={{ animation: "floatSlow 12s ease-in-out infinite" }} />
       <div className="pointer-events-none absolute bottom-10 -right-10 h-96 w-96 rounded-full bg-teal-400/25 blur-3xl" style={{ animation: "floatSlow 14s ease-in-out -2s infinite" }} />
       <div className="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-sky-400/25 blur-3xl" style={{ animation: "float 10s ease-in-out -1s infinite" }} />
-
+ 
       {/* ====== LEFT: BRAND / FEATURES ====== */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative z-10">
         <div>
           <div className="flex items-center gap-3 mb-8" style={{ animation: "fadeUp .6s ease-out both" }}>
-            <div className="h-12 w-12 rounded-xl grid place-items-center bg-cyan-400/10 border border-cyan-300/30 text-cyan-300">
+            <div
+              className="h-[60px] w-[60px] bg-cyan-300"
+              style={{
+                WebkitMaskImage: "url(/PlanForge_Logo-02.png)",
+                WebkitMaskRepeat: "no-repeat",
+                WebkitMaskSize: "contain",
+                WebkitMaskPosition: "center",
+                maskImage: "url(/PlanForge_Logo-02.png)",
+                maskRepeat: "no-repeat",
+                maskSize: "contain",
+                maskPosition: "center",
+              }}
+            />
+            {/* <div className="h-12 w-12 rounded-xl grid place-items-center bg-cyan-400/10 border border-cyan-300/30 text-cyan-300">
               <svg viewBox="0 0 24 24" className="h-8 w-8">
                 <path
                   d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"
                   className="fill-current"
                 />
               </svg>
-            </div>
+            </div> */}
             <div>
               <h1 className="text-2xl font-bold">PlanForge <span className="text-cyan-300">AI</span></h1>
               <p className="text-sm text-cyan-200/80">Efficient Production Planning</p>
             </div>
           </div>
-
+ 
           <div className="space-y-8 mt-16">
             <h2 className="text-5xl font-extrabold leading-tight tracking-tight" style={{ animation: "fadeUp .7s ease-out .05s both" }}>
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-cyan-200/80">AI-Powered</span><br />
               <span className="text-white">Simulator</span>
             </h2>
-
+ 
             <p className="text-lg text-cyan-100/90 max-w-md" style={{ animation: "fadeUp .7s ease-out .1s both" }}>
               Optimize schedules with real-time insights and intelligent routing constraints.
             </p>
-
+ 
             <div className="space-y-4 mt-10">
               {[
                 { icon: Cpu, title: "AI Scheduling", desc: "Heuristics + GA for on-time & utilization" },
@@ -110,23 +123,40 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-
+ 
       {/* ====== RIGHT: GLASS CARD ====== */}
       <div className="flex-1 flex items-center justify-center p-6 relative z-10">
         <div className="w-full max-w-md">
           {/* mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8" style={{ animation: "fadeUp .5s ease-out both" }}>
-            <div className="h-9 w-9 rounded-xl grid place-items-center bg-cyan-400/10 border border-cyan-300/30 text-cyan-300">
-              <svg viewBox="0 0 24 24" className="h-7 w-7">
-                <path
-                  d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"
-                  className="fill-current"
-                />
-              </svg>
+            <div
+              className="h-[50px] w-[50px] bg-cyan-300"
+              style={{
+                WebkitMaskImage: "url(/PlanForge_Logo-02.png)",
+                WebkitMaskRepeat: "no-repeat",
+                WebkitMaskSize: "contain",
+                WebkitMaskPosition: "center",
+                maskImage: "url(/PlanForge_Logo-02.png)",
+                maskRepeat: "no-repeat",
+                maskSize: "contain",
+                maskPosition: "center",
+              }}
+            />
+ 
+            {/* <div className="h-9 w-9 rounded-xl grid place-items-center bg-cyan-400/10 border border-cyan-300/30 text-cyan-300">
+          <svg viewBox="0 0 24 24" className="h-7 w-7">
+            <path
+              d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"
+              className="fill-current"
+            />
+          </svg>
+        </div> */}
+            <div>
+              <h1 className="text-xl font-bold">PlanForge <span className="text-cyan-300">AI</span></h1>
+              <p className="text-sm text-cyan-200/80">Efficient Production Planning</p>
             </div>
-            <h1 className="text-xl font-bold">PlanForge <span className="text-cyan-300">AI</span></h1>
           </div>
-
+ 
           <GlassCard title="Welcome Back" subtitle="Sign in to your account to continue">
             {/* error */}
             {error && (
@@ -135,7 +165,7 @@ export default function LoginPage() {
                 <span>{error}</span>
               </div>
             )}
-
+ 
             {/* form */}
             <div className="space-y-4">
               <div style={{ animation: "staggerIn .45s ease-out .02s both" }}>
@@ -153,7 +183,7 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
-
+ 
               <div style={{ animation: "staggerIn .45s ease-out .08s both" }}>
                 <label className="block text-sm font-medium text-cyan-100/90 mb-2">Password</label>
                 <div className="relative">
@@ -177,7 +207,7 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-
+ 
               <div className="flex items-center justify-between" style={{ animation: "staggerIn .45s ease-out .14s both" }}>
                 <label className="flex items-center gap-2 text-sm text-cyan-100/90 cursor-pointer">
                   <input
@@ -192,7 +222,7 @@ export default function LoginPage() {
                   Forgot password?
                 </button>
               </div>
-
+ 
               {/* primary button */}
               <button
                 onClick={handleLogin}
@@ -217,7 +247,7 @@ export default function LoginPage() {
                   )}
                 </span>
               </button>
-
+ 
               {/* demo */}
               <div className="mt-4 p-3 rounded-lg border border-cyan-300/25 bg-white/5 text-xs text-cyan-100/90" style={{ animation: "fadeUp .45s ease-out .22s both" }}>
                 <p className="font-semibold mb-1">Demo Credentials:</p>
@@ -225,7 +255,7 @@ export default function LoginPage() {
                 <p>Password: demo123</p>
               </div>
             </div>
-
+ 
             <div className="mt-6 text-center" style={{ animation: "fadeUp .45s ease-out .26s both" }}>
               <p className="text-sm text-cyan-100/90">
                 Don&apos;t have an account?{" "}
@@ -233,7 +263,7 @@ export default function LoginPage() {
               </p>
             </div>
           </GlassCard>
-
+ 
           {/* footer */}
           <div className="mt-6 text-center space-y-2" style={{ animation: "fadeUp .5s ease-out .25s both" }}>
             <div className="flex items-center justify-center gap-4 text-sm text-cyan-100/80">
@@ -247,6 +277,7 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
+ 

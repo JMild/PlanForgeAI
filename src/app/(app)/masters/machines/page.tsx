@@ -349,18 +349,18 @@ const MachinesMasterData = () => {
         </div>
       ),
     },
-    {
-      key: "oee",
-      label: "OEE",
-      render: (m: MachineRow) => (
-        <div className="flex items-center gap-1 text-sm">
-          <Zap size={14} className="text-white/50" />
-          <span className={getOEEColor(m.currentOEE, m.oeeTarget)}>
-            {m.currentOEE || 0}% (Target: {m.oeeTarget}%)
-          </span>
-        </div>
-      ),
-    },
+    // {
+    //   key: "oee",
+    //   label: "OEE",
+    //   render: (m: MachineRow) => (
+    //     <div className="flex items-center gap-1 text-sm">
+    //       <Zap size={14} className="text-white/50" />
+    //       <span className={getOEEColor(m.currentOEE, m.oeeTarget)}>
+    //         {m.currentOEE || 0}% (Target: {m.oeeTarget}%)
+    //       </span>
+    //     </div>
+    //   ),
+    // },
     {
       key: "status",
       label: "Status",
@@ -636,7 +636,7 @@ const MachinesMasterData = () => {
       />
 
       {/* Machines List */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <ExpandableDataTable
           columns={machineColumns}
           data={filteredMachines}

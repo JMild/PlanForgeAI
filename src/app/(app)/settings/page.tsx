@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Save, RefreshCw, 
+import {
+  Save, RefreshCw,
   // Building, 
-  Globe, Sliders, Bell, Database, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+  Globe, Sliders, Bell, Database, Shield, CheckCircle, AlertCircle
+} from 'lucide-react';
 import PageHeader from '@/src/components/layout/PageHeader';
+import Toggle from '@/src/components/shared/button/Toggle';
 
 // Types
 // type CompanySettings = {
@@ -70,7 +73,7 @@ type NotificationSettings = {
 
 
 const SettingsPage = () => {
-  const [activeSection, setActiveSection] = useState<string>('system');
+  const [activeSection, setActiveSection] = useState<string>('notifications');
   const [hasChanges, setHasChanges] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const granularityOptions: PlanningGranularity[] = ['Minute', 'Hour', 'Shift', 'Day'];
@@ -126,12 +129,12 @@ const SettingsPage = () => {
 
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     emailEnabled: true,
-    emailRecipients: ['planner@acme-mfg.com', 'supervisor@acme-mfg.com'],
+    emailRecipients: ['supawadee.chans@gmail.com'],
     notifyOnPlanComplete: true,
     notifyOnConflicts: true,
     notifyOnLateOrders: true,
     notifyOnMaintenance: true,
-    notifyOnLowInventory: false,
+    notifyOnLowInventory: true,
   });
 
   const handleSave = async () => {
@@ -168,28 +171,64 @@ const SettingsPage = () => {
     // { id: 'integrations', name: 'Integrations', icon: Key },
   ];
 
-  const handleSendTestEmail = async () => {
+  const handleSendTestEmail = async (key: string) => {
     try {
-      // edit เรียก API ฝั่ง backend ที่ส่งอีเมล
-      const res = await fetch('/api/test-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: notificationSettings.emailRecipients,
-        }),
-      });
+      let bodyData: any = null;
 
-      if (res.ok) {
-        alert('Test email sent!');
-      } else {
-        alert('Failed to send test email');
+      if (key === 'onLowStock') {
+        bodyData = {
+          event_type: "low_stock",
+          material_name: "อลูมิเนียม แผ่น 3mm",
+          current_stock: 18,
+          reorder_point: 25,
+          note: "ถึงจุดสั่งซื้อซ้ำ",
+          href: `${process.env.NEXT_PUBLIC_WEB_PORT}/inventory`,
+          email: notificationSettings.emailRecipients, 
+        };
+      } else if (key === 'onLate') {
+        bodyData = {
+          event_type: "new_order",
+          order_id: "ORD-1010",
+          order_status: "new",
+          production_load: 72,
+          critical_material_missing: true,
+          note: "เร่งด่วน",
+          href: `${process.env.NEXT_PUBLIC_WEB_PORT}/orders/ORD-1010`,
+          email: notificationSettings.emailRecipients, 
+        };
       }
+
+      console.log('bodyData', bodyData)
+      if (!bodyData) {
+        alert('Invalid test key');
+        return;
+      }
+
+      // ถ้า email เป็น array, loop ส่งทีละอัน
+      const emails = Array.isArray(bodyData.email) ? bodyData.email : [bodyData.email];
+
+      for (const e of emails) {
+        const payload = { ...bodyData, email: e }; // แทนค่า email ด้วย string เดียว
+        const res = await fetch(`${process.env.NEXT_PUBLIC_N8N_BASE}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          console.log(`✅ Test email sent to ${e}`);
+        } else {
+          console.error(`❌ Failed to send test email to ${e}`);
+        }
+      }
+
+      alert('✅ Test emails sent (check console for details)');
+
     } catch (err) {
       console.error('Send test email error:', err);
-      alert('Error sending test email');
+      alert('⚠️ Error sending test email');
     }
   };
-
 
   return (
     <div className="text-white">
@@ -240,7 +279,7 @@ const SettingsPage = () => {
 
       {/* Save Status */}
       {saveStatus === 'success' && (
-        <div className="max-w-7xl mx-auto px-4 pt-4">
+        <div className="px-4 pt-4">
           <div className="rounded-lg p-3 flex items-center gap-2
                       bg-emerald-500/10 border border-emerald-400/30 text-emerald-200">
             <CheckCircle className="w-5 h-5" />
@@ -250,7 +289,7 @@ const SettingsPage = () => {
       )}
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <div className="flex gap-6">
           {/* Sidebar Navigation */}
           <div className="w-64 flex-shrink-0">
@@ -706,61 +745,95 @@ const SettingsPage = () => {
                     </div>
 
                     <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.emailEnabled}
-                        onChange={(e) => {
-                          setNotificationSettings({
-                            ...notificationSettings,
-                            emailEnabled: e.target.checked,
-                          });
-                          markChanged();
-                        }}
-                        className="w-4 h-4 accent-cyan-500"
+                      <Toggle
+                        isOn={notificationSettings.emailEnabled}
+                        onToggle={
+                          (on: boolean) => {
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              emailEnabled: on,
+                            });
+                            markChanged();
+                          }}
                       />
                       <span className="text-sm text-white/80">Enable</span>
                     </label>
                   </div>
 
                   {notificationSettings.emailEnabled && (
-                    <>
+                    <div className="space-y-6">
                       <div>
-                        <label className="block text-sm text-white/80 mb-1">Recipients (comma separated)</label>
+                        <label
+                          htmlFor="emailRecipients"
+                          className="block text-sm font-medium text-white/90 mb-2"
+                        >
+                          {/* Recipients <span className="text-white/60">(comma separated)</span> */}
+                          Recipients
+                        </label>
                         <input
+                          id="emailRecipients"
                           type="text"
+                          placeholder="example1@mail.com, example2@mail.com"
                           value={notificationSettings.emailRecipients.join(', ')}
-                          onChange={(e) => { setNotificationSettings({ ...notificationSettings, emailRecipients: e.target.value.split(',').map(x => x.trim()) }); markChanged(); }}
-                          className="w-full px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20"
+                          onChange={(e) => {
+                            setNotificationSettings({
+                              ...notificationSettings,
+                              emailRecipients: e.target.value.split(',').map((x) => x.trim()),
+                            });
+                            markChanged();
+                          }}
+                          className="w-full px-4 py-3 rounded-lg bg-white/10 text-white border border-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 placeholder:text-white/50 transition"
                         />
-
+                        <p className="mt-2 text-xs text-white/60">
+                          Separate multiple emails with commas.
+                        </p>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+
+                      {/* Notification Toggles */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {[
-                          { key: 'notifyOnLateOrders', label: 'On Late Orders' },
-                          { key: 'notifyOnLowInventory', label: 'On Low Inventory' },
+                          { key: "onLowStock", label: "On Low Stock", desc: "Notify when materials reach reorder point." },
+                          { key: "onLate", label: "On Late Orders", desc: "Alert when orders are delayed." },
                         ].map((n) => (
-                          <label key={n.key} className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={notificationSettings[n.key as keyof NotificationSettings] as boolean}
-                              onChange={(e) => { setNotificationSettings({ ...notificationSettings, [n.key]: e.target.checked }); markChanged(); }}
-                              className="w-4 h-4 accent-cyan-500"
-                            />
-                            <span className="text-sm text-white/80">{n.label}</span>
-                            {/* <div className="pt-2">
+                          <div
+                            key={n.key}
+                            className="flex flex-col justify-between rounded-lg bg-white/10 p-4 border border-white/10 hover:bg-white/15 transition"
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={
+                                  notificationSettings[n.key as keyof NotificationSettings] as boolean
+                                }
+                                onChange={(e) => {
+                                  setNotificationSettings({
+                                    ...notificationSettings,
+                                    [n.key]: e.target.checked,
+                                  });
+                                  markChanged();
+                                }}
+                                className="mt-1 w-5 h-5 accent-cyan-500"
+                              />
+                              <div>
+                                <span className="block text-sm font-medium text-white/90">
+                                  {n.label}
+                                </span>
+                                <span className="block text-xs text-white/60">{n.desc}</span>
+                              </div>
+                            </div>
+                            <div className="mt-4 flex justify-end">
                               <button
-                                onClick={handleSendTestEmail}
-                                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm"
+                                onClick={() => handleSendTestEmail(n.key)}
+                                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md text-sm transition"
                               >
                                 Send Test Email
                               </button>
-                            </div> */}
-                          </label>
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
-
                 </div>
               )}
             </div>
@@ -773,3 +846,4 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+

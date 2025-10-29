@@ -1,0 +1,29 @@
+.toggle {
+  width: 45px;              /* 30 × 1.5 */
+  height: 25.5px;           /* 17 × 1.5 */
+  background-color: #ccc;
+  border-radius: 25.5px;    /* ให้โค้งกลมพอดี */
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.slider {
+  position: absolute;
+  top: 2.25px;              /* 1.5 × 1.5 */
+  left: 2.25px;             /* 1.5 × 1.5 */
+  width: 21px;              /* 14 × 1.5 */
+  height: 21px;             /* 14 × 1.5 */
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+
+/* เมื่อเปิด */
+.toggle.on {
+  background-color: #2196f3;
+}
+
+.toggle.on .slider {
+  transform: translateX(19.5px); /* 13 × 1.5 */
+}

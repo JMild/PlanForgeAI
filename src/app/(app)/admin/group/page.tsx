@@ -582,7 +582,7 @@ const RoleManagement: React.FC = () => {
         }
       />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="px-4 py-6">
         <DataTable columns={roleColumns as any} data={filteredRoles} rowKey={(r: Role) => r.role_id} isLoading={loading} />
       </div>
 
